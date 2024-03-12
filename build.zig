@@ -6,12 +6,12 @@ pub fn build(b: *std.Build) void {
 
     const instr_mod = b.addModule(
         "instr",
-        .{ .root_source_file = .{ .path = "src/instr/module.zig" } },
+        .{ .source_file = .{ .path = "src/instr/module.zig" } },
     );
 
     const assembler_mod = b.addModule(
         "assembler",
-        .{ .root_source_file = .{ .path = "src/asm/module.zig" } },
+        .{ .source_file = .{ .path = "src/asm/module.zig" } },
     );
 
     const assembler = b.addExecutable(.{
@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
 
     const vm_mod = b.addModule(
         "vm",
-        .{ .root_source_file = .{ .path = "src/vm/module.zig" } },
+        .{ .source_file = .{ .path = "src/vm/module.zig" } },
     );
 
     const vm = b.addExecutable(.{
@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) void {
 
     const compiler_mod = b.addModule(
         "compiler",
-        .{ .root_source_file = .{ .path = "src/compiler/module.zig" } },
+        .{ .source_file = .{ .path = "src/compiler/module.zig" } },
     );
 
     const compiler = b.addExecutable(.{
