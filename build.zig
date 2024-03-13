@@ -45,20 +45,21 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    b.installArtifact(assembler);
-    b.installArtifact(vm);
-    b.installArtifact(compiler);
-
     // Subprojects can depend on modules like so:
-    // assembler.root_module.addImport("instr", instr_mod);
+    //assembler.root_module.addImport("instr", instr_mod);
+    assembler.addModule("instr", instr_mod);
     // ...and exposed objects are used like so:
     // const Instruction = @import("instr").Instruction;
+
     _ = .{
-        instr_mod,
         assembler_mod,
         vm_mod,
         compiler_mod,
     };
+
+    b.installArtifact(assembler);
+    b.installArtifact(vm);
+    b.installArtifact(compiler);
 
     // TODO: Add tests
 }
