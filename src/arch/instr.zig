@@ -10,33 +10,39 @@ pub const Instruction = enum(u8) {
     mod, // [a, b] -> [a % b] TODO: decide how to handle modulo/remainder
 
     // 1 if true, 0 if false
-    cmp_lt, // [a, b] -> [a < b]
-    cmp_gt, // [a, b] -> [a > b]
-    cmp_le, // [a, b] -> [a <= b]
-    cmp_ge, // [a, b] -> [a <= b]
-    cmp_eq, // [a, b] -> [a == b]
-    cmp_ne, // [a, b] -> [a != b]
+    cmp_lt, // [a, b] -> [res] where res = a < b
+    cmp_gt, // [a, b] -> [res] where res = a > b
+    cmp_le, // [a, b] -> [res] where res = a <= b
+    cmp_ge, // [a, b] -> [res] where res = a <= b
+    cmp_eq, // [a, b] -> [res] where res = a == b
+    cmp_ne, // [a, b] -> [res] where res = a != b
 
-    jmp,
-    jmpnz, // [a] -> []
+    jmp, // OP offset [] -> [] ontrol flow jumps offset instructions
+    jmpnz, // OP offset [a] -> [] control flow jumps offset instructions
 
-    push,
-    pop,
+    push, // OP value [] -> [value]
+    pop, // [a] -> []
     dup, // [a] -> [a, a]
 
-    load, // OP i,  [] -> [value] where value = stack[OBP + i]
-    store, // OP i,  [value] -> [] sets stack[OBP] = value
+    load, // OP i [] -> [value] where value = stack[OBP + i]
+    store, // OP i [value] -> [] sets stack[OBP + i] = value
 
-    call,
-    ret,
+    call, // [param 0, ..., param N - 1,  f] -> [param 0, ..., param N - 1, ret, OBP, N, local 0, ... local M - 1, M]
+    // execution continues at function f
+    // ret is return address
+    // params indexed by PARAM_ID + OBP - (M + N + 3)
+    // locals indexed by LOCAL_ID + OBP - (M + 1)
+    // TODO: complete this
+    ret, // [param 1, ..., param N, ret, OBP, N, local 1, ... local M, M] -> []
+    // execution continues at ret
 
     struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
-    struct_drop, // [s] -> []
+    struct_drop, // [s] -> [] tells memory manager this struct isnt being referred to from this scope anymore
     struct_load, // [s, f] -> [s, v] where v = s.f
     struct_store, // [s, f] -> [r]
 
     list_alloc, // [] -> [l] where l is a reference to the newly allocated list
-    list_drop,
+    list_drop, // [s] -> [] tells memory manager this list isnt being referred to from this scope anymore
     list_load, // [l, i] -> [l, v] where v = l[i]
     list_store, // [l, i, v] -> [l] sets l[i] = v
 
