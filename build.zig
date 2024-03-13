@@ -4,9 +4,9 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const instr_mod = b.addModule(
-        "instr",
-        .{ .source_file = .{ .path = "src/instr/module.zig" } },
+    const arch_mod = b.addModule(
+        "arch",
+        .{ .source_file = .{ .path = "src/arch/module.zig" } },
     );
 
     const assembler_mod = b.addModule(
@@ -46,10 +46,10 @@ pub fn build(b: *std.Build) void {
     });
 
     // Subprojects can depend on modules like so:
-    //assembler.root_module.addImport("instr", instr_mod);
-    assembler.addModule("instr", instr_mod);
+    //assembler.root_module.addImport("arch", arch_mod);
+    assembler.addModule("arch", arch_mod);
     // ...and exposed objects are used like so:
-    // const Instruction = @import("instr").Instruction;
+    // const Instruction = @import("arch").Instruction;
 
     _ = .{
         assembler_mod,
