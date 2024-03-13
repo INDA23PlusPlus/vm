@@ -49,6 +49,8 @@ pub fn print(self: Self, writer: anytype) !void {
     for (0..self.offset) |_| {
         try writer.writeByte(' ');
     }
-    try writer.writeByte('^');
+    for (0..self.string.len) |_| {
+        try writer.writeByte('~');
+    }
     try writer.writeByte('\n');
 }
