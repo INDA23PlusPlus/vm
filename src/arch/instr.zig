@@ -17,15 +17,15 @@ pub const Instruction = enum(u8) {
     cmp_eq, // [a, b] -> [res] where res = a == b
     cmp_ne, // [a, b] -> [res] where res = a != b
 
-    jmp, // OP offset [] -> [] ontrol flow jumps offset instructions
-    jmpnz, // OP offset [a] -> [] control flow jumps offset instructions
+    jmp, // OP .destination [] -> [] control flow continues at .destination
+    jmpnz, // OP .destination [a] -> [] control flow continues at .destination if a != 0
 
-    push, // OP value [] -> [value]
+    push, // OP %value [] -> [value]
     pop, // [a] -> []
     dup, // [a] -> [a, a]
 
-    load, // OP i [] -> [value] where value = stack[OBP + i]
-    store, // OP i [value] -> [] sets stack[OBP + i] = value
+    load, // OP %i [] -> [value] where value = stack[OBP + i]
+    store, // OP %i [value] -> [] sets stack[OBP + i] = value
 
     call, // [param 0, ..., param N - 1,  f] -> [param 0, ..., param N - 1, ret, OBP, N, local 0, ... local M - 1, M]
     // execution continues at function f
@@ -42,11 +42,11 @@ pub const Instruction = enum(u8) {
     struct_store, // [s, f] -> [r]
 
     list_alloc, // [] -> [l] where l is a reference to the newly allocated list
-    list_drop, // [s] -> [] tells memory manager this list isnt being referred to from this scope anymore
+    list_drop, // [l] -> [] tells memory manager this list isnt being referred to from this scope anymore
     list_load, // [l, i] -> [l, v] where v = l[i]
     list_store, // [l, i, v] -> [l] sets l[i] = v
 
-    /// Returns wether an operand is to be expected following this instruction
+    /// Returns whether an operand is to be expected following this instruction
     pub fn hasOperand(self: Instruction) bool {
         const arr = comptime blk: {
             // add instructions with operands here
