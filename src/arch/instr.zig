@@ -52,9 +52,9 @@ pub const Instruction = enum(u8) {
             // add instructions with operands here
             const instrs = [_]Instruction{
                 // zig fmt off
-                .jmp,       .jmpnz,      .push,         .load,
-                .store,     .call,       .ret,          .list_alloc,
-                .list_load, .list_store, .struct_alloc, .struct_load,
+                .jmp,        .jmpnz,        .push,        .load,
+                .store,      .call,         .list_alloc,  .list_load,
+                .list_store, .struct_alloc, .struct_load,
                 .struct_store,
                 // zig fmt on
             };
