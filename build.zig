@@ -46,10 +46,9 @@ pub fn build(b: *std.Build) void {
     });
 
     // Subprojects can depend on modules like so:
-    //assembler.root_module.addImport("arch", arch_mod);
     assembler.addModule("arch", arch_mod);
     // ...and exposed objects are used like so:
-    // const Instruction = @import("arch").Instruction;
+    // const Instruction = @import("arch").instr.Instruction;
 
     _ = .{
         assembler_mod,
