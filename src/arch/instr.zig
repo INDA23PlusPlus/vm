@@ -2,32 +2,43 @@ const std = @import("std");
 
 pub const Instruction = enum(u8) {
     // TODO: explicit opcodes
-    add,
-    sub,
-    mul,
-    div,
-    mod,
-    cmp_lt,
-    cmp_gt,
-    cmp_le,
-    cmp_ge,
-    cmp_eq,
-    cmp_ne,
+
+    add, // [a, b] -> [a + b]
+    sub, // [a, b] -> [a - b]
+    mul, // [a, b] -> [a * b]
+    div, // [a, b] -> [a / b] (rounds toward zero)
+    mod, // [a, b] -> [a % b] TODO: decide how to handle modulo/remainder
+
+    // 1 if true, 0 if false
+    cmp_lt, // [a, b] -> [a < b]
+    cmp_gt, // [a, b] -> [a > b]
+    cmp_le, // [a, b] -> [a <= b]
+    cmp_ge, // [a, b] -> [a <= b]
+    cmp_eq, // [a, b] -> [a == b]
+    cmp_ne, // [a, b] -> [a != b]
+
     jmp,
-    jmpnz,
+    jmpnz, // [a] -> []
+
     push,
     pop,
-    load,
-    store,
+    dup, // [a] -> [a, a]
+
+    load, // OP i,  [] -> [value] where value = stack[OBP + i]
+    store, // OP i,  [value] -> [] sets stack[OBP] = value
+
     call,
     ret,
-    struct_alloc,
-    struct_load,
-    struct_store,
-    list_alloc,
+
+    struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
+    struct_drop, // [s] -> []
+    struct_load, // [s, f] -> [s, v] where v = s.f
+    struct_store, // [s, f] -> [r]
+
+    list_alloc, // [] -> [l] where l is a reference to the newly allocated list
     list_drop,
-    list_load,
-    list_store,
+    list_load, // [l, i] -> [l, v] where v = l[i]
+    list_store, // [l, i, v] -> [l] sets l[i] = v
 
     /// Returns wether an operand is to be expected following this instruction
     pub fn hasOperand(self: Instruction) bool {
