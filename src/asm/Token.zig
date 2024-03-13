@@ -58,9 +58,9 @@ pub const Scanner = struct {
     }
 
     /// Returns the next token without advancing
-    pub fn peek(self: *Scanner) ?Token {
+    pub fn peek(self: *Scanner) !?Token {
         if (self.peeked == null) {
-            self.peeked = self.next();
+            self.peeked = try self.next();
         }
         return self.peeked;
     }
