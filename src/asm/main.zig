@@ -3,9 +3,8 @@
 //!
 
 const std = @import("std");
-const Token = @import("Token.zig");
 const Error = @import("Error.zig");
-const SourceRef = @import("SourceRef.zig");
+const Asm = @import("Asm.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -16,6 +15,7 @@ pub fn main() !void {
     defer args.deinit();
     _ = args.skip();
 
+    // Default is stdin/stdout
     var input: std.fs.File.Reader = std.io.getStdIn().reader();
     var output: std.fs.File.Writer = std.io.getStdOut().writer();
 
@@ -47,21 +47,13 @@ pub fn main() !void {
     var errors = std.ArrayList(Error).init(allocator);
     defer errors.deinit();
 
-    var scanner: Token.Scanner = .{ .source = source, .errors = &errors };
-
-    while (try scanner.next()) |token| {
-        std.debug.print("{s}: {s}", .{ @tagName(token.tag), token.where });
-        if (token.tag == .instr) {
-            std.debug.print(" ({s}), has operand: {s}\n", .{
-                @tagName(token.tag.instr),
-                if (token.tag.instr.hasOperand()) "yes" else "no",
-            });
-        } else {
-            std.debug.print("\n", .{});
-        }
-    }
+    var assembler = Asm.init(source, &errors, allocator);
+    defer assembler.deinit();
+    assembler.parse() catch {};
 
     for (errors.items) |err| {
-        try err.print(source, output);
+        try err.print(source, std.io.getStdErr().writer());
     }
+
+    try output.writeAll(assembler.code.items);
 }
