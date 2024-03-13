@@ -24,8 +24,14 @@ tag: enum {
     unresolved_label,
     /// (Assembler) Referenced function is not declared in this module.
     unresolved_function,
+    /// (Assembler) Duplicate label
+    duplicate_label,
+    /// (Assembler) Duplicate function
+    duplicate_function,
     /// Unexpected token in input stream
     unexpected_token,
+    /// Unexpected end of input stream
+    unexpected_eof,
 },
 /// Location in source
 where: []const u8,
