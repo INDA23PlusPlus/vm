@@ -4,8 +4,8 @@
 const std = @import("std");
 
 /// ILEB128 encoding
-pub fn encodeILEB128(writer: anytype, value: i64) void {
-    std.leb.writeILEB128(writer, value);
+pub fn encodeILEB128(writer: anytype, value: i64) !void {
+    try std.leb.writeILEB128(writer, value);
 }
 
 /// ILEB128 decoding
