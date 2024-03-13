@@ -21,12 +21,13 @@ pub fn init(source: []const u8, substr: []const u8) !Self {
     if (substr_loc < 0 or substr_loc > source.len) return error.OutOfBounds;
 
     while (location < substr_loc) {
-        location += 1;
         if (source[location] == '\n') {
             line_num += 1;
+            location += 1;
             line_begin = location;
             continue;
         }
+        location += 1;
     }
 
     const offset = location - line_begin;
