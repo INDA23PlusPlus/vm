@@ -65,6 +65,21 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(assembler);
     b.installArtifact(vm);
     b.installArtifact(compiler);
-
-    // TODO: Add tests
+    
+    const test_step = b.step("test", "Run unit tests");
+    for ([_][]const u8{
+        "src/arch/module.zig",
+        "src/asm/module.zig",
+        "src/compiler/module.zig",
+        "src/memory_manager/module.zig",
+        "src/vm/module.zig",
+    }) |file| {
+        const unit_tests = b.addTest(.{
+            .root_source_file = .{ .path = file },
+            .target = target,
+            .optimize = .Debug,
+        });
+        const run_unit_tests = b.addRunArtifact(unit_tests);
+        test_step.dependOn(&run_unit_tests.step);
+    }
 }
