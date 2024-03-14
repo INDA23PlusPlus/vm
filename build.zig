@@ -52,6 +52,7 @@ pub fn build(b: *std.Build) void {
 
     // Subprojects can depend on modules like so:
     assembler.addModule("arch", arch_mod);
+    vm.addModule("arch", arch_mod);
     // ...and exposed objects are used like so:
     // const Instruction = @import("arch").instr.Instruction;
 
@@ -65,13 +66,14 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(assembler);
     b.installArtifact(vm);
     b.installArtifact(compiler);
-    
+
     const test_step = b.step("test", "Run unit tests");
     for ([_][]const u8{
         "src/arch/module.zig",
         "src/asm/module.zig",
         "src/compiler/module.zig",
         "src/memory_manager/module.zig",
+        "src/memory_manager/RefCount.zig",
         "src/vm/module.zig",
     }) |file| {
         const unit_tests = b.addTest(.{
