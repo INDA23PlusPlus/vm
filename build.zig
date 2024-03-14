@@ -45,6 +45,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const memory_manager_mod = b.addModule(
+        "memory_manager",
+        .{ .source_file = .{ .path = "src/memory_manager/module.zig" } },
+    );
+
     // Subprojects can depend on modules like so:
     assembler.addModule("arch", arch_mod);
     // ...and exposed objects are used like so:
@@ -54,6 +59,7 @@ pub fn build(b: *std.Build) void {
         assembler_mod,
         vm_mod,
         compiler_mod,
+        memory_manager_mod,
     };
 
     b.installArtifact(assembler);
