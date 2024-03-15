@@ -51,8 +51,11 @@ pub fn main() !void {
     defer assembler.deinit();
     assembler.parse() catch {};
 
-    for (errors.items) |err| {
-        try err.print(source, std.io.getStdErr().writer());
+    if (errors.items.len > 0) {
+        for (errors.items) |err| {
+            try err.print(source, std.io.getStdErr().writer());
+        }
+        std.os.exit(1);
     }
 
     try output.writeAll(assembler.code.items);
