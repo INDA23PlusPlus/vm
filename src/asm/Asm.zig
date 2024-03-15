@@ -13,6 +13,7 @@ scanner: Token.Scanner,
 errors: *std.ArrayList(Error),
 fn_patcher: AddressPatcher,
 lbl_patcher: AddressPatcher,
+entry: ?u64,
 
 pub fn init(source: []const u8, errors: *std.ArrayList(Error), allocator: std.mem.Allocator) Self {
     var self: Self = .{
@@ -21,6 +22,7 @@ pub fn init(source: []const u8, errors: *std.ArrayList(Error), allocator: std.me
         .errors = errors,
         .fn_patcher = AddressPatcher.init(allocator),
         .lbl_patcher = AddressPatcher.init(allocator),
+        .entry = null,
     };
     return self;
 }
@@ -41,6 +43,14 @@ pub fn parse(self: *Self) !void {
         try self.errors.append(.{
             .tag = .unresolved_function,
             .where = fname,
+        });
+    }
+
+    if (self.entry == null) {
+        try self.errors.append(.{
+            .tag = .no_main,
+            .where = null,
+            .extra = "no 'main' function",
         });
     }
 }
@@ -179,6 +189,9 @@ fn initFunction(self: *Self, name: Token, num_params: i64, num_locals: i64) !voi
             return e;
         }
     };
+    if (std.mem.eql(u8, name.where, "main")) {
+        self.entry = address;
+    }
     _ = .{ num_params, num_locals }; // TODO
 }
 
