@@ -1,5 +1,5 @@
 const std = @import("std");
-// TODO: maybe we don't need SeqCst for all the operations?
+const builtin = @import("builtin");
 const Self = @This();
 count: u32,
 
@@ -13,64 +13,46 @@ pub fn deinit(self: *Self) void {
 
 // returns old value
 pub fn increment(self: *Self) u32 {
-    return @atomicRmw(u32, &self.count, .Add, 1, .SeqCst);
+    return @atomicRmw(u32, &self.count, .Add, 1, .Monotonic);
 }
 
 // returns old value
 pub fn decrement(self: *Self) u32 {
-
-    // TODO: relax these memory orders a bit
-    const LoadOrder = .SeqCst; // this can probably be .Unordered
-    const SuccessOrder = .SeqCst; // this can probably be .Monotonic
-    const FailOrder = .SeqCst; // this can probably be .Monotonic
-
-    var res: u32 = @atomicLoad(u32, &self.count, LoadOrder);
-    // if res is zero we cant decrement, so load again
-    // if the compare exchange failed try again, but since someone changed the value
-    while (true) {
-        if (res == 0) { // cant decrement below zero
-            res = @atomicLoad(u32, &self.count, LoadOrder);
-            std.Thread.yield() catch {}; // if this errors, it doesnt really matter anyways
-        } else if (@cmpxchgWeak(u32, &self.count, res, res - 1, SuccessOrder, FailOrder)) |e| { // if the compare
-            res = e;
-        } else {
-            return res;
-        }
+    const res = @atomicRmw(u32, &self.count, .Sub, 1, .Monotonic);
+    if (builtin.mode == .Debug and res == 0) {
+        std.debug.panic("decremented zero refcount", .{});
     }
+    return res;
 }
 
 pub fn get(self: *const Self) u32 {
-    return @atomicLoad(u32, &self.count, .SeqCst);
+    return @atomicLoad(u32, &self.count, .Monotonic);
 }
 
 test "increment/decrement" {
     var cnt: Self = init();
     defer cnt.deinit();
 
-    const incr = struct {
-        fn incr(counter: *Self, amount: usize) void {
+    const incr_decr = struct {
+        fn incr_decr(counter: *Self, amount: usize) void {
             for (0..amount) |_| {
                 _ = counter.increment();
                 std.Thread.yield() catch unreachable;
-            }
-        }
-    }.incr;
-
-    const decr = struct {
-        fn decr(counter: *Self, amount: usize) void {
-            for (0..amount) |_| {
                 _ = counter.decrement();
-                std.Thread.yield() catch unreachable;
             }
         }
-    }.decr;
+    }.incr_decr;
 
     // just do a bunch of increments and decrements
-    var t2 = try std.Thread.spawn(.{ .allocator = std.testing.allocator }, decr, .{ &cnt, 10000 });
-    var t1 = try std.Thread.spawn(.{ .allocator = std.testing.allocator }, incr, .{ &cnt, 10000 });
 
-    t1.join();
-    t2.join();
+    var threads: [1000]std.Thread = undefined;
+
+    for (0..1000) |i| {
+        threads[i] = try std.Thread.spawn(.{}, incr_decr, .{ &cnt, 1000 });
+    }
+    for (0..1000) |i| {
+        threads[i].join();
+    }
 
     try std.testing.expectEqual(@as(u32, 1), cnt.get());
 }
