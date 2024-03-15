@@ -28,23 +28,33 @@ tag: enum {
     duplicate_label,
     /// (Assembler) Duplicate function
     duplicate_function,
+    /// No main function
+    no_main,
     /// Unexpected token in input stream
     unexpected_token,
     /// Unexpected end of input stream
     unexpected_eof,
 },
 /// Location in source
-where: []const u8,
+where: ?[]const u8,
 /// Optional error info
 extra: ?[]const u8 = null,
 
 /// Prints error with source location
 pub fn print(self: Self, source: []const u8, writer: anytype) !void {
-    const ref = try SourceRef.init(source, self.where);
-    try writer.print("Error on line {d}: {s}", .{ ref.line_num, @tagName(self.tag) });
+    var ref: SourceRef = undefined;
+    if (self.where) |where| {
+        ref = try SourceRef.init(source, where);
+        try writer.print("Error on line {d}: {s}", .{ ref.line_num, @tagName(self.tag) });
+    } else {
+        try writer.print("Error: {s}", .{@tagName(self.tag)});
+    }
+
     if (self.extra) |extra| {
         try writer.print(": {s}", .{extra});
     }
     try writer.print(".\n", .{});
-    try ref.print(writer);
+    if (self.where) |_| {
+        try ref.print(writer);
+    }
 }
