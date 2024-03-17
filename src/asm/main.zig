@@ -58,5 +58,5 @@ pub fn main() !void {
         std.os.exit(1);
     }
 
-    try output.writeAll(assembler.code.items);
+    try assembler.emit(output);
 }

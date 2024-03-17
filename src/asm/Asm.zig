@@ -55,6 +55,11 @@ pub fn parse(self: *Self) !void {
     }
 }
 
+pub fn emit(self: *Self, writer: anytype) !void {
+    // TODO: header
+    try writer.writeAll(self.code.items);
+}
+
 fn function(self: *Self) !void {
     _ = try self.expectKeyword(.function);
 
