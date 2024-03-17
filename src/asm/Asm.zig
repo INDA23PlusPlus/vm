@@ -6,6 +6,7 @@ const std = @import("std");
 const Token = @import("Token.zig");
 const Error = @import("Error.zig");
 const int = @import("arch").int;
+const instr = @import("arch").instr;
 const AddressPatcher = @import("AddressPatcher.zig");
 
 code: std.ArrayList(u8),
@@ -194,7 +195,7 @@ fn initFunction(self: *Self, name: Token, num_params: i64, num_locals: i64) !voi
             return e;
         }
     };
-    if (std.mem.eql(u8, name.where, "main")) {
+    if (std.mem.eql(u8, name.where, instr.entry_name)) {
         self.entry = address;
     }
     _ = .{ num_params, num_locals }; // TODO

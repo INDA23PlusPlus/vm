@@ -73,3 +73,5 @@ pub const prefix = struct {
     pub const label = '.';
     pub const literal = '%';
 };
+
+pub const entry_name = "main";
