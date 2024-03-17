@@ -1,3 +1,7 @@
+//!
+//! Simple reference counting for keeping track of which Objects and Lists are accessible from the stack
+//!
+
 const std = @import("std");
 const builtin = @import("builtin");
 const Self = @This();

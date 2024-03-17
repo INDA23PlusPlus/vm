@@ -1,3 +1,7 @@
+//!
+//! Internal types for memory manager
+//!
+
 const RefCount = @import("RefCount.zig");
 
 pub const List = struct {

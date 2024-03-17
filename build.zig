@@ -26,6 +26,11 @@ pub fn build(b: *std.Build) void {
         .{ .source_file = .{ .path = "src/vm/module.zig" } },
     );
 
+    const memory_manager_mod = b.addModule(
+        "memory_manager",
+        .{ .source_file = .{ .path = "src/memory_manager/module.zig" } },
+    );
+
     const vm = b.addExecutable(.{
         .name = "vm",
         .root_source_file = .{ .path = "src/vm/main.zig" },
@@ -45,13 +50,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const memory_manager_mod = b.addModule(
-        "memory_manager",
-        .{ .source_file = .{ .path = "src/memory_manager/module.zig" } },
-    );
-
     // Subprojects can depend on modules like so:
     assembler.addModule("arch", arch_mod);
+    vm.addModule("memory_manager", memory_manager_mod);
     vm.addModule("arch", arch_mod);
     // ...and exposed objects are used like so:
     // const Instruction = @import("arch").instr.Instruction;
@@ -75,12 +76,19 @@ pub fn build(b: *std.Build) void {
         "src/memory_manager/module.zig",
         "src/memory_manager/RefCount.zig",
         "src/vm/module.zig",
+        "src/vm/types.zig",
     }) |file| {
         const unit_tests = b.addTest(.{
             .root_source_file = .{ .path = file },
             .target = target,
             .optimize = .Debug,
         });
+
+        // TODO: kind of a bad way of doing this, maybe we should separate out all the different that have dependencies on other modules?
+        unit_tests.addModule("asm", assembler_mod);
+        unit_tests.addModule("arch", arch_mod);
+        unit_tests.addModule("memory_manager", memory_manager_mod);
+
         const run_unit_tests = b.addRunArtifact(unit_tests);
         test_step.dependOn(&run_unit_tests.step);
     }
