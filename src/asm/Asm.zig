@@ -66,10 +66,10 @@ fn function(self: *Self) !void {
     const name = try self.expectTag(.string);
 
     _ = try self.expectKeyword(.params);
-    const num_params = (try self.expectTag(.{ .immed = undefined })).tag.immed;
+    const num_params = (try self.expectTag(.immed)).tag.immed;
 
     _ = try self.expectKeyword(.locals);
-    const num_locals = (try self.expectTag(.{ .immed = undefined })).tag.immed;
+    const num_locals = (try self.expectTag(.immed)).tag.immed;
 
     _ = try self.expectKeyword(.begin);
     try self.initFunction(name, num_params, num_locals);
@@ -116,7 +116,7 @@ fn statement(self: *Self) !void {
                         try self.lbl_patcher.patch(lname, patch, self.code.items);
                     },
                     else => {
-                        const immed = (try self.expectTag(.{ .immed = undefined })).tag.immed;
+                        const immed = (try self.expectTag(.immed)).tag.immed;
                         try int.encodeILEB128(self.code.writer(), immed);
                     },
                 }
@@ -157,9 +157,9 @@ fn expectSomething(self: *Self) !Token {
     return token.?;
 }
 
-fn expectTag(self: *Self, comptime expected: Token.Tag) !Token {
+fn expectTag(self: *Self, comptime expected: std.meta.Tag(Token.Tag)) !Token {
     const token = try self.expectSomething();
-    if (@intFromEnum(token.tag) != @intFromEnum(expected)) {
+    if (token.tag != expected) {
         try self.errors.append(.{
             .tag = .unexpected_token,
             .where = token.where,
