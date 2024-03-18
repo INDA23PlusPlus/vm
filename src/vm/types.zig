@@ -38,31 +38,28 @@ pub const Type = union(enum) {
     pub fn from(x: anytype) Self {
         const T = @TypeOf(x);
 
-        if (T == UnitType) {
-            return .{ .unit = x };
-        }
+        if (T == ListRef) return .{ .list = x };
+        if (T == UnitType) return .{ .unit = x };
+        if (T == ObjectRef) return .{ .object = x };
 
         return switch (@typeInfo(T)) {
             .Int, .ComptimeInt => .{ .int = @intCast(x) },
 
             .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
 
-            else => if (T == ObjectRef)
-                .{ .object = x }
-            else if (T == ListRef)
-                .{ .list = x }
-            else
-                @compileError(std.fmt.comptimePrint(
-                    "'{s}' not an int, float, Object, or List\n",
-                    .{@typeName(T)},
-                )),
+            else => @compileError(std.fmt.comptimePrint(
+                "'{s}' not an int, float, Object, or List\n",
+                .{@typeName(T)},
+            )),
         };
     }
+
+    /// returns whether the active member of `self` is of type `T`
     pub fn is(self: *const Self, comptime T: Tag) bool {
         return @as(Tag, self.*) == T;
     }
 
-    ///
+    /// returns the active member of `self` if it is of type `T`, else `null`
     pub fn as(self: *const Self, comptime T: Tag) ?GetRepr(T) {
         return if (self.is(T)) self.asUnChecked(T) else null;
     }
@@ -70,8 +67,12 @@ pub const Type = union(enum) {
     /// UB if `!self.is(T)`
     pub fn asUnChecked(self: *const Self, comptime T: Tag) GetRepr(T) {
         // check anyway if in debug mode
-        if (builtin.mode == .Debug and !self.is(T))
-            std.debug.panic("was supposed to be {s} but was {s}", .{ @tagName(T), @tagName(self.*) });
+        if (builtin.mode == .Debug and !self.is(T)) {
+            std.debug.panic("was supposed to be {s} but was {s}", .{
+                @tagName(T),
+                @tagName(self.*),
+            });
+        }
 
         // kinda horrible but what can you do
         return switch (self.*) {
