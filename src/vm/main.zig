@@ -1,6 +1,15 @@
 const std = @import("std");
-const types = @import("types.zig");
+const Interpreter = @import("Interpreter.zig");
+const VMInstruction = @import("VMInstruction.zig");
 
-pub fn main() void {
-    std.debug.print("Hello from VM! {}\n", .{types.R});
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    try Interpreter.run(
+        &.{
+            VMInstruction.push(0),
+            VMInstruction.pop(),
+        },
+        gpa.allocator(),
+    );
+    // std.debug.print("Hello from VM!\n", .{});
 }
