@@ -46,6 +46,7 @@ pub fn parse(self: *Self) !void {
             .tag = .unresolved_function,
             .where = fname,
         });
+        had_unres = true;
     }
 
     if (had_unres) {
@@ -215,6 +216,7 @@ fn endFunction(self: *Self) !void {
             .tag = .unresolved_label,
             .where = lbl,
         });
+        had_unres = true;
     }
 
     self.lbl_patcher.reset();
@@ -224,7 +226,7 @@ fn endFunction(self: *Self) !void {
     }
 }
 
-test {
+test "parsing" {
     const source =
         \\
         \\-function "main"
@@ -269,4 +271,180 @@ test {
 
     try assembler.parse();
     try std.testing.expect(errors.items.len == 0);
+}
+
+test "unresolved label" {
+    const source =
+        \\
+        \\-function "main"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\jmp .label
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.UnresolvedLabel, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .unresolved_label);
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "label"));
+}
+
+test "unresolved function" {
+    const source =
+        \\
+        \\-function "main"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\call "func"
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.UnresolvedFunction, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .unresolved_function);
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "func"));
+}
+
+test "no main" {
+    const source =
+        \\
+        \\-function "func"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.NoMain, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .no_main);
+}
+
+test "duplicate label" {
+    const source =
+        \\
+        \\-function "main"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\.label
+        \\.label
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.DuplicateLabel, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .duplicate_label);
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "label"));
+}
+
+test "duplicate function" {
+    const source =
+        \\
+        \\-function "func"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\-end
+        \\
+        \\-function "func"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.DuplicateFunction, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .duplicate_function);
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "func"));
+}
+
+test "unexpected token" {
+    const source =
+        \\
+        \\-function "main"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\-function
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.UnexpectedToken, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .unexpected_token);
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "function"));
+}
+
+test "unexpected eof" {
+    const source =
+        \\
+        \\-function "main"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try std.testing.expectError(error.UnexpectedEOF, assembler.parse());
+
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(errors.items[0].tag == .unexpected_eof);
 }
