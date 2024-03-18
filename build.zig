@@ -74,9 +74,7 @@ pub fn build(b: *std.Build) void {
         "src/asm/module.zig",
         "src/compiler/module.zig",
         "src/memory_manager/module.zig",
-        "src/memory_manager/RefCount.zig",
         "src/vm/module.zig",
-        "src/vm/types.zig",
     }) |file| {
         const unit_tests = b.addTest(.{
             .root_source_file = .{ .path = file },
