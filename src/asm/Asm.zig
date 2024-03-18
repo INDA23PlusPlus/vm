@@ -211,3 +211,50 @@ fn endFunction(self: *Self) !void {
     }
     self.lbl_patcher.reset();
 }
+
+test {
+    const source =
+        \\
+        \\-function "main"
+        \\-params %0
+        \\-locals %0
+        \\-begin
+        \\    push %10
+        \\    call "Fibonacci"
+        \\    ret
+        \\-end
+        \\
+        \\-function "Fibonacci"
+        \\-params %1
+        \\-locals %0
+        \\-begin
+        \\    load %0
+        \\    push %2
+        \\    cmp_lt
+        \\    jmpnz .rec
+        \\    load %0
+        \\    ret
+        \\.rec
+        \\    load %0
+        \\    push %1
+        \\    sub
+        \\    call "Fibonacci"
+        \\    load %0
+        \\    push %2
+        \\    sub
+        \\    call "Fibonacci"
+        \\    add
+        \\    ret
+        \\-end
+        \\
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Self.init(source, &errors, std.testing.allocator);
+    defer assembler.deinit();
+
+    try assembler.parse();
+    try std.testing.expect(errors.items.len == 0);
+}
