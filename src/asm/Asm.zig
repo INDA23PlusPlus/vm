@@ -40,11 +40,16 @@ pub fn parse(self: *Self) !void {
     }
 
     var unres = self.fn_patcher.unresolvedIterator();
+    var had_unres = false;
     while (unres.next()) |fname| {
         try self.errors.append(.{
             .tag = .unresolved_function,
             .where = fname,
         });
+    }
+
+    if (had_unres) {
+        return error.UnresolvedFunction;
     }
 
     if (self.entry == null) {
@@ -53,6 +58,7 @@ pub fn parse(self: *Self) !void {
             .where = null,
             .extra = "no 'main' function",
         });
+        return error.NoMain;
     }
 }
 
@@ -84,7 +90,7 @@ fn function(self: *Self) !void {
                     .where = token.where,
                     .extra = "unexpected keyword in function body",
                 });
-                return error.ParseError;
+                return error.UnexpectedToken;
             },
         },
         else => {
@@ -131,7 +137,7 @@ fn statement(self: *Self) !void {
                         .tag = .duplicate_label,
                         .where = lname,
                     });
-                    return e;
+                    return error.DuplicateLabel;
                 }
             };
         },
@@ -141,7 +147,7 @@ fn statement(self: *Self) !void {
                 .where = token.where,
                 .extra = "expected instruction or label",
             });
-            return error.ParseError;
+            return error.UnexpectedToken;
         },
     }
 }
@@ -153,7 +159,7 @@ fn expectSomething(self: *Self) !Token {
             .tag = .unexpected_eof,
             .where = self.scanner.source[self.scanner.source.len - 1 ..],
         });
-        return error.ParseError;
+        return error.UnexpectedEOF;
     }
     return token.?;
 }
@@ -166,7 +172,7 @@ fn expectTag(self: *Self, comptime expected: std.meta.Tag(Token.Tag)) !Token {
             .where = token.where,
             .extra = "expected `" ++ @tagName(expected) ++ "` token",
         });
-        return error.ParseError;
+        return error.UnexpectedToken;
     }
     return token;
 }
@@ -179,7 +185,7 @@ fn expectKeyword(self: *Self, comptime expected: Token.Keyword) !Token {
             .where = token.where,
             .extra = "expected `" ++ @tagName(expected) ++ "` keyword",
         });
-        return error.ParseError;
+        return error.UnexpectedToken;
     }
     return token;
 }
@@ -192,7 +198,7 @@ fn initFunction(self: *Self, name: Token, num_params: i64, num_locals: i64) !voi
                 .tag = .duplicate_function,
                 .where = name.where,
             });
-            return e;
+            return error.DuplicateFunction;
         }
     };
     if (std.mem.eql(u8, name.where, instr.entry_name)) {
@@ -203,13 +209,19 @@ fn initFunction(self: *Self, name: Token, num_params: i64, num_locals: i64) !voi
 
 fn endFunction(self: *Self) !void {
     var unres = self.lbl_patcher.unresolvedIterator();
+    var had_unres = false;
     while (unres.next()) |lbl| {
         try self.errors.append(.{
             .tag = .unresolved_label,
             .where = lbl,
         });
     }
+
     self.lbl_patcher.reset();
+
+    if (had_unres) {
+        return error.UnresolvedLabel;
+    }
 }
 
 test {
