@@ -8,7 +8,7 @@ pub fn main() !void {
         &.{
             VMInstruction.push(2),
             VMInstruction.push(1),
-            VMInstruction.sub(),
+            VMInstruction.greater(),
         },
         gpa.allocator(),
         true,

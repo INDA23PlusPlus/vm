@@ -67,6 +67,23 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     return error.NonMatchingTypes;
 }
 
+pub fn instructionToString(op: Instruction) []const u8 {
+    return switch (op) {
+        .add => "+",
+        .sub => "-",
+        .mul => "*",
+        .div => "/",
+        .mod => "%",
+        .cmp_lt => "<",
+        .cmp_gt => ">",
+        .cmp_le => "<=",
+        .cmp_ge => ">=",
+        .cmp_eq => "==",
+        .cmp_ne => "!= ",
+        else => @tagName(op),
+    };
+}
+
 pub fn floatValue(x: anytype) f64 {
     return x.as(.float) orelse @floatFromInt(x.as(.int).?);
 }
@@ -101,7 +118,12 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
 
                 const res = try doBinaryOp(b.*, op, a.*);
                 if (debug_output) {
-                    std.debug.print("arithmetic: {d} {s} {d} = {d}\n", .{ floatValue(b), @tagName(op), floatValue(a), floatValue(res) });
+                    if (op.isArithmetic()) {
+                        std.debug.print("arithmetic: {d} {s} {d} = {d}\n", .{ floatValue(b), instructionToString(op), floatValue(a), floatValue(res) });
+                    }
+                    if (op.isComparison()) {
+                        std.debug.print("comparison: {d} {s} {d} = {d}\n", .{ floatValue(b), instructionToString(op), floatValue(a), floatValue(res) });
+                    }
                 }
                 b.* = res;
                 _ = stack.pop();
