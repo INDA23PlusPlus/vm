@@ -49,3 +49,27 @@ pub fn div() Self {
 pub fn mod() Self {
     return .{ .op = .mod, .operand = -1 };
 }
+
+pub fn less() Self {
+    return .{ .op = .cmp_lt, .operand = -1 };
+}
+
+pub fn lessEqual() Self {
+    return .{ .op = .cmp_le, .operand = -1 };
+}
+
+pub fn greater() Self {
+    return .{ .op = .cmp_gt, .operand = -1 };
+}
+
+pub fn greaterEqual() Self {
+    return .{ .op = .cmp_ge, .operand = -1 };
+}
+
+pub fn equal() Self {
+    return .{ .op = .cmp_eq, .operand = -1 };
+}
+
+pub fn notEqual() Self {
+    return .{ .op = .cmp_ne, .operand = -1 };
+}

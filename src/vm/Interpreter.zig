@@ -15,7 +15,7 @@ fn assert(b: bool) !void {
     }
 }
 
-fn applyArithmetic(op: Instruction, comptime T: type, a: T, b: T) T {
+fn doArithmetic(op: Instruction, comptime T: type, a: T, b: T) T {
     return switch (op) {
         .add => a + b,
         .sub => a - b,
@@ -26,16 +26,40 @@ fn applyArithmetic(op: Instruction, comptime T: type, a: T, b: T) T {
     };
 }
 
-fn doArithmetic(a: Type, op: Instruction, b: Type) !Type {
+fn doComparison(op: Instruction, comptime T: type, a: T, b: T) i64 {
+    return switch (op) {
+        .cmp_lt => @intFromBool(a < b),
+        .cmp_gt => @intFromBool(a > b),
+        .cmp_le => @intFromBool(a <= b),
+        .cmp_ge => @intFromBool(a >= b),
+        .cmp_eq => @intFromBool(a == b),
+        .cmp_ne => @intFromBool(a != b),
+        else => unreachable,
+    };
+}
+
+fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     if (a.as(.int)) |ai| {
         if (b.as(.int)) |bi| {
-            return Type.from(applyArithmetic(op, i64, ai, bi));
+            if (op.isArithmetic()) {
+                return Type.from(doArithmetic(op, i64, ai, bi));
+            } else if (op.isComparison()) {
+                return Type.from(doComparison(op, i64, ai, bi));
+            } else {
+                return error.InvalidOperation;
+            }
         }
     }
 
     if (a.as(.float)) |af| {
         if (b.as(.float)) |bf| {
-            return Type.from(applyArithmetic(op, f64, af, bf));
+            if (op.isArithmetic()) {
+                return Type.from(doArithmetic(op, f64, af, bf));
+            } else if (op.isComparison()) {
+                return Type.from(doComparison(op, f64, af, bf));
+            } else {
+                return error.InvalidOperation;
+            }
         }
     }
 
@@ -56,7 +80,18 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
     while (ip < code.len) {
         const i = code[ip];
         switch (i.op) {
-            .add, .sub, .mul, .div, .mod => |op| {
+            .add,
+            .sub,
+            .mul,
+            .div,
+            .mod,
+            .cmp_lt,
+            .cmp_gt,
+            .cmp_le,
+            .cmp_ge,
+            .cmp_eq,
+            .cmp_ne,
+            => |op| {
                 assert(stack.items.len >= 2) catch |e| {
                     std.debug.print("stack contents: {any}\n", .{stack.items});
                     return e;
@@ -64,7 +99,7 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 const a = &stack.items[stack.items.len - 1];
                 const b = &stack.items[stack.items.len - 2];
 
-                const res = try doArithmetic(b.*, op, a.*);
+                const res = try doBinaryOp(b.*, op, a.*);
                 if (debug_output) {
                     std.debug.print("arithmetic: {d} {s} {d} = {d}\n", .{ floatValue(b), @tagName(op), floatValue(a), floatValue(res) });
                 }
@@ -175,6 +210,110 @@ test "arithmetic" {
                 }
             }
         }
+
+        fn testComparisons() !void {
+            for (0..100) |a| {
+                for (a + 1..100) |b| {
+                    const lhs: i64 = @intCast(a);
+                    const rhs: i64 = @intCast(b);
+
+                    try std.testing.expectEqual(@as(i64, 1), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.equal(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+                    try std.testing.expectEqual(@as(i64, 0), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.notEqual(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+
+                    try std.testing.expectEqual(@as(i64, 1), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.greaterEqual(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+                    try std.testing.expectEqual(@as(i64, 1), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.lessEqual(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+
+                    try std.testing.expectEqual(@as(i64, 0), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.notEqual(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+                    try std.testing.expectEqual(@as(i64, 1), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.equal(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+
+                    try std.testing.expectEqual(@as(i64, 1), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(rhs),
+                            VMInstruction.less(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+                    try std.testing.expectEqual(@as(i64, 0), try run(
+                        &.{
+                            VMInstruction.push(rhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.less(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+
+                    try std.testing.expectEqual(@as(i64, 0), try run(
+                        &.{
+                            VMInstruction.push(lhs),
+                            VMInstruction.push(rhs),
+                            VMInstruction.greater(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+                    try std.testing.expectEqual(@as(i64, 1), try run(
+                        &.{
+                            VMInstruction.push(rhs),
+                            VMInstruction.push(lhs),
+                            VMInstruction.greater(),
+                        },
+                        std.testing.allocator,
+                        false,
+                    ));
+                }
+            }
+        }
     };
 
     try util.testArithmetic(.add);
@@ -182,6 +321,8 @@ test "arithmetic" {
     try util.testArithmetic(.mul);
     try util.testArithmetic(.div);
     try util.testArithmetic(.mod);
+
+    try util.testComparisons();
 
     try std.testing.expectEqual(@as(i64, 0), try run(
         &.{
@@ -193,7 +334,7 @@ test "arithmetic" {
         false,
     ));
 
-    // decrement 10 over until its zero
+    // decrement value, starting at 10, until its zero, 10 is not special, any value should work
     try std.testing.expectEqual(@as(i64, 0), try run(
         &.{
             VMInstruction.push(10),

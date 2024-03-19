@@ -46,6 +46,29 @@ pub const Instruction = enum(u8) {
     list_load, // [l, i] -> [l, v] where v = l[i]
     list_store, // [l, i, v] -> [l] sets l[i] = v
 
+    pub fn isArithmetic(self: Instruction) bool {
+        return switch (self) {
+            .add => true,
+            .sub => true,
+            .mul => true,
+            .div => true,
+            .mod => true,
+            else => false,
+        };
+    }
+
+    pub fn isComparison(self: Instruction) bool {
+        return switch (self) {
+            .cmp_lt => true,
+            .cmp_gt => true,
+            .cmp_le => true,
+            .cmp_ge => true,
+            .cmp_eq => true,
+            .cmp_ne => true,
+            else => false,
+        };
+    }
+
     /// Returns whether an operand is to be expected following this instruction
     pub fn hasOperand(self: Instruction) bool {
         const arr = comptime blk: {
