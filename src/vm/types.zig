@@ -55,12 +55,14 @@ pub const Type = union(enum) {
             res.list.incr();
             return res;
         }
-        if (T == UnitType) {
+        if (T == ObjectRef) {
             var res = .{ .object = x };
             res.object.incr();
             return res;
         }
-        if (T == ObjectRef) return .{ .object = x };
+        if (T == UnitType) {
+            return .{ .unit = x };
+        }
 
         return switch (@typeInfo(T)) {
             .Int, .ComptimeInt => .{ .int = @intCast(x) },
