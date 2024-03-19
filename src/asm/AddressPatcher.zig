@@ -7,7 +7,7 @@ const int = @import("arch").int;
 
 /// Holds the address of a symbol / label and a list of references to it
 const Entry = struct {
-    address: ?u64 = null,
+    address: ?usize = null,
     refs: std.ArrayList(usize),
     // TODO: Source reference
 
@@ -76,7 +76,7 @@ pub fn patch(
 pub fn resolve(
     self: *Self,
     name: []const u8,
-    address: u64,
+    address: usize,
     code: []u8,
 ) !void {
     // Create the entry if it does not exist
