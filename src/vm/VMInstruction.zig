@@ -18,6 +18,18 @@ pub fn pop() Self {
     return .{ .op = .pop, .operand = -1 };
 }
 
+pub fn dup() Self {
+    return .{ .op = .dup, .operand = -1 };
+}
+
+pub fn jmp(offset: i64) Self {
+    return .{ .op = .jmp, .operand = offset };
+}
+
+pub fn jmpnz(offset: i64) Self {
+    return .{ .op = .jmpnz, .operand = offset };
+}
+
 pub fn add() Self {
     return .{ .op = .add, .operand = -1 };
 }
