@@ -51,20 +51,13 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
         }
     }
 
-    if (a.as(.float)) |af| {
-        if (b.as(.float)) |bf| {
-            if (op.isArithmetic()) {
-                return Type.from(doArithmetic(op, f64, af, bf));
-            } else if (op.isComparison()) {
-                return Type.from(doComparison(op, f64, af, bf));
-            } else {
-                return error.InvalidOperation;
-            }
-        }
+    if (op.isArithmetic()) {
+        return Type.from(doArithmetic(op, f64, floatValue(a), floatValue(b)));
+    } else if (op.isComparison()) {
+        return Type.from(doComparison(op, f64, floatValue(a), floatValue(b)));
+    } else {
+        return error.InvalidOperation;
     }
-
-    // TODO: should we cast ints to floats or vice versa?
-    return error.NonMatchingTypes;
 }
 
 pub fn instructionToString(op: Instruction) []const u8 {
@@ -137,7 +130,7 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 try stack.append(dup_val);
             },
             .push => {
-                const pushed_val = Type.from(i.operand);
+                const pushed_val = Type.from(i.operand.int);
                 if (debug_output) {
                     std.debug.print("pushed: {}\n", .{pushed_val});
                 }
@@ -152,18 +145,11 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 }
             },
             .jmp => {
-                const offset = i.operand;
+                const loc = i.operand.location;
                 if (debug_output) {
-                    std.debug.print("jumping: {}\n", .{offset});
+                    std.debug.print("jumping to: {}\n", .{loc});
                 }
-
-                if (offset < 0) {
-                    const back_dist = std.math.absCast(offset);
-                    try assert(ip >= back_dist);
-                    ip -= @intCast(back_dist);
-                } else {
-                    ip += @intCast(offset);
-                }
+                ip = loc;
             },
             .jmpnz => {
                 try assert(stack.items.len >= 1);
@@ -171,28 +157,22 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 var popped_val = stack.pop();
                 try assert(popped_val.tag() == .int);
                 if (popped_val.as(.int).? != 0) {
-                    const offset = i.operand;
+                    const loc = i.operand.location;
                     if (debug_output) {
-                        std.debug.print("took branch: {}\n", .{offset});
+                        std.debug.print("took branch to: {}\n", .{loc});
                     }
-                    if (offset < 0) {
-                        const back_dist = std.math.absCast(offset);
-                        try assert(ip >= back_dist); // cant jump before start of program
-                        ip -= @intCast(back_dist);
-                    } else {
-                        ip += @intCast(offset);
-                    }
+                    ip = loc;
                 } else {
-                    const offset = i.operand;
+                    const loc = i.operand.location;
                     if (debug_output) {
-                        std.debug.print("didn't take branch: {}\n", .{offset});
+                        std.debug.print("didn't take branch to: {}\n", .{loc});
                     }
                     ip += 1;
                 }
             },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),
         }
-        if (i.op != .jmp) {
+        if (i.op != .jmp and i.op != .jmpnz) {
             ip += 1;
         }
     }
@@ -224,7 +204,7 @@ test "arithmetic" {
                         &.{
                             VMInstruction.push(lhs),
                             VMInstruction.push(rhs),
-                            VMInstruction{ .op = op, .operand = -1 },
+                            VMInstruction{ .op = op },
                         },
                         std.testing.allocator,
                         false,
@@ -363,7 +343,7 @@ test "arithmetic" {
             VMInstruction.push(1),
             VMInstruction.sub(),
             VMInstruction.dup(),
-            VMInstruction.jmpnz(-4), // jump to push 1
+            VMInstruction.jmpnz(1),
         },
         std.testing.allocator,
         false,
