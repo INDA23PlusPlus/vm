@@ -35,11 +35,31 @@ pub const Type = union(enum) {
     list: ListRef,
     object: ObjectRef,
 
+    pub fn deinit(self: *Self) void {
+        switch (self.tag()) {
+            .list => self.list.decr(),
+            .object => self.object.decr(),
+            else => {},
+        }
+    }
+
+    pub fn tag(self: *const Self) Tag {
+        return @as(Tag, self.*);
+    }
+
     pub fn from(x: anytype) Self {
         const T = @TypeOf(x);
 
-        if (T == ListRef) return .{ .list = x };
-        if (T == UnitType) return .{ .unit = x };
+        if (T == ListRef) {
+            var res = .{ .list = x };
+            res.list.incr();
+            return res;
+        }
+        if (T == UnitType) {
+            var res = .{ .object = x };
+            res.object.incr();
+            return res;
+        }
         if (T == ObjectRef) return .{ .object = x };
 
         return switch (@typeInfo(T)) {
@@ -56,7 +76,7 @@ pub const Type = union(enum) {
 
     /// returns whether the active member of `self` is of type `T`
     pub fn is(self: *const Self, comptime T: Tag) bool {
-        return @as(Tag, self.*) == T;
+        return self.tag() == T;
     }
 
     /// returns the active member of `self` if it is of type `T`, else `null`

@@ -6,7 +6,9 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     try Interpreter.run(
         &.{
-            VMInstruction.push(0),
+            VMInstruction.push(1),
+            VMInstruction.push(2),
+            VMInstruction.sub(),
             VMInstruction.pop(),
         },
         gpa.allocator(),
