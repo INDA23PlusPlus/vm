@@ -226,6 +226,8 @@ fn endFunction(self: *Self) !void {
     }
 }
 
+const ErrorTag = @TypeOf(@as(Error, undefined).tag);
+
 test "parsing" {
     const source =
         \\
@@ -269,7 +271,7 @@ test "parsing" {
     var assembler = Self.init(source, &errors, std.testing.allocator);
     defer assembler.deinit();
 
-    try assembler.parse();
+    try std.testing.expectEqual(void{}, assembler.parse());
     try std.testing.expect(errors.items.len == 0);
 }
 
@@ -292,10 +294,9 @@ test "unresolved label" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.UnresolvedLabel, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .unresolved_label);
-    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "label"));
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.unresolved_label, errors.items[0].tag);
+    try std.testing.expectEqualStrings(errors.items[0].where.?, "label");
 }
 
 test "unresolved function" {
@@ -317,10 +318,9 @@ test "unresolved function" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.UnresolvedFunction, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .unresolved_function);
-    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "func"));
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.unresolved_function, errors.items[0].tag);
+    try std.testing.expectEqualStrings("func", errors.items[0].where.?);
 }
 
 test "no main" {
@@ -341,9 +341,8 @@ test "no main" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.NoMain, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .no_main);
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.no_main, errors.items[0].tag);
 }
 
 test "duplicate label" {
@@ -366,10 +365,9 @@ test "duplicate label" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.DuplicateLabel, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .duplicate_label);
-    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "label"));
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.duplicate_label, errors.items[0].tag);
+    try std.testing.expectEqualStrings("label", errors.items[0].where.?);
 }
 
 test "duplicate function" {
@@ -396,10 +394,9 @@ test "duplicate function" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.DuplicateFunction, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .duplicate_function);
-    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "func"));
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.duplicate_function, errors.items[0].tag);
+    try std.testing.expectEqualStrings("func", errors.items[0].where.?);
 }
 
 test "unexpected token" {
@@ -421,10 +418,9 @@ test "unexpected token" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.UnexpectedToken, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .unexpected_token);
-    try std.testing.expect(std.mem.eql(u8, errors.items[0].where.?, "function"));
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.unexpected_token, errors.items[0].tag);
+    try std.testing.expectEqualStrings("function", errors.items[0].where.?);
 }
 
 test "unexpected eof" {
@@ -444,7 +440,6 @@ test "unexpected eof" {
     defer assembler.deinit();
 
     try std.testing.expectError(error.UnexpectedEOF, assembler.parse());
-
-    try std.testing.expect(errors.items.len == 1);
-    try std.testing.expect(errors.items[0].tag == .unexpected_eof);
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(ErrorTag.unexpected_eof, errors.items[0].tag);
 }
