@@ -17,8 +17,8 @@
 ||| ... |
 ||| Push return value |
 ||| `ret` |
-|| Assign BP to SP ||
 || Pop return value and save it ||
+|| Assign BP to SP ||
 || Pop return address and assign it to IP ||
 || Pop old BP and assign it to BP ||
 || Pop # of arguments ||
