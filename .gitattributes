@@ -1,6 +1,0 @@
-* text=auto
-
-*.zig text eol=lf
-*.md text eol=lf
-*.lock text eol=lf
-*.nix text eol=lf
