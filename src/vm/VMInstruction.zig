@@ -28,6 +28,18 @@ pub fn dup() Self {
     return .{ .op = .dup };
 }
 
+pub fn load(pos: i64) Self {
+    return .{ .op = .load, .operand = .{ .int = pos } };
+}
+
+pub fn syscall(num: i64) Self {
+    return .{ .op = .syscall, .operand = .{ .int = num } };
+}
+
+pub fn store(pos: i64) Self {
+    return .{ .op = .store, .operand = .{ .int = pos } };
+}
+
 pub fn jmp(destination: usize) Self {
     return .{ .op = .jmp, .operand = .{ .location = destination } };
 }

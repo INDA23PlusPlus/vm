@@ -5,7 +5,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
-const Type = @import("types.zig").Type;
+const types = @import("types.zig");
+const Type = types.Type;
+const Stack = std.ArrayList(Type);
 const Instruction = @import("arch").instr.Instruction;
 const VMInstruction = @import("VMInstruction.zig");
 
@@ -38,7 +40,26 @@ fn doComparison(comptime T: type, a: T, op: Instruction, b: T) i64 {
     });
 }
 
-fn doBinaryOp(a: *const Type, op: Instruction, b: *const Type) !Type {
+fn compareEq(a: Type, b: Type) bool {
+    if (a.tag() != b.tag()) {
+        const af = floatValue(a) catch return false;
+        const bf = floatValue(b) catch return false;
+        return af == bf;
+    }
+
+    return switch (a.tag()) {
+        .unit => true,
+
+        .int => a.as(.int).? == b.as(.int).?,
+        .float => a.as(.float).? == b.as(.float).?,
+
+        .list,
+        .object,
+        => std.debug.panic("TODO", .{}),
+    };
+}
+
+fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     if (a.as(.int)) |ai| {
         if (b.as(.int)) |bi| {
             if (op.isArithmetic()) {
@@ -58,6 +79,66 @@ fn doBinaryOp(a: *const Type, op: Instruction, b: *const Type) !Type {
     } else {
         return error.InvalidOperation;
     }
+}
+
+var refc: i64 = 0;
+
+fn take(v: Type) Type {
+    if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) {
+        refc = refc + 1;
+    }
+
+    return v;
+}
+
+fn drop(_: Type) void {
+    if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) {
+        refc = refc - 1;
+    }
+}
+
+fn get(stack: *Stack, bp: usize, pos: i64) !Type {
+    const i: usize = switch (pos < 0) {
+        true => bp - @as(usize, @intCast(-pos)),
+        false => bp + @as(usize, @intCast(pos)),
+    };
+
+    assert(i < stack.items.len) catch |e| {
+        std.debug.print("stack contents: {any}\n", .{stack.items});
+        return e;
+    };
+
+    return take(stack.items[i]);
+}
+
+fn set(stack: *Stack, bp: usize, pos: i64, v: Type) void {
+    const i: usize = switch (pos < 0) {
+        true => bp - @as(usize, @intCast(-pos)),
+        false => bp + @as(usize, @intCast(pos)),
+    };
+
+    assert(i < stack.items.len) catch {
+        std.debug.print("stack contents: {any}\n", .{stack.items});
+    };
+
+    drop(stack.items[i]);
+
+    stack.items[i] = take(v);
+}
+
+fn push(stack: *Stack, v: Type) !void {
+    try stack.append(v);
+
+    _ = take(v);
+}
+
+fn pop(stack: *Stack) !Type {
+    assert(stack.items.len != 0) catch |e| {
+        std.debug.print("stack contents: {any}\n", .{stack.items});
+        return e;
+    };
+
+    return stack.pop();
 }
 
 fn instructionToString(op: Instruction) []const u8 {
@@ -86,33 +167,19 @@ fn floatValue(x: anytype) !f64 {
     return error.InvalidOperation;
 }
 
-fn compareEq(a: *const Type, b: *const Type) bool {
-    if (a.tag() != b.tag()) {
-        const af = floatValue(a) catch return false;
-        const bf = floatValue(b) catch return false;
-        return af == bf;
-    }
-
-    return switch (a.tag()) {
-        .unit => true,
-
-        .int => a.as(.int).? == b.as(.int).?,
-        .float => a.as(.float).? == b.as(.float).?,
-
-        .list,
-        .object,
-        => std.debug.panic("TODO", .{}),
-    };
-}
-
 /// returns exit code of the program
 pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool) !i64 {
     var ip: usize = 0;
-    var stack = std.ArrayList(Type).init(allocator);
+    var bp: usize = 0;
+    var stack = Stack.init(allocator);
     defer stack.deinit();
+
+    refc = 0;
 
     while (ip < code.len) {
         const i = code[ip];
+        ip += 1;
+
         switch (i.op) {
             .add,
             .sub,
@@ -124,102 +191,127 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
             .cmp_le,
             .cmp_ge,
             => |op| {
-                try assert(stack.items.len >= 2);
+                var b = try pop(&stack);
+                defer drop(b);
+                var a = try pop(&stack);
+                defer drop(a);
 
-                var a = stack.pop();
-                defer a.deinit();
-                var b = stack.pop();
-                defer b.deinit();
+                const r = take(try doBinaryOp(a, op, b));
+                defer drop(r);
 
-                const res = try doBinaryOp(&b, op, &a);
                 if (debug_output) {
                     if (op.isArithmetic()) {
-                        std.debug.print("arithmetic: {} {s} {} = {}\n", .{ b, instructionToString(op), a, res });
+                        std.debug.print("arithmetic: {} {s} {} = {}\n", .{ a, instructionToString(op), b, r });
                     }
                     if (op.isComparison()) {
-                        std.debug.print("comparison: {} {s} {} = {}\n", .{ b, instructionToString(op), a, res });
+                        std.debug.print("comparison: {} {s} {} = {}\n", .{ a, instructionToString(op), b, r });
                     }
                 }
-                stack.appendAssumeCapacity(res);
+
+                try push(&stack, r);
             },
             // these have to be handled separately because they are valid for all types
             .cmp_eq,
             .cmp_ne,
             => |op| {
-                try assert(stack.items.len >= 2);
-                var a = stack.pop();
-                defer a.deinit();
-                var b = stack.pop();
-                defer b.deinit();
+                var b = try pop(&stack);
+                defer drop(b);
+                var a = try pop(&stack);
+                defer drop(a);
 
-                const res = switch (op) {
-                    .cmp_eq => compareEq(&a, &b),
-                    .cmp_ne => !compareEq(&a, &b),
+                const r = take(Type.from(@intFromBool(switch (op) {
+                    .cmp_eq => compareEq(a, b),
+                    .cmp_ne => !compareEq(a, b),
                     else => unreachable,
-                };
+                })));
+                defer drop(r);
 
-                stack.appendAssumeCapacity(Type.from(@as(i64, @intFromBool(res))));
-            },
-            .dup => {
-                try assert(stack.items.len >= 1);
-                const dup_val = stack.getLast();
-                if (debug_output) {
-                    std.debug.print("duplicated: {}\n", .{dup_val});
-                }
-                try stack.append(dup_val.clone());
+                try push(&stack, r);
             },
             .push => {
-                const pushed_val = Type.from(i.operand.int);
-                if (debug_output) {
-                    std.debug.print("pushed: {}\n", .{pushed_val});
-                }
-                try stack.append(pushed_val);
+                const v = take(Type.from(i.operand.int));
+                defer drop(v);
+
+                try push(&stack, v);
             },
             .pop => {
-                try assert(stack.items.len >= 1);
-                var popped_val = stack.pop();
-                defer popped_val.deinit();
+                drop(try pop(&stack));
+            },
+            .dup => {
+                const v = try get(&stack, stack.items.len, -1);
+                defer drop(v);
+
                 if (debug_output) {
-                    std.debug.print("popped: {}\n", .{popped_val});
+                    std.debug.print("duplicated: {}\n", .{v});
+                }
+
+                try push(&stack, v);
+            },
+            .load => {
+                const v = try get(&stack, bp, i.operand.int);
+                defer drop(v);
+
+                try push(&stack, v);
+            },
+            .store => {
+                const v = try pop(&stack);
+                defer drop(v);
+
+                set(&stack, bp, i.operand.int, v);
+            },
+            .syscall => {
+                switch (i.operand.int) {
+                    0 => {
+                        const v = try pop(&stack);
+                        defer drop(v);
+
+                        std.debug.print("{}\n", .{v});
+                    },
+                    else => {},
                 }
             },
             .jmp => {
                 const loc = i.operand.location;
+
                 if (debug_output) {
                     std.debug.print("jumping to: {}\n", .{loc});
                 }
+
                 ip = loc;
             },
             .jmpnz => {
-                try assert(stack.items.len >= 1);
+                const loc = i.operand.location;
+                const v = try pop(&stack);
+                defer drop(v);
 
-                var popped_val = stack.pop();
-                try assert(popped_val.tag() == .int);
-                if (popped_val.as(.int).? != 0) {
-                    const loc = i.operand.location;
+                try assert(v.tag() == .int);
+
+                if (v.int != 0) {
                     if (debug_output) {
                         std.debug.print("took branch to: {}\n", .{loc});
                     }
+
                     ip = loc;
                 } else {
-                    const loc = i.operand.location;
                     if (debug_output) {
                         std.debug.print("didn't take branch to: {}\n", .{loc});
                     }
-                    ip += 1;
                 }
             },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),
         }
-        if (i.op != .jmp and i.op != .jmpnz) {
-            ip += 1;
-        }
     }
-    if (stack.items.len == 0) {
-        return error.NoReturnValue;
-    } else {
-        return stack.items[stack.items.len - 1].as(.int) orelse error.NonIntReturnValue;
-    }
+
+    const rv = try pop(&stack);
+    const r = rv.as(.int) orelse return error.NonIntReturnValue;
+    drop(rv);
+
+    assert(refc == 0) catch |e| {
+        std.debug.print("refc = {}\n", .{refc});
+        return e;
+    };
+
+    return r;
 }
 
 test "arithmetic" {
@@ -296,4 +388,30 @@ test "arithmetic" {
         std.testing.allocator,
         false,
     ));
+}
+
+test "fibonacci" {
+    _ = try run(&.{
+        VMInstruction.push(10),
+        VMInstruction.push(0),
+        VMInstruction.push(1),
+        VMInstruction.load(1),
+        VMInstruction.dup(),
+        VMInstruction.syscall(0),
+        VMInstruction.load(2),
+        VMInstruction.dup(),
+        VMInstruction.store(1),
+        VMInstruction.add(),
+        VMInstruction.store(2),
+        VMInstruction.load(0),
+        VMInstruction.push(1),
+        VMInstruction.sub(),
+        VMInstruction.dup(),
+        VMInstruction.store(0),
+        VMInstruction.jmpnz(3),
+        VMInstruction.pop(),
+        VMInstruction.pop(),
+        VMInstruction.pop(),
+        VMInstruction.push(0),
+    }, std.testing.allocator, false);
 }

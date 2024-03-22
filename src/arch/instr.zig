@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const Instruction = enum(u8) {
-    // TODO: explicit opcodes
+    // TODO: explicit opcodes (actually a unified instruction interface towards assembler/vm makes this unecessary)
 
     add, // [a, b] -> [a + b]
     sub, // [a, b] -> [a - b]
@@ -28,6 +28,7 @@ pub const Instruction = enum(u8) {
     load, // OP %i [] -> [value] where value = stack[BP + i]
     store, // OP %i [value] -> [] sets stack[BP + i] = value
 
+    syscall, // [args...] -> [] TODO: keep or remove
     call, // OP .f [param 0, ..., param N - 1, N] -> [param 0, ..., param N - 1, N, BP, return_address]
     // see accompanying `README.md`
     ret, // [param 0, ..., param N - 1, N, BP, ..., return_address, return_value] -> [return_value]
