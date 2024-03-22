@@ -37,12 +37,12 @@ pub const Instruction = enum(u8) {
     // execution continues at ret
 
     struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
-    struct_drop, // [s] -> [] tells memory manager this struct isnt being referred to from this scope anymore
+    struct_drop, // [s] -> [] tells memory manager this struct isnt being referred to from this scope anymore TODO: these should be implicit
     struct_load, // [s, f] -> [s, v] where v = s.f
     struct_store, // [s, f] -> [r]
 
     list_alloc, // [] -> [l] where l is a reference to the newly allocated list
-    list_drop, // [l] -> [] tells memory manager this list isnt being referred to from this scope anymore
+    list_drop, // [l] -> [] tells memory manager this list isnt being referred to from this scope anymore TODO: see struct_drop above
     list_load, // [l, i] -> [l, v] where v = l[i]
     list_store, // [l, i, v] -> [l] sets l[i] = v
 
