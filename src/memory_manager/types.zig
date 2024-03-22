@@ -38,7 +38,7 @@ pub const Object = struct {
     }
 };
 
-pub const Types = packed union {
+pub const Types = union {
     unit: @TypeOf(.{}),
     int: i64,
     float: f64,

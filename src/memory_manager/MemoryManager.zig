@@ -11,7 +11,7 @@ const List = types.List;
 allObjects: std.ArrayList(Object),
 allLists: std.ArrayList(List),
 
-pub fn alloc_struct(self: *Self, allocator: std.heap.Allocator) ObjectRef {
+pub fn alloc_struct(self: *Self, allocator: std.mem.Allocator) ObjectRef {
     // TODO
 
     const obj = Object.init(allocator);
@@ -25,7 +25,7 @@ pub fn alloc_struct(self: *Self, allocator: std.heap.Allocator) ObjectRef {
     return ref;
 }
 
-pub fn alloc_list(self: *Self, allocator: std.heap.Allocator) ListRef {
+pub fn alloc_list(self: *Self, allocator: std.mem.Allocator) ListRef {
     const list = List.init(allocator);
     self.allLists.append(list) catch |e| {
         // TODO handle error, try gc then try again

@@ -10,11 +10,11 @@ pub const ListRef = struct {
     ref: *List,
 
     pub fn incr(self: *Self) void {
-        self.ref.refcount.increment();
+        _ = self.ref.refcount.increment();
     }
 
     pub fn decr(self: *Self) void {
-        self.ref.refcount.decrement();
+        _ = self.ref.refcount.decrement();
     }
 };
 
@@ -23,10 +23,10 @@ pub const ObjectRef = struct {
     ref: *Object,
 
     pub fn incr(self: *Self) void {
-        self.ref.refcount.increment();
+        _ = self.ref.refcount.increment();
     }
 
     pub fn decr(self: *Self) void {
-        self.ref.refcount.decrement();
+        _ = self.ref.refcount.decrement();
     }
 };
