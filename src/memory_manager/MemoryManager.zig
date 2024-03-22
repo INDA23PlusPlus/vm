@@ -8,31 +8,41 @@ const RefCount = @import("RefCount.zig");
 const Object = types.Object;
 const List = types.List;
 
-allObjects: std.ArrayList(Object),
-allLists: std.ArrayList(List),
+allObjects: std.ArrayList(*Object),
+allLists: std.ArrayList(*List),
 
 pub fn alloc_struct(self: *Self, allocator: std.mem.Allocator) ObjectRef {
-    // TODO
-
-    const obj = Object.init(allocator);
-    self.allObjects.append(obj) catch |e| {
+    var obj = allocator.create(Object) catch |e| {
         // TODO handle error, try gc then try again
         std.debug.panic("out of memory {}", .{e});
     };
+    obj.* = Object.init(allocator);
 
-    const ref = ObjectRef{ .ref = &obj };
+    self.allObjects.append(obj) catch |e| {
+        // TODO handle error, try gc then try again
+        obj.deinit();
+        allocator.destroy(obj);
+        std.debug.panic("out of memory {}", .{e});
+    };
 
-    return ref;
+    return ObjectRef{ .ref = obj };
 }
 
 pub fn alloc_list(self: *Self, allocator: std.mem.Allocator) ListRef {
-    const list = List.init(allocator);
-    self.allLists.append(list) catch |e| {
+    var list = allocator.create(List) catch |e| {
         // TODO handle error, try gc then try again
         std.debug.panic("out of memory {}", .{e});
     };
 
-    const ref = ObjectRef{ .ref = &list };
+    list.* = List.init(allocator);
 
-    return ref;
+    self.allLists.append(list) catch |e| {
+        // TODO handle error, try gc then try again
+        list.deinit();
+        allocator.destroy(list);
+        std.debug.panic("out of memory {}", .{e});
+    };
+    return ObjectRef{ .ref = list };
 }
+
+// TODO: create test for this
