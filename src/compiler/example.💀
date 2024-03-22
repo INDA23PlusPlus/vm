@@ -1,0 +1,50 @@
+// Example
+
+def main() {
+  a := 30;
+  b := { foo: 1, bar: "baz" };
+
+  b.foo <- a;
+
+  a <- a + 30;
+}
+
+// Fibonacci
+def fib(a) {
+  chain {
+    if (a = 0) { ret 0; }
+    if (a = 1) { ret 1; }
+    break;
+  }
+
+  ret fib(a - 1) + fib(a - 2);
+}
+
+def sum_vectors() {
+  
+  a := { "x": 1, "y": 2, "z": 3 };
+  b := { "x": 4, "y": 5, "z": 6 };
+
+  c := {
+    x: a["x"] + b["x"],
+    y: a["y"] + b["y"],
+    z: a["z"] + b["z"],
+  };
+
+  ret c;
+}
+
+def sum_list() {
+  list := [1, 2, 3, 4, 5, 6];
+
+  a := length(list);
+  b := 0;
+  sum := 0;
+
+  while (b < a) {
+    sum <- sum + list[b];
+    b <- b + 1;
+  }
+
+  ret sum;
+}
