@@ -52,10 +52,12 @@ pub fn build(b: *std.Build) void {
 
     // Subprojects can depend on modules like so:
     assembler.addModule("arch", arch_mod);
+    assembler.addModule("vm", vm_mod);
     vm.addModule("memory_manager", memory_manager_mod);
     vm.addModule("arch", arch_mod);
-    // ...and exposed objects are used like so:
-    // const Instruction = @import("arch").instr.Instruction;
+    // When subprojects depend on modules that depend on other modules,
+    // we need to do this
+    vm_mod.dependencies.put("arch", arch_mod) catch unreachable;
 
     _ = .{
         assembler_mod,
