@@ -36,7 +36,7 @@ pub const Instruction = enum(u8) {
     ret, // [param 1, ..., param N, ret, OBP, N, local 1, ... local M, M] -> []
     // execution continues at ret
 
-    stack_allock, // Allocates N uninitialized object on the stack
+    stack_alloc, // Allocates N uninitialized object on the stack
 
     struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
     struct_drop, // [s] -> [] tells memory manager this struct isnt being referred to from this scope anymore TODO: these should be implicit
@@ -79,8 +79,8 @@ pub const Instruction = enum(u8) {
                 // zig fmt off
                 .jmp,        .jmpnz,        .push,        .load,
                 .store,      .call,         .list_alloc,  .list_load,
-                .list_store, .struct_alloc, .struct_load,
-                .struct_store,
+                .list_store, .struct_alloc, .struct_load, .struct_store,
+                .stack_alloc,
                 // zig fmt on
             };
             var arr = std.EnumArray(Instruction, bool).initFill(false);
