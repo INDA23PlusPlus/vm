@@ -86,6 +86,26 @@ inline fn floatValue(x: anytype) !f64 {
     return error.InvalidOperation;
 }
 
+fn compareEq(a: *Type, b: *Type) bool {
+    if (a.tag() != b.tag()) {
+        const af = floatValue(a) catch return false;
+        const bf = floatValue(b) catch return false;
+        return af == bf;
+    }
+
+    return switch (a.tag()) {
+        .unit => true,
+
+        .int,
+        .float,
+        => |t| a.as(t).? == b.as(t).?,
+
+        .list,
+        .object,
+        => std.debug.panic("TODO", .{}),
+    };
+}
+
 /// returns exit code of the program
 pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool) !i64 {
     var ip: usize = 0;
@@ -104,13 +124,8 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
             .cmp_gt,
             .cmp_le,
             .cmp_ge,
-            .cmp_eq,
-            .cmp_ne,
             => |op| {
-                assert(stack.items.len >= 2) catch |e| {
-                    std.debug.print("stack contents: {any}\n", .{stack.items});
-                    return e;
-                };
+                try assert(stack.items.len >= 2);
                 const a = &stack.items[stack.items.len - 1];
                 const b = &stack.items[stack.items.len - 2];
 
@@ -125,6 +140,17 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 }
                 b.* = res;
                 _ = stack.pop();
+            },
+            // these have to be handled separately because they are valid for all types,
+            .cmp_eq,
+            .cmp_ne,
+            => |op| {
+                try assert(stack.items.len >= 2);
+                const a = &stack.items[stack.items.len - 1];
+                const b = &stack.items[stack.items.len - 2];
+
+                var res = compareEq(a, b);
+                if (op == .cmp_ne) res = !res;
             },
             .dup => {
                 try assert(stack.items.len >= 1);
