@@ -86,6 +86,7 @@ pub fn build(b: *std.Build) void {
 
         // TODO: kind of a bad way of doing this, maybe we should separate out all the different that have dependencies on other modules?
         unit_tests.addModule("asm", assembler_mod);
+        unit_tests.addModule("vm", vm_mod);
         unit_tests.addModule("arch", arch_mod);
         unit_tests.addModule("memory_manager", memory_manager_mod);
 
