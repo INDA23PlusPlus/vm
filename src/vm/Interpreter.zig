@@ -96,9 +96,7 @@ fn compareEq(a: *Type, b: *Type) bool {
     return switch (a.tag()) {
         .unit => true,
 
-        .int,
-        .float,
-        => |t| a.as(t).? == b.as(t).?,
+        inline .int, .float => |t| a.as(t).? == b.as(t).?,
 
         .list,
         .object,
@@ -148,9 +146,13 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 try assert(stack.items.len >= 2);
                 const a = &stack.items[stack.items.len - 1];
                 const b = &stack.items[stack.items.len - 2];
-
                 var res = compareEq(a, b);
                 if (op == .cmp_ne) res = !res;
+                a.deinit();
+                b.deinit();
+                _ = stack.pop();
+                _ = stack.pop();
+                try stack.append(Type.from(@as(i64, @intFromBool(res))));
             },
             .dup => {
                 try assert(stack.items.len >= 1);
