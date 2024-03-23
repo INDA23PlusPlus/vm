@@ -36,6 +36,8 @@ pub const Instruction = enum(u8) {
     ret, // [param 1, ..., param N, ret, OBP, N, local 1, ... local M, M] -> []
     // execution continues at ret
 
+    stack_allock, // Allocates N uninitialized object on the stack
+
     struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
     struct_drop, // [s] -> [] tells memory manager this struct isnt being referred to from this scope anymore TODO: these should be implicit
     struct_load, // [s, f] -> [s, v] where v = s.f
