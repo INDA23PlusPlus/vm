@@ -1,5 +1,11 @@
 //!
-//! The intermediate language assembler
+//! The intermediate language assembler.
+//!
+//! Initialize with Asm.init, which takes a pointer to
+//! a std.ArrayList(Error).
+//! Use Asm.assemble to assemble the code.
+//! Check for errors by checking length of error list.
+//! Assembled program is accessed through Asm.getCode.
 //!
 
 const Asm = @This();
@@ -10,6 +16,7 @@ const Error = @import("Error.zig");
 const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
 const Instruction = @import("instr").Instruction;
+const emit_ = @import("emit.zig");
 
 code: std.ArrayList(vm.VMInstruction),
 scan: Scanner,
@@ -52,6 +59,10 @@ pub fn assemble(self: *Asm) !void {
         };
     }
     try self.fn_patcher.patch(self.code.items);
+}
+
+pub fn emit(self: *Asm, writer: anytype) !void {
+    try emit_.emit(self, writer);
 }
 
 fn asmFunc(self: *Asm) !void {
