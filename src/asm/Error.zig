@@ -20,14 +20,10 @@ tag: enum {
     missing_operand,
     /// (Assembler) Operand is supplied for instruction that does not take operands
     redundant_operand,
-    /// (Assembler) Referenced label is not declared in this function.
-    unresolved_label,
-    /// (Assembler) Referenced function is not declared in this module.
-    unresolved_function,
-    /// (Assembler) Duplicate label
-    duplicate_label,
-    /// (Assembler) Duplicate function
-    duplicate_function,
+    /// (Assembler) Referenced label or function is not declared in this scope
+    unresolved_label_or_function,
+    /// (Assembler) Duplicate label or function
+    duplicate_label_or_function,
     /// No main function
     no_main,
     /// Unexpected token in input stream

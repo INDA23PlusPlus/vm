@@ -17,8 +17,6 @@ pub const Tag = union(enum) {
 
 pub const Keyword = enum {
     function,
-    params,
-    locals,
     begin,
     end,
 };
