@@ -96,7 +96,8 @@ fn compareEq(a: *Type, b: *Type) bool {
     return switch (a.tag()) {
         .unit => true,
 
-        inline .int, .float => |t| a.as(t).? == b.as(t).?,
+        .int => a.as(.int).? == b.as(.int).?,
+        .float => a.as(.float).? == b.as(.float).?,
 
         .list,
         .object,
@@ -139,19 +140,23 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 b.* = res;
                 _ = stack.pop();
             },
-            // these have to be handled separately because they are valid for all types,
+            // these have to be handled separately because they are valid for all types
             .cmp_eq,
             .cmp_ne,
             => |op| {
                 try assert(stack.items.len >= 2);
                 const a = &stack.items[stack.items.len - 1];
+                defer a.deinit();
                 const b = &stack.items[stack.items.len - 2];
-                var res = compareEq(a, b);
-                if (op == .cmp_ne) res = !res;
-                a.deinit();
-                b.deinit();
-                _ = stack.pop();
-                _ = stack.pop();
+                defer b.deinit();
+                defer stack.shrinkRetainingCapacity(stack.items.len - 2);
+
+                const res = switch (op) {
+                    .cmp_eq => compareEq(a, b),
+                    .cmp_ne => !compareEq(a, b),
+                    else => unreachable,
+                };
+
                 try stack.append(Type.from(@as(i64, @intFromBool(res))));
             },
             .dup => {
