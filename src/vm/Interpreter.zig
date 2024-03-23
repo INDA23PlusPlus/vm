@@ -52,15 +52,15 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     }
 
     if (op.isArithmetic()) {
-        return Type.from(doArithmetic(op, f64, floatValue(a), floatValue(b)));
+        return Type.from(doArithmetic(op, f64, try floatValue(a), try floatValue(b)));
     } else if (op.isComparison()) {
-        return Type.from(doComparison(op, f64, floatValue(a), floatValue(b)));
+        return Type.from(doComparison(op, f64, try floatValue(a), try floatValue(b)));
     } else {
         return error.InvalidOperation;
     }
 }
 
-pub fn instructionToString(op: Instruction) []const u8 {
+fn instructionToString(op: Instruction) []const u8 {
     return switch (op) {
         .add => "+",
         .sub => "-",
@@ -77,8 +77,13 @@ pub fn instructionToString(op: Instruction) []const u8 {
     };
 }
 
-pub fn floatValue(x: anytype) f64 {
-    return x.as(.float) orelse @floatFromInt(x.as(.int).?);
+inline fn floatValue(x: anytype) !f64 {
+    if (x.as(.float)) |f|
+        return f;
+    if (x.as(.int)) |i|
+        return @floatFromInt(i);
+
+    return error.InvalidOperation;
 }
 
 /// returns exit code of the program
@@ -112,10 +117,10 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                 const res = try doBinaryOp(b.*, op, a.*);
                 if (debug_output) {
                     if (op.isArithmetic()) {
-                        std.debug.print("arithmetic: {d} {s} {d} = {d}\n", .{ floatValue(b), instructionToString(op), floatValue(a), floatValue(res) });
+                        std.debug.print("arithmetic: {d} {s} {d} = {d}\n", .{ try floatValue(b), instructionToString(op), try floatValue(a), try floatValue(res) });
                     }
                     if (op.isComparison()) {
-                        std.debug.print("comparison: {d} {s} {d} = {d}\n", .{ floatValue(b), instructionToString(op), floatValue(a), floatValue(res) });
+                        std.debug.print("comparison: {d} {s} {d} = {d}\n", .{ try floatValue(b), instructionToString(op), try floatValue(a), try floatValue(res) });
                     }
                 }
                 b.* = res;
