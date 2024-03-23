@@ -27,14 +27,10 @@ pub const Instruction = enum(u8) {
     load, // OP %i [] -> [value] where value = stack[OBP + i]
     store, // OP %i [value] -> [] sets stack[OBP + i] = value
 
-    call, // [param 0, ..., param N - 1,  f] -> [param 0, ..., param N - 1, ret, OBP, N, local 0, ... local M - 1, M]
-    // execution continues at function f
-    // ret is return address
-    // params indexed by PARAM_ID + OBP - (M + N + 3)
-    // locals indexed by LOCAL_ID + OBP - (M + 1)
-    // TODO: complete this
-    ret, // [param 1, ..., param N, ret, OBP, N, local 1, ... local M, M] -> []
-    // execution continues at ret
+    call, // OP .f [param 0, ..., param N - 1, N] -> [param 0, ..., param N - 1, N, BP, return_address]
+    // see accompanying `README.md`
+    ret, // [param 0, ..., param N - 1, N, BP, ..., return_address, return_value] -> [return_value]
+    // see accompanying `README.md`
 
     stack_alloc, // Allocates N uninitialized object on the stack
 
@@ -50,23 +46,25 @@ pub const Instruction = enum(u8) {
 
     pub fn isArithmetic(self: Instruction) bool {
         return switch (self) {
-            .add => true,
-            .sub => true,
-            .mul => true,
-            .div => true,
-            .mod => true,
+            .add,
+            .sub,
+            .mul,
+            .div,
+            .mod,
+            => true,
             else => false,
         };
     }
 
     pub fn isComparison(self: Instruction) bool {
         return switch (self) {
-            .cmp_lt => true,
-            .cmp_gt => true,
-            .cmp_le => true,
-            .cmp_ge => true,
-            .cmp_eq => true,
-            .cmp_ne => true,
+            .cmp_lt,
+            .cmp_gt,
+            .cmp_le,
+            .cmp_ge,
+            .cmp_eq,
+            .cmp_ne,
+            => true,
             else => false,
         };
     }
