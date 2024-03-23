@@ -71,6 +71,7 @@ fn asmFunc(self: *Asm) !void {
         }
     }
     try self.lbl_patcher.patch(self.code.items);
+    self.lbl_patcher.reset();
 }
 
 fn asmInstr(self: *Asm) !void {
