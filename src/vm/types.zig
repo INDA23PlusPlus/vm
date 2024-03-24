@@ -16,16 +16,6 @@ pub const UnitType = packed struct {
     }
 };
 
-pub fn GetRepr(comptime E: Type.Tag) type {
-    return switch (E) {
-        .unit => UnitType,
-        .int => i64,
-        .float => f64,
-        .list => ListRef,
-        .object => ObjectRef,
-    };
-}
-
 pub const Type = union(enum) {
     const Self = @This();
     const Tag = std.meta.Tag(Self);
@@ -34,6 +24,16 @@ pub const Type = union(enum) {
     float: f64,
     list: ListRef,
     object: ObjectRef,
+
+    pub fn GetRepr(comptime E: Type.Tag) type {
+        return switch (E) {
+            .unit => UnitType,
+            .int => i64,
+            .float => f64,
+            .list => ListRef,
+            .object => ObjectRef,
+        };
+    }
 
     pub fn deinit(self: *Self) void {
         switch (self.tag()) {
@@ -105,6 +105,17 @@ pub const Type = union(enum) {
             .object => |c| if (T == .object) c else unreachable,
         };
     }
+
+    pub fn format(self: *const Self, fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = options;
+        _ = fmt;
+        try switch (self.*) {
+            .unit => writer.print("()", .{}),
+            .int => |i| writer.print("{}", .{i}),
+            .float => |f| writer.print("{d}", .{f}),
+            else => @panic("unimplemented"), // TODO: implement formatting for lists and objects
+        };
+    }
 };
 
 test "casting" {
@@ -124,4 +135,7 @@ test "casting" {
         UnitType.init(),
         Type.from(UnitType.init()).as(.unit),
     );
+
+    try comptime std.testing.expect(std.mem.eql(u8, "0", std.fmt.comptimePrint("{}", .{Type.from(0)})));
+    try comptime std.testing.expect(std.mem.eql(u8, "0", std.fmt.comptimePrint("{}", .{Type.from(0.0)})));
 }
