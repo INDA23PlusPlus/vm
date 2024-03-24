@@ -15,7 +15,7 @@ fn assert(b: bool) !void {
     }
 }
 
-fn doArithmetic(op: Instruction, comptime T: type, a: T, b: T) T {
+fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) T {
     return switch (op) {
         .add => a + b,
         .sub => a - b,
@@ -26,7 +26,7 @@ fn doArithmetic(op: Instruction, comptime T: type, a: T, b: T) T {
     };
 }
 
-fn doComparison(op: Instruction, comptime T: type, a: T, b: T) i64 {
+fn doComparison(comptime T: type, a: T, op: Instruction, b: T) i64 {
     return switch (op) {
         .cmp_lt => @intFromBool(a < b),
         .cmp_gt => @intFromBool(a > b),
@@ -38,13 +38,13 @@ fn doComparison(op: Instruction, comptime T: type, a: T, b: T) i64 {
     };
 }
 
-fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
+fn doBinaryOp(a: *const Type, op: Instruction, b: *const Type) !Type {
     if (a.as(.int)) |ai| {
         if (b.as(.int)) |bi| {
             if (op.isArithmetic()) {
-                return Type.from(doArithmetic(op, i64, ai, bi));
+                return Type.from(doArithmetic(Type.GetRepr(.int), ai, op, bi));
             } else if (op.isComparison()) {
-                return Type.from(doComparison(op, i64, ai, bi));
+                return Type.from(doComparison(Type.GetRepr(.int), ai, op, bi));
             } else {
                 return error.InvalidOperation;
             }
@@ -52,9 +52,9 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     }
 
     if (op.isArithmetic()) {
-        return Type.from(doArithmetic(op, f64, try floatValue(a), try floatValue(b)));
+        return Type.from(doArithmetic(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
     } else if (op.isComparison()) {
-        return Type.from(doComparison(op, f64, try floatValue(a), try floatValue(b)));
+        return Type.from(doComparison(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
     } else {
         return error.InvalidOperation;
     }
@@ -77,7 +77,7 @@ fn instructionToString(op: Instruction) []const u8 {
     };
 }
 
-inline fn floatValue(x: anytype) !f64 {
+fn floatValue(x: anytype) !f64 {
     if (x.as(.float)) |f|
         return f;
     if (x.as(.int)) |i|
@@ -86,7 +86,7 @@ inline fn floatValue(x: anytype) !f64 {
     return error.InvalidOperation;
 }
 
-fn compareEq(a: *Type, b: *Type) bool {
+fn compareEq(a: *const Type, b: *const Type) bool {
     if (a.tag() != b.tag()) {
         const af = floatValue(a) catch return false;
         const bf = floatValue(b) catch return false;
@@ -125,39 +125,40 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
             .cmp_ge,
             => |op| {
                 try assert(stack.items.len >= 2);
-                const a = &stack.items[stack.items.len - 1];
-                const b = &stack.items[stack.items.len - 2];
 
-                const res = try doBinaryOp(b.*, op, a.*);
+                var a = stack.pop();
+                defer a.deinit();
+                var b = stack.pop();
+                defer b.deinit();
+
+                const res = try doBinaryOp(&b, op, &a);
                 if (debug_output) {
                     if (op.isArithmetic()) {
-                        std.debug.print("arithmetic: {d} {s} {d} = {d}\n", .{ try floatValue(b), instructionToString(op), try floatValue(a), try floatValue(res) });
+                        std.debug.print("arithmetic: {} {s} {} = {}\n", .{ b, instructionToString(op), a, res });
                     }
                     if (op.isComparison()) {
-                        std.debug.print("comparison: {d} {s} {d} = {d}\n", .{ try floatValue(b), instructionToString(op), try floatValue(a), try floatValue(res) });
+                        std.debug.print("comparison: {} {s} {} = {}\n", .{ b, instructionToString(op), a, res });
                     }
                 }
-                b.* = res;
-                _ = stack.pop();
+                stack.appendAssumeCapacity(res);
             },
             // these have to be handled separately because they are valid for all types
             .cmp_eq,
             .cmp_ne,
             => |op| {
                 try assert(stack.items.len >= 2);
-                const a = &stack.items[stack.items.len - 1];
+                var a = stack.pop();
                 defer a.deinit();
-                const b = &stack.items[stack.items.len - 2];
+                var b = stack.pop();
                 defer b.deinit();
-                defer stack.shrinkRetainingCapacity(stack.items.len - 2);
 
                 const res = switch (op) {
-                    .cmp_eq => compareEq(a, b),
-                    .cmp_ne => !compareEq(a, b),
+                    .cmp_eq => compareEq(&a, &b),
+                    .cmp_ne => !compareEq(&a, &b),
                     else => unreachable,
                 };
 
-                try stack.append(Type.from(@as(i64, @intFromBool(res))));
+                stack.appendAssumeCapacity(Type.from(@as(i64, @intFromBool(res))));
             },
             .dup => {
                 try assert(stack.items.len >= 1);
