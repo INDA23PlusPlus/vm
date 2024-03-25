@@ -81,10 +81,10 @@ pub fn build(b: *std.Build) void {
         const unit_tests = b.addTest(.{
             .root_source_file = .{ .path = file },
             .target = target,
-            .optimize = .Debug,
+            .optimize = optimize,
         });
 
-        // TODO: kind of a bad way of doing this, maybe we should separate out all the different that have dependencies on other modules?
+        // TODO: kind of a bad way of doing this, maybe we should separate out all the tests that have dependencies on other modules?
         unit_tests.addModule("asm", assembler_mod);
         unit_tests.addModule("vm", vm_mod);
         unit_tests.addModule("arch", arch_mod);
