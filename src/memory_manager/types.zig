@@ -7,12 +7,13 @@ const std = @import("std");
 
 pub const List = struct {
     const Self = @This();
-    items: std.ArrayList(Types),
+    // TODO Maybe use ArrayList
+    items: std.ArrayList(Type),
 
     refcount: RefCount = RefCount.init(), // stack references
 
-    pub fn init(allocator: std.heap.Allocator) Self {
-        return .{ .items = std.ArrayList(Types).init(allocator) };
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return .{ .items = std.ArrayList(Type).init(allocator) };
     }
 
     pub fn deinit(self: *Self) void {
@@ -23,13 +24,13 @@ pub const List = struct {
 
 pub const Object = struct {
     const Self = @This();
-    // TODO: add an actual internal representation, some kind of hashmap
-    map: std.AutoHashMap(u32, Types), // TODO figure out type of key
+    // TODO Maybe use AutoHashMapUnmanaged
+    map: std.AutoHashMap(u32, Type),
 
     refcount: RefCount = RefCount.init(), // stack references
 
-    pub fn init(allocator: std.heap.Allocator) Self {
-        return .{ .map = std.AutoHashMap(u32, Types).init(allocator) };
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return .{ .map = std.AutoHashMap(u32, Type).init(allocator) };
     }
 
     pub fn deinit(self: *Self) void {
@@ -38,7 +39,7 @@ pub const Object = struct {
     }
 };
 
-pub const Types = union {
+pub const Type = union(enum) {
     unit: @TypeOf(.{}),
     int: i64,
     float: f64,
