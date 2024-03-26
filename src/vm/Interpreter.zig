@@ -326,7 +326,7 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
 }
 
 fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_exit_code: i64) !void {
-    const output_buffer = try std.testing.allocator.alloc(u8, 1 << 20);
+    const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2);
     defer std.testing.allocator.free(output_buffer);
 
     var buf_writer = std.io.fixedBufferStream(output_buffer);
@@ -338,13 +338,11 @@ fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_ex
         false,
     ));
 
-    // const a = try replaceWhiteSpace(expected_output, std.testing.allocator);
-    // defer std.testing.allocator.free(a);
-    // const b = try replaceWhiteSpace(buf_writer.getWritten(), std.testing.allocator);
-    // defer std.testing.allocator.free(b);
-    // try std.testing.expect(std.mem.eql(u8, a, b));
-
-    try std.testing.expect(std.mem.eql(u8, expected_output, buf_writer.getWritten()));
+    const a = try replaceWhiteSpace(expected_output, std.testing.allocator);
+    defer std.testing.allocator.free(a);
+    const b = try replaceWhiteSpace(buf_writer.getWritten(), std.testing.allocator);
+    defer std.testing.allocator.free(b);
+    try std.testing.expect(std.mem.eql(u8, a, b));
 }
 
 test "arithmetic" {
