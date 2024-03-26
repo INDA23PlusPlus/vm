@@ -17,7 +17,7 @@ pub const UnitType = packed struct {
 };
 
 pub const Type = union(enum) {
-    const Self = @This();
+    const Self = @This();   
     const Tag = std.meta.Tag(Self);
     unit: UnitType,
     int: i64,
@@ -33,6 +33,16 @@ pub const Type = union(enum) {
             .list => ListRef,
             .object => ObjectRef,
         };
+    }
+
+    pub fn clone(self: *const Self) Self {
+        var res = self.*;
+        switch (res) {
+            .list => |*m| m.incr(),
+            .object => |*m| m.incr(),
+            else => {},
+        }
+        return res;
     }
 
     pub fn deinit(self: *Self) void {

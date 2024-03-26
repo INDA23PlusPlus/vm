@@ -162,11 +162,11 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
             },
             .dup => {
                 try assert(stack.items.len >= 1);
-                const dup_val = stack.items[stack.items.len - 1];
+                const dup_val = stack.getLast();
                 if (debug_output) {
                     std.debug.print("duplicated: {}\n", .{dup_val});
                 }
-                try stack.append(dup_val);
+                try stack.append(dup_val.clone());
             },
             .push => {
                 const pushed_val = Type.from(i.operand.int);
