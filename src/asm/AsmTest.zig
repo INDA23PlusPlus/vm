@@ -109,6 +109,7 @@ test "success" {
     try asm_.assemble();
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
+    try std.testing.expectEqual(@as(usize, 0), asm_.entry.?);
 }
 
 test "patching calls" {
@@ -135,7 +136,7 @@ test "patching calls" {
     defer asm_.deinit();
 
     try asm_.assemble();
-    const code = asm_.getCode();
+    const code = asm_.code.?.items;
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
     try std.testing.expectEqual(@as(usize, 6), code.len);
@@ -162,10 +163,28 @@ test "patching labels" {
     defer asm_.deinit();
 
     try asm_.assemble();
-    const code = asm_.getCode();
+    const code = asm_.code.?.items;
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
     try std.testing.expectEqual(@as(usize, 4), code.len);
     try std.testing.expectEqual(Instruction.jmp, code[0].op);
     try std.testing.expectEqual(@as(usize, 3), code[0].operand.location);
+}
+
+test "no main" {
+    const source =
+        \\-function "not_main"
+        \\-begin
+        \\-end
+    ;
+
+    var errors = std.ArrayList(Error).init(std.testing.allocator);
+    defer errors.deinit();
+
+    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    defer asm_.deinit();
+
+    try asm_.assemble();
+    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
+    try std.testing.expectEqual(Tag.no_main, errors.items[0].tag);
 }

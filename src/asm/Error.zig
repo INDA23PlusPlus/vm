@@ -32,7 +32,7 @@ tag: enum {
     unexpected_eof,
 },
 /// Location in source
-where: ?[]const u8,
+where: ?[]const u8 = null,
 /// Optional error info
 extra: ?[]const u8 = null,
 
