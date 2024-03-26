@@ -11,6 +11,7 @@ const Self = @This();
 op: Instruction,
 operand: union {
     int: i64,
+    float: f64,
     location: usize,
     none: UnitType,
 } = .{ .none = .{} }, // either an immediate i64 value or a number of instructions to jump forward or backward

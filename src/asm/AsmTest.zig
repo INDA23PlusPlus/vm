@@ -90,6 +90,7 @@ test "success" {
         \\-function "other"
         \\-begin
         \\push %0
+        \\pushf @3.1415
         \\load %0
         \\add
         \\jmp .label

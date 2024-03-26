@@ -10,7 +10,8 @@ pub const Tag = union(enum) {
     keyword: Keyword,
     string,
     label,
-    immed: i64,
+    int: i64,
+    float: f64,
     instr: instr.Instruction,
     err,
 };
@@ -40,7 +41,8 @@ pub const Scanner = struct {
 
         switch (c) {
             instr.prefix.keyword => return self.keyword(),
-            instr.prefix.literal => return self.immediate(),
+            instr.prefix.integer => return self.integer(),
+            instr.prefix.float => return self.float(),
             instr.prefix.label => return self.label(),
             '"' => return self.string(),
             'a'...'z', 'A'...'Z' => return self.instruction(),
@@ -124,14 +126,24 @@ pub const Scanner = struct {
         return Token{ .tag = .{ .instr = _instr }, .where = where };
     }
 
-    fn immediate(self: *Scanner) !?Token {
+    fn integer(self: *Scanner) !?Token {
         self.advance();
         const where = self.readWord();
-        const immed = std.fmt.parseInt(i64, where, 10) catch {
+        const int = std.fmt.parseInt(i64, where, 10) catch {
             try self.errors.append(.{ .tag = .invalid_literal, .where = where });
             return .{ .tag = .err, .where = where };
         };
-        return Token{ .tag = .{ .immed = immed }, .where = where };
+        return Token{ .tag = .{ .int = int }, .where = where };
+    }
+
+    fn float(self: *Scanner) !?Token {
+        self.advance();
+        const where = self.readWord();
+        const float_ = std.fmt.parseFloat(f64, where) catch {
+            try self.errors.append(.{ .tag = .invalid_literal, .where = where });
+            return .{ .tag = .err, .where = where };
+        };
+        return Token{ .tag = .{ .float = float_ }, .where = where };
     }
 
     fn label(self: *Scanner) !?Token {

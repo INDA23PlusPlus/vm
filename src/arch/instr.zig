@@ -21,6 +21,7 @@ pub const Instruction = enum(u8) {
     jmpnz, // OP .destination [a] -> [] control flow continues at .destination if a != 0
 
     push, // OP %value [] -> [value]
+    pushf, // OP @value [] -> [value]
     pop, // [a] -> []
     dup, // [a] -> [a, a]
 
@@ -73,9 +74,9 @@ pub const Instruction = enum(u8) {
             // add instructions with operands here
             const instrs = [_]Instruction{
                 // zig fmt off
-                .jmp,        .jmpnz,        .push,        .load,
-                .store,      .call,         .list_alloc,  .list_load,
-                .list_store, .struct_alloc, .struct_load, .struct_store,
+                .jmp,          .jmpnz,       .push,         .pushf,     .load,
+                .store,        .call,        .list_alloc,   .list_load, .list_store,
+                .struct_alloc, .struct_load, .struct_store,
                 .stack_alloc,
                 // zig fmt on
             };
@@ -92,7 +93,8 @@ pub const Instruction = enum(u8) {
 pub const prefix = struct {
     pub const keyword = '-';
     pub const label = '.';
-    pub const literal = '%';
+    pub const integer = '%';
+    pub const float = '@';
 };
 
 pub const entry_name = "main";

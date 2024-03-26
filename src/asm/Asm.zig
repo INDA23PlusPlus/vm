@@ -102,10 +102,16 @@ fn asmInstr(self: *Asm) !void {
                 const lbl = try self.expect(.label, "expected label");
                 try self.lbl_patcher.reference(lbl.where, offset);
             },
-            else => {
-                const immed = try self.expect(.immed, "expected operand");
+            .pushf => {
+                const float_ = try self.expect(.float, "expected flag");
                 self.code.items[offset].operand = .{
-                    .int = immed.tag.immed,
+                    .float = float_.tag.float,
+                };
+            },
+            else => {
+                const int = try self.expect(.int, "expected operand");
+                self.code.items[offset].operand = .{
+                    .int = int.tag.int,
                 };
             },
         }
