@@ -18,7 +18,8 @@ const Scanner = Token.Scanner;
 const Instruction = @import("instr").Instruction;
 const emit_ = @import("emit.zig");
 
-code: std.ArrayList(vm.VMInstruction),
+code: ?std.ArrayList(vm.VMInstruction),
+entry: ?usize,
 scan: Scanner,
 fn_patcher: Patcher,
 lbl_patcher: Patcher,
@@ -35,17 +36,14 @@ pub fn init(
         .fn_patcher = Patcher.init(allocator, errors),
         .lbl_patcher = Patcher.init(allocator, errors),
         .errors = errors,
+        .entry = null,
     };
 }
 
 pub fn deinit(self: *Asm) void {
-    self.code.deinit();
+    if (self.code) |*code_| code_.deinit();
     self.fn_patcher.deinit();
     self.lbl_patcher.deinit();
-}
-
-pub fn getCode(self: *Asm) []const vm.VMInstruction {
-    return self.code.items;
 }
 
 pub fn assemble(self: *Asm) !void {
@@ -58,7 +56,13 @@ pub fn assemble(self: *Asm) !void {
             }
         };
     }
-    try self.fn_patcher.patch(self.code.items);
+    try self.fn_patcher.patch(self.code.?.items);
+
+    if (self.entry == null) {
+        try self.errors.append(.{
+            .tag = .no_main,
+        });
+    }
 }
 
 pub fn emit(self: *Asm, writer: anytype) !void {
@@ -69,7 +73,10 @@ fn asmFunc(self: *Asm) !void {
     _ = try self.expectKw(.function, "expected 'function'");
     const name = try self.expect(.string, "expected function name");
     _ = try self.expectKw(.begin, "expected 'begin'");
-    try self.fn_patcher.decl(name.where, self.code.items.len);
+    try self.fn_patcher.decl(name.where, self.code.?.items.len);
+    if (std.mem.eql(u8, name.where, "main")) {
+        self.entry = self.code.?.items.len;
+    }
     self.lbl_patcher.reset();
     while (try self.scan.peek()) |tok| {
         switch (tok.tag) {
@@ -81,14 +88,14 @@ fn asmFunc(self: *Asm) !void {
             },
         }
     }
-    try self.lbl_patcher.patch(self.code.items);
+    try self.lbl_patcher.patch(self.code.?.items);
     self.lbl_patcher.reset();
 }
 
 fn asmInstr(self: *Asm) !void {
     const instr = try self.expect(.instr, null);
-    const offset = self.code.items.len;
-    try self.code.append(.{
+    const offset = self.code.?.items.len;
+    try self.code.?.append(.{
         .op = instr.tag.instr,
     });
 
@@ -104,13 +111,13 @@ fn asmInstr(self: *Asm) !void {
             },
             .pushf => {
                 const float_ = try self.expect(.float, "expected float");
-                self.code.items[offset].operand = .{
+                self.code.?.items[offset].operand = .{
                     .float = float_.tag.float,
                 };
             },
             else => {
                 const int = try self.expect(.int, "expected integer");
-                self.code.items[offset].operand = .{
+                self.code.?.items[offset].operand = .{
                     .int = int.tag.int,
                 };
             },
@@ -120,7 +127,7 @@ fn asmInstr(self: *Asm) !void {
 
 fn asmLabel(self: *Asm) !void {
     const lbl = try self.expect(.label, null);
-    try self.lbl_patcher.decl(lbl.where, self.code.items.len);
+    try self.lbl_patcher.decl(lbl.where, self.code.?.items.len);
 }
 
 fn getToken(self: *Asm, extra: ?[]const u8) !Token {
