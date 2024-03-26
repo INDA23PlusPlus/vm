@@ -10,6 +10,7 @@ const Type = types.Type;
 const Stack = std.ArrayList(Type);
 const Instruction = @import("arch").instr.Instruction;
 const VMInstruction = @import("VMInstruction.zig");
+const VMProgram = @import("VMProgram.zig");
 
 fn assert(b: bool) !void {
     if (!b and (builtin.mode == .Debug or builtin.mode == .ReleaseSafe)) {
@@ -167,16 +168,16 @@ fn floatValue(x: anytype) !f64 {
 }
 
 /// returns exit code of the program
-pub fn run(code: []const VMInstruction, allocator: Allocator, writer: anytype, debug_output: bool) !i64 {
-    var ip: usize = 0;
+pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_output: bool) !i64 {
+    var ip: usize = prog.entry;
     var bp: usize = 0;
     var stack = Stack.init(allocator);
     defer stack.deinit();
 
     refc = 0;
 
-    while (ip < code.len) {
-        const i = code[ip];
+    while (ip < prog.code.len) {
+        const i = prog.code[ip];
         ip += 1;
 
         switch (i.op) {
@@ -332,7 +333,7 @@ fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_ex
     var buf_writer = std.io.fixedBufferStream(output_buffer);
 
     try std.testing.expectEqual(expected_exit_code, try run(
-        code,
+        &VMProgram.init(code, 0),
         std.testing.allocator,
         buf_writer.writer(),
         false,
