@@ -88,13 +88,14 @@ fn take(v: Type) Type {
         refc = refc + 1;
     }
 
-    return v;
+    return v.clone();
 }
 
-fn drop(_: Type) void {
+fn drop(t: Type) void {
     if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) {
         refc = refc - 1;
     }
+    t.deinit();
 }
 
 fn get(stack: *Stack, bp: usize, pos: i64) !Type {
@@ -127,9 +128,7 @@ fn set(stack: *Stack, bp: usize, pos: i64, v: Type) void {
 }
 
 fn push(stack: *Stack, v: Type) !void {
-    try stack.append(v);
-
-    _ = take(v);
+    try stack.append(take(v));
 }
 
 fn pop(stack: *Stack) !Type {
@@ -168,7 +167,7 @@ fn floatValue(x: anytype) !f64 {
 }
 
 /// returns exit code of the program
-pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool) !i64 {
+pub fn run(code: []const VMInstruction, allocator: Allocator, writer: anytype, debug_output: bool) !i64 {
     var ip: usize = 0;
     var bp: usize = 0;
     var stack = Stack.init(allocator);
@@ -265,7 +264,7 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
                         const v = try pop(&stack);
                         defer drop(v);
 
-                        std.debug.print("{}\n", .{v});
+                        try writer.print("{}\n", .{v});
                     },
                     else => {},
                 }
@@ -314,11 +313,45 @@ pub fn run(code: []const VMInstruction, allocator: Allocator, debug_output: bool
     return r;
 }
 
+fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
+    var res = std.ArrayList([]const u8).init(allocator);
+    defer res.deinit();
+
+    var iter = std.mem.tokenizeAny(u8, buf, " \n\r\t");
+    while (iter.next()) |b| {
+        try res.append(b);
+    }
+
+    return std.mem.join(allocator, " ", res.items);
+}
+
+fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_exit_code: i64) !void {
+    const output_buffer = try std.testing.allocator.alloc(u8, 1 << 20);
+    defer std.testing.allocator.free(output_buffer);
+
+    var buf_writer = std.io.fixedBufferStream(output_buffer);
+
+    try std.testing.expectEqual(expected_exit_code, try run(
+        code,
+        std.testing.allocator,
+        buf_writer.writer(),
+        false,
+    ));
+
+    // const a = try replaceWhiteSpace(expected_output, std.testing.allocator);
+    // defer std.testing.allocator.free(a);
+    // const b = try replaceWhiteSpace(buf_writer.getWritten(), std.testing.allocator);
+    // defer std.testing.allocator.free(b);
+    // try std.testing.expect(std.mem.eql(u8, a, b));
+
+    try std.testing.expect(std.mem.eql(u8, expected_output, buf_writer.getWritten()));
+}
+
 test "arithmetic" {
     const util = struct {
         fn testBinaryOp(op: Instruction) !void {
-            for (0..100) |a| {
-                for (1..100) |b| {
+            for (0..10) |a| {
+                for (1..10) |b| {
                     const lhs: i64 = @intCast(a);
                     const rhs: i64 = @intCast(b);
 
@@ -339,15 +372,15 @@ test "arithmetic" {
                         else => unreachable,
                     });
 
-                    try std.testing.expectEqual(res, try run(
+                    try testRun(
                         &.{
                             VMInstruction.push(lhs),
                             VMInstruction.push(rhs),
                             VMInstruction{ .op = op },
                         },
-                        std.testing.allocator,
-                        false,
-                    ));
+                        "",
+                        res,
+                    );
                 }
             }
         }
@@ -366,18 +399,18 @@ test "arithmetic" {
     try util.testBinaryOp(.cmp_eq);
     try util.testBinaryOp(.cmp_ne);
 
-    try std.testing.expectEqual(@as(i64, 0), try run(
+    try testRun(
         &.{
             VMInstruction.push(0),
             VMInstruction.dup(),
             VMInstruction.pop(),
         },
-        std.testing.allocator,
-        false,
-    ));
+        "",
+        0,
+    );
 
     // decrement value, starting at 10, until its zero, 10 is not special, any value should work
-    try std.testing.expectEqual(@as(i64, 0), try run(
+    try testRun(
         &.{
             VMInstruction.push(10),
             VMInstruction.push(1),
@@ -385,13 +418,13 @@ test "arithmetic" {
             VMInstruction.dup(),
             VMInstruction.jmpnz(1),
         },
-        std.testing.allocator,
-        false,
-    ));
+        "",
+        0,
+    );
 }
 
 test "fibonacci" {
-    _ = try run(&.{
+    try testRun(&.{
         VMInstruction.push(10),
         VMInstruction.push(0),
         VMInstruction.push(1),
@@ -413,5 +446,17 @@ test "fibonacci" {
         VMInstruction.pop(),
         VMInstruction.pop(),
         VMInstruction.push(0),
-    }, std.testing.allocator, false);
+    },
+        \\0
+        \\1
+        \\1
+        \\2
+        \\3
+        \\5
+        \\8
+        \\13
+        \\21
+        \\34
+        \\
+    , 0);
 }

@@ -17,7 +17,7 @@ pub const UnitType = packed struct {
 };
 
 pub const Type = union(enum) {
-    const Self = @This();   
+    const Self = @This();
     const Tag = std.meta.Tag(Self);
     unit: UnitType,
     int: i64,
@@ -45,7 +45,7 @@ pub const Type = union(enum) {
         return res;
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *const Self) void {
         switch (self.tag()) {
             .list => self.list.decr(),
             .object => self.object.decr(),

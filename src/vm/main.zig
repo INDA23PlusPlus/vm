@@ -11,6 +11,7 @@ pub fn main() !void {
             VMInstruction.greater(),
         },
         gpa.allocator(),
+        std.io.getStdOut().writer(),
         true,
     )});
     // std.debug.print("Hello from VM!\n", .{});
