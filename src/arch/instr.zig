@@ -24,23 +24,21 @@ pub const Instruction = enum(u8) {
     pop, // [a] -> []
     dup, // [a] -> [a, a]
 
-    load, // OP %i [] -> [value] where value = stack[OBP + i]
-    store, // OP %i [value] -> [] sets stack[OBP + i] = value
+    load, // OP %i [] -> [value] where value = stack[BP + i]
+    store, // OP %i [value] -> [] sets stack[BP + i] = value
 
     call, // OP .f [param 0, ..., param N - 1, N] -> [param 0, ..., param N - 1, N, BP, return_address]
     // see accompanying `README.md`
     ret, // [param 0, ..., param N - 1, N, BP, ..., return_address, return_value] -> [return_value]
     // see accompanying `README.md`
 
-    stack_alloc, // Allocates N uninitialized object on the stack
+    stack_alloc, // Allocates N unit object on the stack
 
     struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
-    struct_drop, // [s] -> [] tells memory manager this struct isnt being referred to from this scope anymore TODO: these should be implicit
     struct_load, // [s, f] -> [s, v] where v = s.f
     struct_store, // [s, f] -> [r]
 
     list_alloc, // [] -> [l] where l is a reference to the newly allocated list
-    list_drop, // [l] -> [] tells memory manager this list isnt being referred to from this scope anymore TODO: see struct_drop above
     list_load, // [l, i] -> [l, v] where v = l[i]
     list_store, // [l, i, v] -> [l] sets l[i] = v
 
