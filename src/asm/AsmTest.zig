@@ -136,7 +136,7 @@ test "patching calls" {
     defer asm_.deinit();
 
     try asm_.assemble();
-    const code = asm_.code.?.items;
+    const code = asm_.code.items;
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
     try std.testing.expectEqual(@as(usize, 6), code.len);
@@ -163,7 +163,7 @@ test "patching labels" {
     defer asm_.deinit();
 
     try asm_.assemble();
-    const code = asm_.code.?.items;
+    const code = asm_.code.items;
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
     try std.testing.expectEqual(@as(usize, 4), code.len);
