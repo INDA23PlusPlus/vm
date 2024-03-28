@@ -99,7 +99,8 @@ fn drop(t: Type) void {
     t.deinit();
 }
 
-fn get(stack: *Stack, bp: usize, pos: i64) !Type {
+fn get(stack: *Stack, obp: ?usize, pos: i64) !Type {
+    const bp = obp orelse stack.items.len;
     const i: usize = switch (pos < 0) {
         true => bp - @as(usize, @intCast(-pos)),
         false => bp + @as(usize, @intCast(pos)),
@@ -113,14 +114,16 @@ fn get(stack: *Stack, bp: usize, pos: i64) !Type {
     return take(stack.items[i]);
 }
 
-fn set(stack: *Stack, bp: usize, pos: i64, v: Type) void {
+fn set(stack: *Stack, obp: ?usize, pos: i64, v: Type) !void {
+    const bp = obp orelse stack.items.len;
     const i: usize = switch (pos < 0) {
         true => bp - @as(usize, @intCast(-pos)),
         false => bp + @as(usize, @intCast(pos)),
     };
 
-    assert(i < stack.items.len) catch {
+    assert(i < stack.items.len) catch |e| {
         std.debug.print("stack contents: {any}\n", .{stack.items});
+        return e;
     };
 
     drop(stack.items[i]);
@@ -238,7 +241,7 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
                 drop(try pop(&stack));
             },
             .dup => {
-                const v = try get(&stack, stack.items.len, -1);
+                const v = try get(&stack, null, -1);
                 defer drop(v);
 
                 if (debug_output) {
@@ -257,7 +260,7 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
                 const v = try pop(&stack);
                 defer drop(v);
 
-                set(&stack, bp, i.operand.int, v);
+                try set(&stack, bp, i.operand.int, v);
             },
             .syscall => {
                 switch (i.operand.int) {
@@ -302,11 +305,15 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
         }
     }
 
-    const rv = try pop(&stack);
-    const r = rv.as(.int) orelse return error.NonIntReturnValue;
-    drop(rv);
+    var r: Type.GetRepr(.int) = 0;
+    {
+        const rv = try pop(&stack);
+        defer drop(rv);
 
-    assert(refc == 0) catch |e| {
+        r = rv.as(.int) orelse return error.NonIntReturnValue;
+    }
+
+    assert(refc == stack.items.len) catch |e| {
         std.debug.print("refc = {}\n", .{refc});
         return e;
     };

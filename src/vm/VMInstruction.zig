@@ -20,6 +20,10 @@ pub fn push(value: i64) Self {
     return .{ .op = .push, .operand = .{ .int = value } };
 }
 
+pub fn pushf(value: f64) Self {
+    return .{ .op = .pushf, .operand = .{ .float = value } };
+}
+
 pub fn pop() Self {
     return .{ .op = .pop };
 }
