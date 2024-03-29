@@ -3,7 +3,6 @@
 //!
 
 const std = @import("std");
-const builtin = @import("builtin");
 const Self = @This();
 count: u32,
 
@@ -23,7 +22,7 @@ pub fn increment(self: *Self) u32 {
 // returns old value
 pub fn decrement(self: *Self) u32 {
     const res = @atomicRmw(u32, &self.count, .Sub, 1, .Monotonic);
-    if ((builtin.mode == .Debug or builtin.mode == .ReleaseSafe) and res == 0) {
+    if (std.debug.runtime_safety and res == 0) {
         std.debug.panic("decremented zero refcount", .{});
     }
     return res;

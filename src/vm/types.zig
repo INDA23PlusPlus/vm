@@ -3,7 +3,6 @@
 //!
 
 const std = @import("std");
-const builtin = @import("builtin");
 const memory_manager = @import("memory_manager");
 
 const ListRef = memory_manager.APITypes.ListRef;
@@ -99,7 +98,7 @@ pub const Type = union(enum) {
     /// UB if `!self.is(T)`
     pub fn asUnChecked(self: *const Self, comptime T: Tag) GetRepr(T) {
         // check anyway if in debug mode
-        if (builtin.mode == .Debug and !self.is(T)) {
+        if (std.debug.runtime_safety and !self.is(T)) {
             std.debug.panic("was supposed to be {s} but was {s}", .{
                 @tagName(T),
                 @tagName(self.*),

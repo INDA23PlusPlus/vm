@@ -3,7 +3,6 @@
 //!
 
 const std = @import("std");
-const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const types = @import("types.zig");
 const Type = types.Type;
@@ -13,7 +12,7 @@ const VMInstruction = @import("VMInstruction.zig");
 const VMProgram = @import("VMProgram.zig");
 
 fn assert(b: bool) !void {
-    if (!b and (builtin.mode == .Debug or builtin.mode == .ReleaseSafe)) {
+    if (!b and std.debug.runtime_safety) {
         return error.AssertionFailed;
     }
 }
@@ -85,7 +84,7 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
 var refc: i64 = 0;
 
 fn take(v: Type) Type {
-    if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) {
+    if (std.debug.runtime_safety) {
         refc = refc + 1;
     }
 
@@ -93,7 +92,7 @@ fn take(v: Type) Type {
 }
 
 fn drop(t: Type) void {
-    if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) {
+    if (std.debug.runtime_safety) {
         refc = refc - 1;
     }
     t.deinit();
@@ -356,8 +355,8 @@ fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_ex
 test "arithmetic" {
     const util = struct {
         fn testBinaryOp(op: Instruction) !void {
-            for (0..10) |a| {
-                for (1..10) |b| {
+            for (0..100) |a| {
+                for (1..100) |b| {
                     const lhs: i64 = @intCast(a);
                     const rhs: i64 = @intCast(b);
 

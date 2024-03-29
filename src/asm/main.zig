@@ -23,7 +23,8 @@ pub fn main() !void {
     var output = std.io.getStdOut();
     var stderr = std.io.getStdErr().writer();
 
-    var args = std.process.args();
+    var args = try std.process.argsWithAllocator(gpa.allocator());
+    defer gpa.allocator().destroy(&args);
     _ = args.skip();
 
     while (args.next()) |arg| {
