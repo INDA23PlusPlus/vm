@@ -50,6 +50,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const langserver_mod = b.addModule(
+        "langserver",
+        .{ .source_file = .{ .path = "src/langserver/module.zig" } },
+    );
+
+    const langserver = b.addExecutable(.{
+        .name = "langserver",
+        .root_source_file = .{ .path = "src/langserver/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
     // Subprojects can depend on modules like so:
     assembler.addModule("arch", arch_mod);
     assembler.addModule("vm", vm_mod);
@@ -58,17 +70,20 @@ pub fn build(b: *std.Build) void {
     // When subprojects depend on modules that depend on other modules,
     // we need to do this
     vm_mod.dependencies.put("arch", arch_mod) catch unreachable;
+    langserver.addModule("compiler", compiler_mod);
 
     _ = .{
         assembler_mod,
         vm_mod,
         compiler_mod,
         memory_manager_mod,
+        langserver_mod,
     };
 
     b.installArtifact(assembler);
     b.installArtifact(vm);
     b.installArtifact(compiler);
+    b.installArtifact(langserver);
 
     const test_step = b.step("test", "Run unit tests");
     for ([_][]const u8{
@@ -77,6 +92,7 @@ pub fn build(b: *std.Build) void {
         "src/compiler/module.zig",
         "src/memory_manager/module.zig",
         "src/vm/module.zig",
+        "src/langserver/module.zig",
     }) |file| {
         const unit_tests = b.addTest(.{
             .root_source_file = .{ .path = file },
