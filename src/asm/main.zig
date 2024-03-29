@@ -61,10 +61,11 @@ pub fn main() !void {
         try usage();
     }
 
-    const source = input.reader().readAllAlloc(gpa.allocator(), std.math.maxInt(usize)) catch |err| {
+    var source = input.reader().readAllAlloc(gpa.allocator(), std.math.maxInt(usize)) catch |err| {
         try stderr.print("Failed to read input: {}\n", .{err});
         std.os.exit(1);
     };
+    defer gpa.allocator().free(source);
 
     var errors = std.ArrayList(Error).init(gpa.allocator());
     defer errors.deinit();
