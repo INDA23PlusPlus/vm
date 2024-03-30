@@ -6,7 +6,7 @@ const Node_Symbol = enum {
     STATEMENT,
 
     VARIABLE_DECLARATION,
-    VARIABLE_ASSIGNMENT,
+    VARIABLE_MUTATION,
     FUNCTION_DECLARATION,
     LOOP,
     IF_STATEMENT,
@@ -24,6 +24,7 @@ const Node_Symbol = enum {
     FOR_LOOP,
     FUNCTION_ARGUMENTS,
 
+    MUTATION_OPERATOR,
     OPERATOR,
     LITERAL,
     STRUCT_ACCESS,
@@ -55,7 +56,6 @@ const Node_Symbol = enum {
     SEMICOLON,
     COMMA,
     DOT,
-    ASSIGN,
     OPEN_CURLY,
     CLOSED_CURLY,
     OPEN_PARENTHESIS,
@@ -73,6 +73,11 @@ const Node_Symbol = enum {
     NOT,
     EQUALS,
     NOT_EQUALS,
+    ASSIGN,
+    PLUS_EQUALS,
+    MINUS_EQUALS,
+    TIMES_EQUALS,
+    DIVIDE_EQUALS,
     END_OF_FILE
 };
 
@@ -146,7 +151,7 @@ pub fn parse_statement(node_branch: *Parse_Tree, token_reader: *Token_Reader) bo
     {
         var peak_symbols = [_]Node_Symbol{ Node_Symbol.IDENTIFIER, Node_Symbol.ASSIGN };
         if(peak(&peak_symbols, token_reader)) {
-            var symbols = [_]Node_Symbol{ Node_Symbol.VARIABLE_ASSIGNMENT };
+            var symbols = [_]Node_Symbol{ Node_Symbol.VARIABLE_MUTATION };
             return parse_symbols(&symbols, node_branch, token_reader);
         }
     }
@@ -166,8 +171,8 @@ pub fn parse_variable_declaration(node_branch: *Parse_Tree, token_reader: *Token
     return parse_symbols(&peak_symbols, node_branch, token_reader);
 }
 
-pub fn parse_variable_assignment(node_branch: *Parse_Tree, token_reader: *Token_Reader) bool {
-    var peak_symbols = [_]Node_Symbol{ Node_Symbol.IDENTIFIER, Node_Symbol.ASSIGN, Node_Symbol.EXPRESSION, Node_Symbol.SEMICOLON };
+pub fn parse_variable_mutation(node_branch: *Parse_Tree, token_reader: *Token_Reader) bool {
+    var peak_symbols = [_]Node_Symbol{ Node_Symbol.IDENTIFIER, Node_Symbol.MUTATION_OPERATOR, Node_Symbol.EXPRESSION, Node_Symbol.SEMICOLON };
     return parse_symbols(&peak_symbols, node_branch, token_reader);
 }
 
@@ -250,8 +255,8 @@ pub fn parse_symbol(node_branch: *Parse_Tree, token_reader: *Token_Reader) bool 
         .VARIABLE_DECLARATION => {
             return parse_variable_declaration(node_branch, token_reader);
         },
-         .VARIABLE_ASSIGNMENT => {
-            return parse_variable_assignment(node_branch, token_reader);
+         .VARIABLE_MUTATION => {
+            return parse_variable_mutation(node_branch, token_reader);
         },
         .FUNCTION_DECLARATION => {
             return parse_function_declaration(node_branch, token_reader);

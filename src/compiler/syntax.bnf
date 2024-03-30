@@ -1,9 +1,9 @@
 <statements> ::= <end_of_statements> | <statement> <statements>
 <end_of_statements> ::= " "
-<statement> ::= <variable_declaration> | <variable_assignment> | <function_declaration> | <loop> | <if_statement> | <elif_statement> | <else_statement> | <chain_statement> | <scope> | <function_call> <semicolon> | <ret_statement> | <break> <semicolon> | <chain_case>
+<statement> ::= <variable_declaration> | <variable_mutation> | <function_declaration> | <loop> | <if_statement> | <elif_statement> | <else_statement> | <chain_statement> | <scope> | <function_call> <semicolon> | <ret_statement> | <break> <semicolon> | <chain_case>
 
 <variable_declaration> ::= <identifier> <colon_equals> <expression> <semicolon>
-<variable_assignment> ::= <identifier> <assign> <expression> <semicolon>
+<variable_mutation> ::= <identifier> <mutation_operator> <expression> <semicolon>
 <function_declaration> ::= <def> <function_header> <scope>
 <loop> ::= <while_loop> | <for_loop>
 <if_statement> ::= <if> <open_parenthesis> <expression> <closed_parenthesis> <scope>
@@ -21,12 +21,13 @@
 <for_loop> ::= <for> <for_header> <scope>
 <function_arguments> ::= <expression> <comma> <function_arguments> | <expression>
 
+<mutation_operator> ::= <assign> | <plus_equals> | <minus_equals> | <times_equals> | <divide_equals>
 <operator> ::= <plus> | <minus> | <times> | <divide> | <rem> | <mod> | <and> | <or> | <equals> | <not_equals>
 <literal> ::= <constant> | <string> | <struct_literal> | <list_literal>
 <struct_access> ::= <identifier> <dot> <identifier>
 <list_access> ::= <identifier> <open_square> <expression> <closed_square>
 <function_parameters> ::= <identifier> <comma> | <identifier>
-<for_header> ::= <open_parenthesis> <identifier> <colon_equals> <expression> <semicolon> <expression> <semicolon> <identifier> <assign> <expression> <closed_parenthesis>
+<for_header> ::= <open_parenthesis> <identifier> <colon_equals> <expression> <semicolon> <expression> <semicolon> <identifier> <mutation_operator> <expression> <closed_parenthesis>
 
 <struct_literal> ::= <open_curly> <struct_fields> <closed_curly>
 <list_literal> ::= <open_curly> <list_elements> <closed_curly> | <open_square> <expression> <closed_square>
@@ -52,7 +53,6 @@
 <semicolon> ::= "; "
 <comma> ::= ", "
 <dot> ::= "."
-<assign> ::= "<- "
 <open_curly> ::= "{ "
 <closed_curly> ::= "} "
 <open_parenthesis> ::= "( "
@@ -70,3 +70,8 @@
 <not> ::= "!"
 <equals> ::= "= "
 <not_equals> ::= "!= "
+<assign> ::= "<- "
+<plus_equals> ::= "+= "
+<minus_equals> ::= "-= "
+<times_equals> ::= "*= "
+<divide_equals> ::= "/= "

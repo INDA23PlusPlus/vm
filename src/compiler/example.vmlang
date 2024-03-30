@@ -39,7 +39,7 @@ def sum_list() {
 
   sum := 0;
 
-  for (i := 0; i < list.len; i++) {
+  for (i := 0; i < list.len; i <- i + 1) {
     sum <- sum + list[i];
   }
 
