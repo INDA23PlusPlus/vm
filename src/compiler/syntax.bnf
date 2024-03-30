@@ -1,45 +1,72 @@
-// BNF
+<statements> ::= <end_of_statements> | <statement> <statements>
+<end_of_statements> ::= " "
+<statement> ::= <variable_declaration> | <variable_assignment> | <function_declaration> | <loop> | <if_statement> | <elif_statement> | <else_statement> | <chain_statement> | <scope> | <function_call> <semicolon> | <ret_statement> | <break> <semicolon> | <chain_case>
 
-<curly-open> ::= "{"
-<curly-close> ::= "}"
+<variable_declaration> ::= <identifier> <colon_equals> <expression> <semicolon>
+<variable_assignment> ::= <identifier> <assign> <expression> <semicolon>
+<function_declaration> ::= <def> <function_header> <scope>
+<loop> ::= <while_loop> | <for_loop>
+<if_statement> ::= <if> <open_parenthesis> <expression> <closed_parenthesis> <scope>
+<elif_statement> ::= <else> <if> <open_parenthesis> <expression> <closed_parenthesis> <scope>
+<else_statement> ::= <else> <scope>
+<chain_statement> ::= <chain> <scope> | <chain> <open_parenthesis> <expression> <closed_parenthesis> <scope>
+<function_call> ::= <identifier> <open_parenthesis> <function_arguments> <closed_parenthesis>
+<ret_statement> ::= <ret> <expression> <semicolon> | <ret> <semicolon>
+<chain_case> ::= <expression> <colon> <scope>
 
-<parentheses-open> ::= "("
-<parentheses-close> ::= ")"
+<expression> ::= <expression> <operator> <expression> | <open_parenthesis> <expression> <closed_parenthesis> | <not> <expression> | <literal> | <identifier> | <function_call> | <struct_access> | <list_access>
+<function_header> ::= <open_parenthesis> <function_parameters> <closed_parenthesis>
+<scope> ::= <open_curly> <statements> <closed_curly>
+<while_loop> ::= <while> <open_parenthesis> <expression> <closed_parenthesis> <scope>
+<for_loop> ::= <for> <for_header> <scope>
+<function_arguments> ::= <expression> <comma> <function_arguments> | <expression>
 
-<var-name> ::=
-<integer> ::=
-<float> ::=
-<string> ::=
+<operator> ::= <plus> | <minus> | <times> | <divide> | <rem> | <mod> | <and> | <or> | <equals> | <not_equals>
+<literal> ::= <constant> | <string> | <struct_literal> | <list_literal>
+<struct_access> ::= <identifier> <dot> <identifier>
+<list_access> ::= <identifier> <open_square> <expression> <closed_square>
+<function_parameters> ::= <identifier> <comma> | <identifier>
+<for_header> ::= <open_parenthesis> <identifier> <colon_equals> <expression> <semicolon> <expression> <semicolon> <identifier> <assign> <expression> <closed_parenthesis>
 
-<expression> ::= 
-<decleration> ::=
-<loop> ::= <while>
-<statement> ::= <chain> | <if> | <decleration>
-<statements> ::= <statement> | <statement> <statements>
+<struct_literal> ::= <open_curly> <struct_fields> <closed_curly>
+<list_literal> ::= <open_curly> <list_elements> <closed_curly> | <open_square> <expression> <closed_square>
 
+<struct_fields> ::= <struct_field> <comma> <struct_fields> | <struct_field>
+<list_elements> ::= <expression> <comma> <list_elements> | <expression>
 
-<chain> ::= 
-  "chain" <curly-open>
-    <statements> 
-  <curly-close>
+<struct_field> ::= <identifier> <colon> <expression>
 
-<if> ::= 
-  "if" <parentheses-open> <boolean-expression> <parentheses-close> <curly-open>
-    <statements> 
-  <curly-close>
-
-<while> ::= 
-  "while" <parentheses-open> <boolean-expression> <parentheses-close> <curly-open>
-    <statements> 
-  <curly-close>
-
-<for-header> ::= <var-decleration> ";" <boolean-expression> ";" <var-assignment>
-
-<for> ::= 
-  "for" <parentheses-open> <for-header> <parentheses-close> <curly-open>
-    <statements> 
-  <curly-close>
-
-
-<var-decleration> ::= <var-name> ":=" <expression> ";"
-
+<identifier> ::= "<identifier> "
+<constant> ::= "<constant> "
+<string> ::= "<string> "
+<def> ::= "def "
+<ret> ::= "ret "
+<if> ::= "if "
+<else> ::= "else "
+<while> ::= "while "
+<for> ::= "for "
+<chain> ::= "chain "
+<break> ::= "break "
+<colon_equals> ::= ":= "
+<colon> ::= ": "
+<semicolon> ::= "; "
+<comma> ::= ", "
+<dot> ::= "."
+<assign> ::= "<- "
+<open_curly> ::= "{ "
+<closed_curly> ::= "} "
+<open_parenthesis> ::= "( "
+<closed_parenthesis> ::= ") "
+<open_square> ::= "[ "
+<closed_square> ::= "] "
+<plus> ::= "+ "
+<minus> ::= "- "
+<times> ::= "* "
+<divide> ::= "/ "
+<rem> ::= "% "
+<mod> ::= "mod "
+<and> ::= "&& "
+<or> ::= "|| "
+<not> ::= "!"
+<equals> ::= "= "
+<not_equals> ::= "!= "
