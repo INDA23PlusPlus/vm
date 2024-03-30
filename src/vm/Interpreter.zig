@@ -8,6 +8,7 @@ const types = @import("types.zig");
 const Type = types.Type;
 const Stack = std.ArrayList(Type);
 const Instruction = @import("arch").instr.Instruction;
+const VMContext = @import("VMContext.zig");
 const VMInstruction = @import("VMInstruction.zig");
 const VMProgram = @import("VMProgram.zig");
 
@@ -81,66 +82,65 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     }
 }
 
-var refc: i64 = 0;
-
-fn take(v: Type) Type {
+fn take(ctxt: *VMContext, v: Type) Type {
     if (std.debug.runtime_safety) {
-        refc = refc + 1;
+        ctxt.refc = ctxt.refc + 1;
     }
 
     return v.clone();
 }
 
-fn drop(t: Type) void {
+fn drop(ctxt: *VMContext, v: Type) void {
     if (std.debug.runtime_safety) {
-        refc = refc - 1;
+        ctxt.refc = ctxt.refc - 1;
     }
-    t.deinit();
+
+    v.deinit();
 }
 
-fn get(stack: *Stack, obp: ?usize, pos: i64) !Type {
-    const bp = obp orelse stack.items.len;
+fn get(ctxt: *VMContext, obp: ?usize, pos: i64) !Type {
+    const bp = obp orelse ctxt.stack.items.len;
     const i: usize = switch (pos < 0) {
         true => bp - @as(usize, @intCast(-pos)),
         false => bp + @as(usize, @intCast(pos)),
     };
 
-    assert(i < stack.items.len) catch |e| {
-        std.debug.print("stack contents: {any}\n", .{stack.items});
+    assert(i < ctxt.stack.items.len) catch |e| {
+        std.debug.print("stack contents: {any}\n", .{ctxt.stack.items});
         return e;
     };
 
-    return take(stack.items[i]);
+    return take(ctxt, ctxt.stack.items[i]);
 }
 
-fn set(stack: *Stack, obp: ?usize, pos: i64, v: Type) !void {
-    const bp = obp orelse stack.items.len;
+fn set(ctxt: *VMContext, obp: ?usize, pos: i64, v: Type) !void {
+    const bp = obp orelse ctxt.stack.items.len;
     const i: usize = switch (pos < 0) {
         true => bp - @as(usize, @intCast(-pos)),
         false => bp + @as(usize, @intCast(pos)),
     };
 
-    assert(i < stack.items.len) catch |e| {
-        std.debug.print("stack contents: {any}\n", .{stack.items});
+    assert(i < ctxt.stack.items.len) catch |e| {
+        std.debug.print("stack contents: {any}\n", .{ctxt.stack.items});
         return e;
     };
 
-    drop(stack.items[i]);
+    drop(ctxt, ctxt.stack.items[i]);
 
-    stack.items[i] = take(v);
+    ctxt.stack.items[i] = take(ctxt, v);
 }
 
-fn push(stack: *Stack, v: Type) !void {
-    try stack.append(take(v));
+fn push(ctxt: *VMContext, v: Type) !void {
+    try ctxt.stack.append(take(ctxt, v));
 }
 
-fn pop(stack: *Stack) !Type {
-    assert(stack.items.len != 0) catch |e| {
-        std.debug.print("stack contents: {any}\n", .{stack.items});
+fn pop(ctxt: *VMContext) !Type {
+    assert(ctxt.stack.items.len != 0) catch |e| {
+        std.debug.print("stack contents: {any}\n", .{ctxt.stack.items});
         return e;
     };
 
-    return stack.pop();
+    return ctxt.stack.pop();
 }
 
 fn instructionToString(op: Instruction) []const u8 {
@@ -170,17 +170,10 @@ fn floatValue(x: anytype) !f64 {
 }
 
 /// returns exit code of the program
-pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_output: bool) !i64 {
-    var ip: usize = prog.entry;
-    var bp: usize = 0;
-    var stack = Stack.init(allocator);
-    defer stack.deinit();
-
-    refc = 0;
-
-    while (ip < prog.code.len) {
-        const i = prog.code[ip];
-        ip += 1;
+pub fn run(ctxt: *VMContext) !i64 {
+    while (ctxt.pc < ctxt.prog.code.len) {
+        const i = ctxt.prog.code[ctxt.pc];
+        ctxt.pc += 1;
 
         switch (i.op) {
             .add,
@@ -193,15 +186,15 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
             .cmp_le,
             .cmp_ge,
             => |op| {
-                var b = try pop(&stack);
-                defer drop(b);
-                var a = try pop(&stack);
-                defer drop(a);
+                var b = try pop(ctxt);
+                defer drop(ctxt, b);
+                var a = try pop(ctxt);
+                defer drop(ctxt, a);
 
-                const r = take(try doBinaryOp(a, op, b));
-                defer drop(r);
+                const r = take(ctxt, try doBinaryOp(a, op, b));
+                defer drop(ctxt, r);
 
-                if (debug_output) {
+                if (ctxt.debug_output) {
                     if (op.isArithmetic()) {
                         std.debug.print("arithmetic: {} {s} {} = {}\n", .{ a, instructionToString(op), b, r });
                     }
@@ -210,64 +203,64 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
                     }
                 }
 
-                try push(&stack, r);
+                try push(ctxt, r);
             },
             // these have to be handled separately because they are valid for all types
             .cmp_eq,
             .cmp_ne,
             => |op| {
-                var b = try pop(&stack);
-                defer drop(b);
-                var a = try pop(&stack);
-                defer drop(a);
+                var b = try pop(ctxt);
+                defer drop(ctxt, b);
+                var a = try pop(ctxt);
+                defer drop(ctxt, a);
 
-                const r = take(Type.from(@intFromBool(switch (op) {
+                const r = take(ctxt, Type.from(@intFromBool(switch (op) {
                     .cmp_eq => compareEq(a, b),
                     .cmp_ne => !compareEq(a, b),
                     else => unreachable,
                 })));
-                defer drop(r);
+                defer drop(ctxt, r);
 
-                try push(&stack, r);
+                try push(ctxt, r);
             },
             .push => {
-                const v = take(Type.from(i.operand.int));
-                defer drop(v);
+                const v = take(ctxt, Type.from(i.operand.int));
+                defer drop(ctxt, v);
 
-                try push(&stack, v);
+                try push(ctxt, v);
             },
             .pop => {
-                drop(try pop(&stack));
+                drop(ctxt, try pop(ctxt));
             },
             .dup => {
-                const v = try get(&stack, null, -1);
-                defer drop(v);
+                const v = try get(ctxt, null, -1);
+                defer drop(ctxt, v);
 
-                if (debug_output) {
+                if (ctxt.debug_output) {
                     std.debug.print("duplicated: {}\n", .{v});
                 }
 
-                try push(&stack, v);
+                try push(ctxt, v);
             },
             .load => {
-                const v = try get(&stack, bp, i.operand.int);
-                defer drop(v);
+                const v = try get(ctxt, ctxt.bp, i.operand.int);
+                defer drop(ctxt, v);
 
-                try push(&stack, v);
+                try push(ctxt, v);
             },
             .store => {
-                const v = try pop(&stack);
-                defer drop(v);
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
 
-                try set(&stack, bp, i.operand.int, v);
+                try set(ctxt, ctxt.bp, i.operand.int, v);
             },
             .syscall => {
                 switch (i.operand.int) {
                     0 => {
-                        const v = try pop(&stack);
-                        defer drop(v);
+                        const v = try pop(ctxt);
+                        defer drop(ctxt, v);
 
-                        try writer.print("{}\n", .{v});
+                        try ctxt.writer().print("{}\n", .{v});
                     },
                     else => {},
                 }
@@ -275,27 +268,27 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
             .jmp => {
                 const loc = i.operand.location;
 
-                if (debug_output) {
+                if (ctxt.debug_output) {
                     std.debug.print("jumping to: {}\n", .{loc});
                 }
 
-                ip = loc;
+                ctxt.pc = loc;
             },
             .jmpnz => {
                 const loc = i.operand.location;
-                const v = try pop(&stack);
-                defer drop(v);
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
 
                 try assert(v.tag() == .int);
 
                 if (v.int != 0) {
-                    if (debug_output) {
+                    if (ctxt.debug_output) {
                         std.debug.print("took branch to: {}\n", .{loc});
                     }
 
-                    ip = loc;
+                    ctxt.pc = loc;
                 } else {
-                    if (debug_output) {
+                    if (ctxt.debug_output) {
                         std.debug.print("didn't take branch to: {}\n", .{loc});
                     }
                 }
@@ -304,16 +297,16 @@ pub fn run(prog: *const VMProgram, allocator: Allocator, writer: anytype, debug_
         }
     }
 
-    var r: Type.GetRepr(.int) = 0;
+    var r: Type.GetRepr(.int) = undefined;
     {
-        const rv = try pop(&stack);
-        defer drop(rv);
+        const rv = try pop(ctxt);
+        defer drop(ctxt, rv);
 
         r = rv.as(.int) orelse return error.NonIntReturnValue;
     }
 
-    assert(refc == stack.items.len) catch |e| {
-        std.debug.print("refc = {}\n", .{refc});
+    assert(ctxt.refc == ctxt.stack.items.len) catch |e| {
+        std.debug.print("unbalanced refc: {} != {}\n", .{ ctxt.refc, ctxt.stack.items.len });
         return e;
     };
 
@@ -335,19 +328,17 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
 fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_exit_code: i64) !void {
     const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2);
     defer std.testing.allocator.free(output_buffer);
+    var output_stream = std.io.fixedBufferStream(output_buffer);
 
-    var buf_writer = std.io.fixedBufferStream(output_buffer);
+    const prog = VMProgram.init(code, 0);
+    var ctxt = VMContext.init(prog, std.testing.allocator, output_stream.writer(), false);
+    defer ctxt.deinit();
 
-    try std.testing.expectEqual(expected_exit_code, try run(
-        &VMProgram.init(code, 0),
-        std.testing.allocator,
-        buf_writer.writer(),
-        false,
-    ));
+    try std.testing.expectEqual(expected_exit_code, try run(&ctxt));
 
     const a = try replaceWhiteSpace(expected_output, std.testing.allocator);
     defer std.testing.allocator.free(a);
-    const b = try replaceWhiteSpace(buf_writer.getWritten(), std.testing.allocator);
+    const b = try replaceWhiteSpace(output_stream.getWritten(), std.testing.allocator);
     defer std.testing.allocator.free(b);
     try std.testing.expect(std.mem.eql(u8, a, b));
 }
