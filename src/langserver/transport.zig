@@ -6,6 +6,7 @@ const json = std.json;
 pub fn Transport(comptime Writer: type, comptime Reader: type) type {
     return struct {
         const Self = @This();
+        allocator: std.mem.Allocator,
         out: Writer,
         in: Reader,
         content_buffer: std.ArrayList(u8),
@@ -16,6 +17,7 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
             in: Reader,
         ) Self {
             return .{
+                .allocator = allocator,
                 .out = out,
                 .in = in,
                 .content_buffer = std.ArrayList(u8).init(allocator),
@@ -45,7 +47,9 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
                 var content = try self.content_buffer.addManyAsSlice(content_length);
                 std.debug.assert(try self.in.readAtLeast(content, content_length) == content_length);
 
-                return json_rpc.Request.read(content, std.testing.allocator);
+                std.log.debug("Received request/notification: {s}", .{content});
+
+                return json_rpc.Request.read(content, self.allocator);
             } else {
                 return error.InvalidHeader;
             }
@@ -135,7 +139,7 @@ test "Transport.readRequest" {
     try std.testing.expectEqual(@as(i64, 1), request.value.id.?.integer);
     try std.testing.expectEqualStrings("foo", request.value.method);
 
-    const params = try request.value.readParams(Params);
+    const params = try request.value.readParams(Params, std.testing.allocator);
     defer params.deinit();
 
     try std.testing.expectEqual(@as(i32, 1), params.value.foo);
