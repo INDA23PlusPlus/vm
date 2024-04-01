@@ -11,6 +11,9 @@ const default_stringify_options = std.json.StringifyOptions{
 };
 const default_parse_options = std.json.ParseOptions{};
 
+/// Used construct responses where the result or error is unused.
+pub const Placeholder = struct {};
+
 /// Compares two mesage id's for equality.
 pub fn idEql(lhs: json.Value, rhs: json.Value) bool {
     if (lhs == .integer and rhs == .integer) {
