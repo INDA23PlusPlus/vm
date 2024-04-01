@@ -45,12 +45,13 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
 
                 self.content_buffer.clearRetainingCapacity();
                 var content = try self.content_buffer.addManyAsSlice(content_length);
-                std.debug.assert(try self.in.readAtLeast(content, content_length) == content_length);
+                _ = try self.in.readAtLeast(content, content_length);
 
                 std.log.debug("Received request/notification: {s}", .{content});
 
                 return json_rpc.Request.read(content, self.allocator);
             } else {
+                std.log.err("Invalid header: {s}", .{self.content_buffer.items});
                 return error.InvalidHeader;
             }
         }
@@ -59,6 +60,7 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
         pub fn writeResponse(self: *Self, response: anytype) !void {
             self.content_buffer.clearRetainingCapacity();
             try response.write(self.content_buffer.writer());
+            std.log.debug("Sending response: {s}", .{self.content_buffer.items});
             try self.out.print("Content-Length: {}\r\n\r\n", .{self.content_buffer.items.len});
             try self.out.writeAll(self.content_buffer.items);
         }
