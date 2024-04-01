@@ -1,3 +1,3 @@
 test {
-    _ = @import("tag_name_map.zig");
+    _ = @import("utils.zig");
 }
