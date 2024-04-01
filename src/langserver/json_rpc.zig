@@ -70,10 +70,14 @@ pub const Request = struct {
 
     /// Turns the params field into the provided Zig type.
     /// See tests for an example.
-    pub fn readParams(self: @This(), comptime T: type) !json.Parsed(T) {
+    pub fn readParams(
+        self: @This(),
+        comptime T: type,
+        allocator: std.mem.Allocator,
+    ) !json.Parsed(T) {
         return json.parseFromValue(
             T,
-            std.testing.allocator,
+            allocator,
             self.params.?,
             default_parse_options,
         );
@@ -135,7 +139,7 @@ test Request {
     defer request.deinit();
     try std.testing.expectEqualStrings("foo", request.value.method);
 
-    var params = try request.value.readParams(Params);
+    var params = try request.value.readParams(Params, std.testing.allocator);
     defer params.deinit();
 
     try std.testing.expectEqual(@as(i32, 1), params.value.foo);
