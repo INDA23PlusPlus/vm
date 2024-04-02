@@ -97,7 +97,7 @@ test DocumentStore {
     var updated_text = "hello updated world";
 
     // Add
-    try store.addDocument(uri, 1, text);
+    try store.addDocument(uri, 1, "vmd", text);
     try std.testing.expect(store.hasDocument(uri));
 
     var doc = store.getDocument(uri).?;
@@ -105,7 +105,7 @@ test DocumentStore {
     try std.testing.expectEqual(@as(i32, 1), doc.version);
 
     // Update
-    try store.updateDocument(uri, 2, updated_text);
+    try store.updateDocument(uri, 2, "", updated_text);
     try std.testing.expectEqualStrings(updated_text, store.getDocument(uri).?.text);
     try std.testing.expectEqual(@as(i32, 2), store.getDocument(uri).?.version);
 

@@ -30,7 +30,7 @@ test "unexpected token" {
         \\-end
     ;
 
-    try testCase(source, .unexpected_token, "label");
+    try testCase(source, .@"Unexpected token", "label");
 }
 
 test "duplicate label" {
@@ -42,7 +42,7 @@ test "duplicate label" {
         \\-end
     ;
 
-    try testCase(source, .duplicate_label_or_function, "label");
+    try testCase(source, .@"Duplicate label or function", "label");
 }
 
 test "duplicate function" {
@@ -55,7 +55,7 @@ test "duplicate function" {
         \\-end
     ;
 
-    try testCase(source, .duplicate_label_or_function, "main");
+    try testCase(source, .@"Duplicate label or function", "main");
 }
 
 test "unresolved label" {
@@ -66,7 +66,7 @@ test "unresolved label" {
         \\-end
     ;
 
-    try testCase(source, .unresolved_label_or_function, "label");
+    try testCase(source, .@"Unresolved label or function", "label");
 }
 
 test "unresolved function" {
@@ -77,7 +77,7 @@ test "unresolved function" {
         \\-end
     ;
 
-    try testCase(source, .unresolved_label_or_function, "func");
+    try testCase(source, .@"Unresolved label or function", "func");
 }
 
 test "success" {
@@ -186,5 +186,5 @@ test "no main" {
 
     try asm_.assemble();
     try std.testing.expectEqual(@as(usize, 1), errors.items.len);
-    try std.testing.expectEqual(Tag.no_main, errors.items[0].tag);
+    try std.testing.expectEqual(Tag.@"No main function", errors.items[0].tag);
 }
