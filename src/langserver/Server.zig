@@ -171,6 +171,9 @@ fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !v
         params.value.textDocument.text,
     );
 
+    const language = self.documents.getDocument(params.value.textDocument.uri).?.language;
+    std.log.info("Language: {s}", .{if (language) |l| @tagName(l) else "unkown"});
+
     try self.publishDiagnostics(params.value.textDocument.uri);
 }
 
@@ -180,9 +183,6 @@ fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) 
         self.alloc,
     );
     defer params.deinit();
-
-    std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
-    std.log.info("Text document version: {d}", .{params.value.textDocument.version});
 
     try self.documents.updateDocument(
         params.value.textDocument.uri,
@@ -201,7 +201,6 @@ fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !
     );
     defer params.deinit();
 
-    std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
     // TODO: Error if document hasn't been opened.
     self.documents.removeDocument(params.value.textDocument.uri);
 }
