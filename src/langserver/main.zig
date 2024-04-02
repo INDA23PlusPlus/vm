@@ -8,9 +8,13 @@ const Server = @import("Server.zig");
 // Logging configuration.
 // From https://ziglang.org/documentation/0.11.0/std/#A;std:log
 pub const std_options = struct {
-    pub const log_level = .info;
+    pub const log_level = .debug;
     pub const logFn = logFnImpl;
 };
+
+var stderr: std.fs.File.Writer = undefined;
+
+const use_log_file = true;
 
 pub fn logFnImpl(
     comptime level: std.log.Level,
@@ -30,15 +34,21 @@ pub fn logFnImpl(
 
     const prefix = "[" ++ comptime level.asText() ++ "] ";
 
-    std.debug.getStderrMutex().lock();
-    defer std.debug.getStderrMutex().unlock();
-    const stderr = std.io.getStdErr().writer();
+    //std.debug.getStderrMutex().lock();
+    //defer std.debug.getStderrMutex().unlock();
+    //const stderr = std.io.getStdErr().writer();
     nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
 }
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
+
+    if (use_log_file) {
+        stderr = (try std.fs.cwd().createFile("langserver.log", .{})).writer();
+    } else {
+        stderr = std.io.getStdErr().writer();
+    }
 
     var server = Server.init(
         gpa.allocator(),
