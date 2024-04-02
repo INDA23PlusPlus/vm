@@ -43,7 +43,8 @@ pub const Node_Symbol = enum {
     STRUCT_FIELD,
 
     IDENTIFIER,
-    CONSTANT,
+    FLOAT,
+    INT,
     STRING,
     DEF,
     RET,
@@ -53,6 +54,7 @@ pub const Node_Symbol = enum {
     FOR,
     CHAIN,
     BREAK,
+
     COLON_EQUALS,
     COLON,
     SEMICOLON,
@@ -81,6 +83,10 @@ pub const Node_Symbol = enum {
     TIMES_EQUALS,
     DIVIDE_EQUALS,
     END_OF_FILE,
+    LESS_THAN,
+    GREATER_THAN,
+    LESS_THAN_EQUALS,
+    GREATER_THAN_EQUALS,
 };
 
 /// Token that the lexer generates
