@@ -9,7 +9,9 @@ const json = std.json;
 const default_stringify_options = std.json.StringifyOptions{
     .emit_null_optional_fields = false,
 };
-const default_parse_options = std.json.ParseOptions{};
+const default_parse_options = std.json.ParseOptions{
+    .ignore_unknown_fields = true,
+};
 
 /// Used construct responses where the result or error is unused.
 pub const Placeholder = struct {};
