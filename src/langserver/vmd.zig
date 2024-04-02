@@ -18,6 +18,7 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
     defer asm_instance.deinit();
 
     var msg_buf = std.ArrayList(u8).init(alloc);
+    defer msg_buf.deinit();
 
     try asm_instance.assemble();
 
