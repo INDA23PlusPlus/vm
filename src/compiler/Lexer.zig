@@ -157,8 +157,17 @@ fn parse_token(
 
     switch (parsing_type) {
         Parsing_Type.IDENTIFIER => {
+            var kind = Node_Symbol.IDENTIFIER;
+
+            for (keywords) |k| {
+                if (std.mem.eql(u8, k.word, content)) {
+                    kind = k.kind;
+                    break;
+                }
+            }
+
             return Token{
-                .kind = Node_Symbol.IDENTIFIER,
+                .kind = kind,
                 .content = cloned_content,
                 .ln_start = ln_start,
                 .ln_end = ln_end,
@@ -234,6 +243,19 @@ fn number_node_symbol(c: []const u8) !Node_Symbol {
     return Node_Symbol.INT;
 }
 
+const keywords = [_]struct { word: []const u8, kind: Node_Symbol }{
+    // zig fmt: off
+    .{ .word = "def",   .kind = Node_Symbol.DEF },
+    .{ .word = "ret",   .kind = Node_Symbol.RET },
+    .{ .word = "if",    .kind = Node_Symbol.IF },
+    .{ .word = "else",  .kind = Node_Symbol.ELSE },
+    .{ .word = "while", .kind = Node_Symbol.WHILE },
+    .{ .word = "for",   .kind = Node_Symbol.FOR },
+    .{ .word = "chain", .kind = Node_Symbol.CHAIN },
+    .{ .word = "break", .kind = Node_Symbol.BREAK },
+    // zig fmt: on
+};
+
 const symbols = [_]struct { symbol: []const u8, kind: Node_Symbol }{
     .{ .symbol = ",", .kind = Node_Symbol.COMMA },
     .{ .symbol = ".", .kind = Node_Symbol.DOT },
@@ -306,6 +328,20 @@ test "tokenize just identifiers" {
     // zig fmt: off
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER, .content = "example", .cl_start = 1, .cl_end = 7, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER, .content = "foo",     .cl_start = 2, .cl_end = 4, .ln_start = 2, .ln_end = 2 }, lxr.tokens.items[1]);
+    // zig fmt: on
+}
+
+test "tokenize keywords" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try lxr.tokenize("example\n for");
+
+    try std.testing.expectEqual(lxr.tokens.items.len, 2);
+
+    // zig fmt: off
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER, .content = "example", .cl_start = 1, .cl_end = 7, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.FOR,        .content = "for",     .cl_start = 2, .cl_end = 4, .ln_start = 2, .ln_end = 2 }, lxr.tokens.items[1]);
     // zig fmt: on
 }
 
