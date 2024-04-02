@@ -16,6 +16,7 @@ pub const Method = enum {
     initialize,
     initialized,
     shutdown,
+    exit,
     @"textDocument/didOpen",
     @"textDocument/didClose",
     @"textDocument/didChange",

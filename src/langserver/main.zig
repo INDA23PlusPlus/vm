@@ -48,4 +48,6 @@ pub fn main() !void {
     defer server.deinit();
 
     try server.run();
+
+    std.os.exit(if (server.did_shutdown) 0 else 1);
 }

@@ -16,6 +16,8 @@ const Transport = @import("transport.zig").Transport(Writer, Reader);
 
 transport: Transport,
 alloc: std.mem.Allocator,
+did_shutdown: bool = false,
+did_exit: bool = false,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -32,13 +34,14 @@ pub fn deinit(self: *Server) void {
     self.transport.deinit();
 }
 
+/// Main server loop
 pub fn run(self: *Server) !void {
     self.initLSP() catch |err| {
         std.log.err("Failed to initialize LSP: {s}", .{@errorName(err)});
         return;
     };
 
-    while (true) {
+    while (!self.did_exit) {
         std.log.info("Waiting for client request...", .{});
 
         const request = self.transport.readRequest() catch |err| {
@@ -51,13 +54,15 @@ pub fn run(self: *Server) !void {
         };
         defer request.deinit();
 
-        std.log.info("Received request with method name '{s}'", .{request.value.method});
+        const msg_kind = if (request.value.isNotification()) "notification" else "request";
+        std.log.info("Received {s} with method name '{s}'", .{ msg_kind, request.value.method });
 
         try self.handleRequest(&request.value);
         // TODO: internal error message
     }
 }
 
+/// Perform initial server-client handshake and declare capabilities.
 fn initLSP(self: *Server) !void {
     std.log.info("Waiting for client init msg...", .{});
 
@@ -122,8 +127,47 @@ fn handleRequest(self: *Server, request: *const json_rpc.Request) !void {
         return;
     };
 
+    if (self.did_shutdown and method != .exit) {
+        try self.sendErrorResponseWithNoData(
+            request.id.?,
+            .InvalidRequest,
+            "Received request after server shutdown",
+        );
+        return;
+    }
+
     switch (method) {
+        .@"textDocument/didOpen" => try self.handleTextDocumentDidOpen(request),
+        .shutdown => try self.handleShutdown(request),
+        .exit => self.handleExit(),
         // TODO: add method calls
         else => std.debug.panic("Method not implemented: {s}", .{@tagName(method)}),
     }
+}
+
+fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !void {
+    const params = try request.readParams(
+        lsp.DidOpenTextDocumentParams,
+        self.alloc,
+    );
+    defer params.deinit();
+
+    std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
+    std.log.info("Text document language ID: {s}", .{params.value.textDocument.languageId});
+    std.log.info("Text document version: {d}", .{params.value.textDocument.version});
+    std.log.info("Text document text: {s}", .{params.value.textDocument.text});
+}
+
+fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
+    self.did_shutdown = true;
+    const response = json_rpc.Response(
+        json_rpc.Placeholder,
+        json_rpc.Placeholder,
+    ){ .id = request.id.? };
+    try self.transport.writeResponse(response);
+}
+
+fn handleExit(self: *Server) void {
+    std.log.info("Exiting...", .{});
+    self.did_exit = true;
 }
