@@ -1,0 +1,31 @@
+[info] Waiting for client init msg...
+[debug] Received request/notification: {"method":"initialize","jsonrpc":"2.0","id":1,"params":{"initializationOptions":{},"rootUri":".","capabilities":{"workspace":{"workspaceFolders":false,"configuration":false,"symbol":{"dynamicRegistration":false},"applyEdit":false,"didChangeConfiguration":{"dynamicRegistration":false}},"textDocument":{"documentSymbol":{"dynamicRegistration":false,"hierarchicalDocumentSymbolSupport":false},"references":{"dynamicRegistration":false},"publishDiagnostics":{"relatedInformation":true},"rename":{"dynamicRegistration":false},"completion":{"completionItem":{"snippetSupport":false,"commitCharactersSupport":false,"preselectSupport":false,"deprecatedSupport":false,"documentationFormat":["plaintext","markdown"]},"contextSupport":false,"dynamicRegistration":false},"synchronization":{"didSave":true,"willSaveWaitUntil":false,"willSave":false,"dynamicRegistration":false},"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":[]}},"dynamicRegistration":false},"typeDefinition":{"dynamicRegistration":false},"hover":{"dynamicRegistration":false,"contentFormat":["plaintext","markdown"]},"implementation":{"dynamicRegistration":false,"linkSupport":false},"definition":{"dynamicRegistration":false,"linkSupport":false}}},"rootPath":".","processId":29026}}
+[info] Received initialize request from client ''
+[debug] Sending response: {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":1},"serverInfo":{"name":"the_cool_language_server_that_shows_you_what_you_did_wrong"}}}
+[debug] Received request/notification: {"method":"initialized","jsonrpc":"2.0","params":{}}
+[info] Intialized. Happy coding!
+[info] Waiting for client request...
+[debug] Received request/notification: {"method":"textDocument/didOpen","jsonrpc":"2.0","params":{"textDocument":{"uri":"file:///home/ludviggl/dev/kth/vm/editor/vim/ale/v.mcl","version":1,"languageId":"mcl","text":"default\nhej\n"}}}
+[info] Received notification with method name 'textDocument/didOpen'
+[info] Text document URI: file:///home/ludviggl/dev/kth/vm/editor/vim/ale/v.mcl
+[info] Text document language ID: mcl
+[info] Text document version: 1
+[info] Text document content: default
+hej
+
+[info] Waiting for client request...
+[debug] Received request/notification: {"method":"textDocument/didChange","jsonrpc":"2.0","params":{"contentChanges":[{"text":"default\n\n"}],"textDocument":{"uri":"file:///home/ludviggl/dev/kth/vm/editor/vim/ale/v.mcl","version":2}}}
+[info] Received notification with method name 'textDocument/didChange'
+[info] Text document URI: file:///home/ludviggl/dev/kth/vm/editor/vim/ale/v.mcl
+[info] Text document version: 2
+[info] Text document content: default
+
+
+[info] Waiting for client request...
+[debug] Received request/notification: {"method":"textDocument/didChange","jsonrpc":"2.0","params":{"contentChanges":[{"text":"default\n"}],"textDocument":{"uri":"file:///home/ludviggl/dev/kth/vm/editor/vim/ale/v.mcl","version":3}}}
+[info] Received notification with method name 'textDocument/didChange'
+[info] Text document URI: file:///home/ludviggl/dev/kth/vm/editor/vim/ale/v.mcl
+[info] Text document version: 3
+[info] Text document content: default
+
+[info] Waiting for client request...
