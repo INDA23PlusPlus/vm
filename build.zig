@@ -62,6 +62,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    langserver.linkLibC();
+
     // Subprojects can depend on modules like so:
     assembler.addModule("arch", arch_mod);
     assembler.addModule("vm", vm_mod);

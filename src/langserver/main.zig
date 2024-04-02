@@ -5,6 +5,13 @@
 const std = @import("std");
 const Server = @import("Server.zig");
 
+const c = @cImport({
+    @cInclude("sys/stat.h");
+    @cInclude("sys/types.h");
+    @cInclude("unistd.h");
+    @cInclude("fcntl.h");
+});
+
 // Logging configuration.
 // From https://ziglang.org/documentation/0.11.0/std/#A;std:log
 pub const std_options = struct {
@@ -13,8 +20,6 @@ pub const std_options = struct {
 };
 
 var stderr: std.fs.File.Writer = undefined;
-
-const use_log_file = true;
 
 pub fn logFnImpl(
     comptime level: std.log.Level,
@@ -44,11 +49,36 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    if (use_log_file) {
-        stderr = (try std.fs.cwd().createFile("langserver.log", .{})).writer();
-    } else {
-        stderr = std.io.getStdErr().writer();
+    const options = try @import("args.zig").parseArgs();
+
+    switch (options.@"log-output") {
+        .fifo => {
+            // TODO: make this cross platform
+            // TODO: make this a command line option
+            // TODO: check return codes
+            // TODO: maybe don't do this at all
+            var cstr = try gpa.allocator().dupeZ(u8, options.@"log-file");
+            defer gpa.allocator().free(cstr);
+            _ = c.mkfifo(cstr, 0o666);
+            var stderr_file = try std.fs.cwd().openFile(
+                options.@"log-file",
+                .{ .mode = .write_only },
+            );
+            stderr = stderr_file.writer();
+        },
+        .stderr => {
+            stderr = std.io.getStdErr().writer();
+        },
+        .file => {
+            var stderr_file = try std.fs.cwd().createFile(options.@"log-file", .{});
+            stderr = stderr_file.writer();
+        },
     }
+
+    std.log.info("Log output: {s} {s}", .{
+        @tagName(options.@"log-output"),
+        if (options.@"log-output" != .stderr) options.@"log-file" else "",
+    });
 
     var server = Server.init(
         gpa.allocator(),

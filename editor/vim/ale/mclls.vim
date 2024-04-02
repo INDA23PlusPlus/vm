@@ -5,7 +5,7 @@ call ale#linter#Define('mcl', {
 \   'name': 'mclls',
 \   'lsp': 'stdio',
 \   'executable': '../../../zig-out/bin/langserver',
-\   'command': '%e',
+\   'command': '%e --log-file mclls.log --log-output file',
 \   'project_root': '.',
 \})
 
@@ -13,6 +13,6 @@ call ale#linter#Define('vmd', {
 \   'name': 'mclls',
 \   'lsp': 'stdio',
 \   'executable': '../../../zig-out/bin/langserver',
-\   'command': '%e',
+\   'command': '%e --log-file mclls.log --log-output file',
 \   'project_root': '.',
 \})
