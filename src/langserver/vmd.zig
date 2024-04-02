@@ -9,6 +9,8 @@ const lsp = @import("lsp.zig");
 
 /// Produce diagnostics for assembly source.
 pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
+    std.log.info("Producing diagnostics for document {s}", .{doc.uri});
+
     var errors = std.ArrayList(asm_.Error).init(alloc);
     defer errors.deinit();
 
@@ -18,6 +20,8 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
     var msg_buf = std.ArrayList(u8).init(alloc);
 
     try asm_instance.assemble();
+
+    std.log.info("{d} errors found", .{errors.items.len});
 
     for (errors.items) |err| {
         if (err.where == null) {
