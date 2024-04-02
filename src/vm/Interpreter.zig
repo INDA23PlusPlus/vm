@@ -98,36 +98,36 @@ fn drop(ctxt: *VMContext, v: Type) void {
     v.deinit();
 }
 
-fn get(ctxt: *VMContext, obp: ?usize, pos: i64) !Type {
-    const bp = obp orelse ctxt.stack.items.len;
-    const i: usize = switch (pos < 0) {
-        true => bp - @as(usize, @intCast(-pos)),
-        false => bp + @as(usize, @intCast(pos)),
-    };
+fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
+    const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
+    const idx: usize = if (pos < 0)
+        base - @as(usize, @intCast(-pos))
+    else
+        base + @as(usize, @intCast(pos));
 
-    assert(i < ctxt.stack.items.len) catch |e| {
+    assert(idx < ctxt.stack.items.len) catch |e| {
         std.debug.print("stack contents: {any}\n", .{ctxt.stack.items});
         return e;
     };
 
-    return take(ctxt, ctxt.stack.items[i]);
+    return take(ctxt, ctxt.stack.items[idx]);
 }
 
-fn set(ctxt: *VMContext, obp: ?usize, pos: i64, v: Type) !void {
-    const bp = obp orelse ctxt.stack.items.len;
-    const i: usize = switch (pos < 0) {
-        true => bp - @as(usize, @intCast(-pos)),
-        false => bp + @as(usize, @intCast(pos)),
-    };
+fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
+    const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
+    const idx: usize = if (pos < 0)
+        base - @as(usize, @intCast(-pos))
+    else
+        base + @as(usize, @intCast(pos));
 
-    assert(i < ctxt.stack.items.len) catch |e| {
+    assert(idx < ctxt.stack.items.len) catch |e| {
         std.debug.print("stack contents: {any}\n", .{ctxt.stack.items});
         return e;
     };
 
-    drop(ctxt, ctxt.stack.items[i]);
+    drop(ctxt, ctxt.stack.items[idx]);
 
-    ctxt.stack.items[i] = take(ctxt, v);
+    ctxt.stack.items[idx] = take(ctxt, v);
 }
 
 fn push(ctxt: *VMContext, v: Type) !void {
@@ -233,7 +233,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 drop(ctxt, try pop(ctxt));
             },
             .dup => {
-                const v = try get(ctxt, null, -1);
+                const v = try get(ctxt, false, -1);
                 defer drop(ctxt, v);
 
                 if (ctxt.debug_output) {
@@ -243,7 +243,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try push(ctxt, v);
             },
             .load => {
-                const v = try get(ctxt, ctxt.bp, i.operand.int);
+                const v = try get(ctxt, true, i.operand.int);
                 defer drop(ctxt, v);
 
                 try push(ctxt, v);
@@ -252,7 +252,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const v = try pop(ctxt);
                 defer drop(ctxt, v);
 
-                try set(ctxt, ctxt.bp, i.operand.int, v);
+                try set(ctxt, true, i.operand.int, v);
             },
             .syscall => {
                 switch (i.operand.int) {
