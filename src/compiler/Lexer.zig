@@ -27,7 +27,7 @@ pub fn deinit(self: *Self) void {
     self.tokens.deinit();
 }
 
-const Parsing_Type = enum { NONE, IDENTIFIER, SYMBOL };
+const Parsing_Type = enum { NONE, IDENTIFIER, SYMBOL, NUMBER };
 
 pub fn tokenize(self: *Self, text: []const u8) !void {
     // The current line and column
@@ -76,7 +76,19 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
             parsing_type = Parsing_Type.IDENTIFIER;
         }
 
-        if (is_symbol(char)) {
+        if (is_numeric(char) and parsing_type != Parsing_Type.IDENTIFIER and parsing_type != Parsing_Type.NUMBER) {
+            if (parsing_type != Parsing_Type.NONE) {
+                var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+                try self.tokens.append(token);
+                content_index = 0;
+            }
+
+            parsing_type = Parsing_Type.NUMBER;
+            ln_start = ln;
+            cl_start = cl;
+        }
+
+        if (is_symbol(char) and !(parsing_type == Parsing_Type.NUMBER and char == '.')) {
             if (parsing_type != Parsing_Type.SYMBOL) {
                 if (parsing_type != Parsing_Type.NONE) {
                     var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
@@ -162,6 +174,16 @@ fn parse_token(
                 .cl_end = cl_end,
             };
         },
+        Parsing_Type.NUMBER => {
+            return Token{
+                .kind = try number_node_symbol(cloned_content),
+                .content = cloned_content,
+                .ln_start = ln_start,
+                .ln_end = ln_end,
+                .cl_start = cl_start,
+                .cl_end = cl_end,
+            };
+        },
         Parsing_Type.NONE => {
             if (builtin.mode == .Debug) {
                 std.debug.panic("Can't parse NONE as token", .{});
@@ -191,6 +213,26 @@ fn is_numeric(c: u8) bool {
 
 fn is_alphanumeric(c: u8) bool {
     return is_alphabetic(c) or is_numeric(c);
+}
+
+fn number_node_symbol(c: []const u8) !Node_Symbol {
+    var has_dot: bool = false;
+
+    for (c) |char| {
+        if (char == '.') {
+            if (has_dot) {
+                return error.CantHaveMultipleDotsInNumber;
+            }
+
+            has_dot = true;
+        }
+    }
+
+    if (has_dot) {
+        return Node_Symbol.FLOAT;
+    }
+
+    return Node_Symbol.INT;
 }
 
 const symbols = [_]struct { symbol: []const u8, kind: Node_Symbol }{
@@ -290,4 +332,25 @@ test "tokenize symbols with identifiers" {
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.LESS_THAN,          .content = "<",       .cl_start = 32, .cl_end = 32, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[11]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.MINUS,              .content = "-",       .cl_start = 34, .cl_end = 34, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[12]);
     // zig fmt: on
+}
+
+test "tokenize numbers and identifiers" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try lxr.tokenize("foo100 100 100.0");
+
+    try std.testing.expectEqual(lxr.tokens.items.len, 3);
+    // zig fmt: off
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER, .content = "foo100", .cl_start = 1,   .cl_end = 6,   .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.INT,        .content = "100",    .cl_start = 8,   .cl_end = 10,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[1]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.FLOAT,      .content = "100.0",  .cl_start = 12,  .cl_end = 16,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[2]);
+    // zig fmt: on
+}
+
+test "tokenize invalid numbers with error" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try std.testing.expectError(error.CantHaveMultipleDotsInNumber, lxr.tokenize("100.0.0"));
 }
