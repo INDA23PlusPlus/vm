@@ -67,10 +67,13 @@ pub fn build(b: *std.Build) void {
     assembler.addModule("vm", vm_mod);
     vm.addModule("memory_manager", memory_manager_mod);
     vm.addModule("arch", arch_mod);
+    langserver.addModule("compiler", compiler_mod);
+    langserver.addModule("asm", assembler_mod);
     // When subprojects depend on modules that depend on other modules,
     // we need to do this
     vm_mod.dependencies.put("arch", arch_mod) catch unreachable;
-    langserver.addModule("compiler", compiler_mod);
+    assembler_mod.dependencies.put("vm", vm_mod) catch unreachable;
+    assembler_mod.dependencies.put("arch", arch_mod) catch unreachable;
 
     _ = .{
         assembler_mod,

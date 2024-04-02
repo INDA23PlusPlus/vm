@@ -8,7 +8,7 @@ const Server = @import("Server.zig");
 // Logging configuration.
 // From https://ziglang.org/documentation/0.11.0/std/#A;std:log
 pub const std_options = struct {
-    pub const log_level = .debug;
+    pub const log_level = .info;
     pub const logFn = logFnImpl;
 };
 

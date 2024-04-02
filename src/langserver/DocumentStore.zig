@@ -32,6 +32,7 @@ pub fn addDocument(
     self: *DocumentStore,
     uri: []const u8,
     version: i32,
+    languageId: []const u8,
     text: []const u8,
 ) !void {
     std.log.info("Add document {s} (version = {d})", .{ uri, version });
@@ -39,7 +40,7 @@ pub fn addDocument(
     const key = try self.alloc.dupe(u8, uri);
     errdefer self.alloc.free(key);
 
-    var doc = try Document.init(self.alloc, key, version, text);
+    var doc = try Document.init(self.alloc, key, version, languageId, text);
     errdefer doc.deinit(self.alloc);
 
     try self.docs.put(key, doc);
@@ -49,7 +50,13 @@ pub fn hasDocument(self: *DocumentStore, uri: []const u8) bool {
     return self.docs.contains(uri);
 }
 
-pub fn updateDocument(self: *DocumentStore, uri: []const u8, version: i32, text: []const u8) !void {
+pub fn updateDocument(
+    self: *DocumentStore,
+    uri: []const u8,
+    version: i32,
+    languageId: []const u8,
+    text: []const u8,
+) !void {
     if (self.hasDocument(uri)) {
         // TODO: something something errdefer
         std.log.info("Update document {s} (version = {d})", .{ uri, version });
@@ -58,7 +65,7 @@ pub fn updateDocument(self: *DocumentStore, uri: []const u8, version: i32, text:
         self.alloc.free(doc.*.text);
         doc.*.text = try self.alloc.dupe(u8, text);
     } else {
-        try self.addDocument(uri, version, text);
+        try self.addDocument(uri, version, languageId, text);
     }
 }
 

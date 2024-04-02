@@ -167,11 +167,11 @@ fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !v
     try self.documents.updateDocument(
         params.value.textDocument.uri,
         params.value.textDocument.version,
+        params.value.textDocument.languageId,
         params.value.textDocument.text,
     );
 
-    // TODO: Remove this nonsense
-    try @import("dummy.zig").produceDiagnostics(self, params.value.textDocument.uri);
+    try self.publishDiagnostics(params.value.textDocument.uri);
 }
 
 fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) !void {
@@ -187,11 +187,11 @@ fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) 
     try self.documents.updateDocument(
         params.value.textDocument.uri,
         params.value.textDocument.version,
+        "", // no languageId provided
         params.value.contentChanges[0].text,
     );
 
-    // TODO: Remove this nonsense
-    try @import("dummy.zig").produceDiagnostics(self, params.value.textDocument.uri);
+    try self.publishDiagnostics(params.value.textDocument.uri);
 }
 
 fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !void {
@@ -218,4 +218,21 @@ fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
 fn handleExit(self: *Server) void {
     std.log.info("Exiting...", .{});
     self.did_exit = true;
+}
+
+fn publishDiagnostics(self: *Server, uri: []const u8) !void {
+    var doc = self.documents.getDocument(uri).?;
+    try doc.produceDiagnostics(self.alloc);
+
+    const Notification = json_rpc.ServerNotification(lsp.PublishDiagnosticsParams);
+
+    const notification = Notification{
+        .method = @tagName(.@"textDocument/publishDiagnostics"),
+        .params = .{
+            .uri = uri,
+            .version = doc.version,
+            .diagnostics = doc.diagnostics.items,
+        },
+    };
+    try self.transport.writeServerNotification(notification);
 }

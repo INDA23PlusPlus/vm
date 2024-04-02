@@ -1,0 +1,15 @@
+-function "main"
+-begin
+push %1
+store @3.14
+-end
+
+-function "fib"
+-begin
+jmp .label
+-end
+
+-function "hello"
+-begin
+call "neeej"
+-end
