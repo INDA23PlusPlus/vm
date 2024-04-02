@@ -9,6 +9,7 @@ const lsp = @import("lsp.zig");
 const json_rpc = @import("json_rpc.zig");
 const json = std.json;
 const ErrorCode = @import("error.zig").Code;
+const DocumentStore = @import("DocumentStore.zig");
 
 const Writer = std.fs.File.Writer;
 const Reader = std.fs.File.Reader;
@@ -18,6 +19,7 @@ transport: Transport,
 alloc: std.mem.Allocator,
 did_shutdown: bool = false,
 did_exit: bool = false,
+documents: DocumentStore,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -27,11 +29,13 @@ pub fn init(
     return .{
         .transport = Transport.init(allocator, out, in),
         .alloc = allocator,
+        .documents = DocumentStore.init(allocator),
     };
 }
 
 pub fn deinit(self: *Server) void {
     self.transport.deinit();
+    self.documents.deinit();
 }
 
 /// Main server loop
@@ -157,9 +161,12 @@ fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !v
     defer params.deinit();
 
     std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
-    std.log.info("Text document language ID: {s}", .{params.value.textDocument.languageId});
     std.log.info("Text document version: {d}", .{params.value.textDocument.version});
-    std.log.info("Text document content: {s}", .{params.value.textDocument.text});
+
+    try self.documents.updateDocument(
+        params.value.textDocument.uri,
+        params.value.textDocument.text,
+    );
 }
 
 fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) !void {
@@ -171,7 +178,11 @@ fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) 
 
     std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
     std.log.info("Text document version: {d}", .{params.value.textDocument.version});
-    std.log.info("Text document content: {s}", .{params.value.contentChanges[0].text});
+
+    try self.documents.updateDocument(
+        params.value.textDocument.uri,
+        params.value.contentChanges[0].text,
+    );
 }
 
 fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
