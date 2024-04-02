@@ -32,11 +32,10 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
 
         msg_buf.clearRetainingCapacity();
         _ = try msg_buf.writer().write(@tagName(err.tag));
+        _ = try msg_buf.writer().print(" \"{s}\"", .{err.where.?});
         if (err.extra) |extra| {
             _ = try msg_buf.writer().print(": {s}", .{extra});
         }
-
-        _ = try msg_buf.writer().print(" \"{s}\"", .{err.where.?});
 
         // Compute location
         const ref = try asm_.SourceRef.init(doc.text, err.where.?);
