@@ -169,6 +169,9 @@ fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !v
         params.value.textDocument.version,
         params.value.textDocument.text,
     );
+
+    // TODO: Remove this nonsense
+    try @import("dummy.zig").produceDiagnostics(self, params.value.textDocument.uri);
 }
 
 fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) !void {
@@ -186,6 +189,9 @@ fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) 
         params.value.textDocument.version,
         params.value.contentChanges[0].text,
     );
+
+    // TODO: Remove this nonsense
+    try @import("dummy.zig").produceDiagnostics(self, params.value.textDocument.uri);
 }
 
 fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !void {
