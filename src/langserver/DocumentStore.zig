@@ -29,6 +29,8 @@ pub fn deinit(self: *DocumentStore) void {
 }
 
 pub fn addDocument(self: *DocumentStore, uri: []const u8, text: []const u8) !void {
+    std.log.info("Add document {s}", .{uri});
+
     const key = try self.alloc.dupe(u8, uri);
     errdefer self.alloc.free(key);
 
@@ -45,6 +47,7 @@ pub fn hasDocument(self: *DocumentStore, uri: []const u8) bool {
 pub fn updateDocument(self: *DocumentStore, uri: []const u8, text: []const u8) !void {
     if (self.hasDocument(uri)) {
         // TODO: something something errdefer
+        std.log.info("Update document {s}", .{uri});
         var doc = self.docs.getPtr(uri).?;
         self.alloc.free(doc.*.text);
         doc.*.text = try self.alloc.dupe(u8, text);
@@ -55,6 +58,7 @@ pub fn updateDocument(self: *DocumentStore, uri: []const u8, text: []const u8) !
 
 pub fn removeDocument(self: *DocumentStore, uri: []const u8) void {
     // TODO: assert it exists
+    std.log.info("Remove document {s}", .{uri});
     var entry = self.docs.getEntry(uri).?;
     entry.value_ptr.deinit(self.alloc);
     var key = entry.key_ptr.*;

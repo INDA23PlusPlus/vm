@@ -82,8 +82,8 @@ fn initLSP(self: *Server) !void {
     defer params.deinit();
 
     std.log.info(
-        "Received initialize request from client '{s}'",
-        .{params.value.clientInfo.?.name},
+        "Received initialize request from {s}",
+        .{if (params.value.clientInfo) |info| info.name else "unknown client"},
     );
 
     const response = json_rpc.Response(lsp.InitializeResult, json_rpc.Placeholder){
