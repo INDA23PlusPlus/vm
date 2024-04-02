@@ -54,3 +54,7 @@ dkms.conf
 # Zig directories
 zig-cache/
 zig-out/
+
+# Log files
+*.log
+*.log.*
