@@ -43,9 +43,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
     var content_index: u32 = 0;
     defer self.allocator.free(content);
 
-    for (0..text.len) |i| {
-        var char = text[i];
-
+    for (text) |char| {
         if (is_whitespace(char)) {
             if (parsing_type != Parsing_Type.NONE) {
                 var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
@@ -53,14 +51,12 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                 content_index = 0;
                 parsing_type = Parsing_Type.NONE;
             }
-
             if (char == '\n') {
                 ln += 1;
                 cl = 1;
             } else {
                 cl += 1;
             }
-
             continue;
         }
 
@@ -70,7 +66,6 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                 try self.tokens.append(token);
                 content_index = 0;
             }
-
             ln_start = ln;
             cl_start = cl;
             parsing_type = Parsing_Type.IDENTIFIER;
@@ -82,7 +77,6 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                 try self.tokens.append(token);
                 content_index = 0;
             }
-
             parsing_type = Parsing_Type.NUMBER;
             ln_start = ln;
             cl_start = cl;
@@ -95,7 +89,6 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                     try self.tokens.append(token);
                     content_index = 0;
                 }
-
                 ln_start = ln;
                 cl_start = cl;
                 parsing_type = Parsing_Type.SYMBOL;
@@ -104,7 +97,6 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                     var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                     try self.tokens.append(token);
                     content_index = 0;
-
                     ln_start = ln;
                     cl_start = cl;
                 }
@@ -114,7 +106,6 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
         if (parsing_type != Parsing_Type.NONE) {
             content[content_index] = char;
             content_index += 1;
-
             if (content_index == content.len) {
                 var new_content: []u8 = try self.allocator.alloc(u8, content.len * 2);
                 @memcpy(new_content, content);
@@ -129,7 +120,6 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                 try self.tokens.append(token);
                 content[0] = char;
                 content_index = 1;
-
                 cl_start = cl;
                 ln_start = ln;
             }
