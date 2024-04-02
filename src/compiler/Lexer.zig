@@ -176,9 +176,6 @@ fn parse_token(
             };
         },
         Parsing_Type.SYMBOL => {
-            if (get_symbol(content) == error.UnknownSymbol) {
-                std.debug.panic("example: {s}", .{content});
-            }
 
             return Token{
                 .kind = try get_symbol(content),
@@ -257,29 +254,39 @@ const keywords = [_]struct { word: []const u8, kind: Node_Symbol }{
 };
 
 const symbols = [_]struct { symbol: []const u8, kind: Node_Symbol }{
-    .{ .symbol = ",", .kind = Node_Symbol.COMMA },
-    .{ .symbol = ".", .kind = Node_Symbol.DOT },
+    // zig fmt: off
     .{ .symbol = ":=", .kind = Node_Symbol.COLON_EQUALS },
-    .{ .symbol = ":", .kind = Node_Symbol.COLON },
-    .{ .symbol = "<-", .kind = Node_Symbol.ASSIGN },
-    .{ .symbol = "=", .kind = Node_Symbol.EQUALS },
+    .{ .symbol = ":",  .kind = Node_Symbol.COLON },
+    .{ .symbol = ";",  .kind = Node_Symbol.SEMICOLON },
+    .{ .symbol = ",",  .kind = Node_Symbol.COMMA },
+    .{ .symbol = ".",  .kind = Node_Symbol.DOT },
+    .{ .symbol = "{",  .kind = Node_Symbol.OPEN_CURLY },
+    .{ .symbol = "}",  .kind = Node_Symbol.CLOSED_CURLY },
+    .{ .symbol = "(",  .kind = Node_Symbol.OPEN_PARENTHESIS },
+    .{ .symbol = ")",  .kind = Node_Symbol.CLOSED_PARENTHESIS },
+    .{ .symbol = "[",  .kind = Node_Symbol.OPEN_SQUARE },
+    .{ .symbol = "]",  .kind = Node_Symbol.CLOSED_SQUARE },
+    .{ .symbol = "+",  .kind = Node_Symbol.PLUS },
+    .{ .symbol = "-",  .kind = Node_Symbol.MINUS },
+    .{ .symbol = "*",  .kind = Node_Symbol.TIMES },
+    .{ .symbol = "/",  .kind = Node_Symbol.DIVIDE },
+    .{ .symbol = "%",  .kind = Node_Symbol.REM },
+
+    .{ .symbol = "&&", .kind = Node_Symbol.AND },
+    .{ .symbol = "||", .kind = Node_Symbol.OR },
+    .{ .symbol = "!",  .kind = Node_Symbol.NOT },
+    .{ .symbol = "=",  .kind = Node_Symbol.EQUALS },
     .{ .symbol = "!=", .kind = Node_Symbol.NOT_EQUALS },
-    .{ .symbol = "<", .kind = Node_Symbol.LESS_THAN },
-    .{ .symbol = ">", .kind = Node_Symbol.GREATER_THAN },
+    .{ .symbol = "<",  .kind = Node_Symbol.LESS_THAN },
+    .{ .symbol = ">",  .kind = Node_Symbol.GREATER_THAN },
     .{ .symbol = "<=", .kind = Node_Symbol.LESS_THAN_EQUALS },
     .{ .symbol = ">=", .kind = Node_Symbol.GREATER_THAN_EQUALS },
-    .{ .symbol = "+", .kind = Node_Symbol.PLUS },
-    .{ .symbol = "-", .kind = Node_Symbol.MINUS },
-    .{ .symbol = "*", .kind = Node_Symbol.TIMES },
-    .{ .symbol = "/", .kind = Node_Symbol.DIVIDE },
-    .{ .symbol = ";", .kind = Node_Symbol.SEMICOLON },
-    .{ .symbol = ",", .kind = Node_Symbol.COMMA },
-    .{ .symbol = "(", .kind = Node_Symbol.OPEN_PARENTHESIS },
-    .{ .symbol = ")", .kind = Node_Symbol.CLOSED_PARENTHESIS },
-    .{ .symbol = "[", .kind = Node_Symbol.OPEN_SQUARE },
-    .{ .symbol = "]", .kind = Node_Symbol.CLOSED_SQUARE },
-    .{ .symbol = "{", .kind = Node_Symbol.OPEN_CURLY },
-    .{ .symbol = "}", .kind = Node_Symbol.CLOSED_CURLY },
+    .{ .symbol = "<<", .kind = Node_Symbol.ASSIGN },
+    .{ .symbol = "+<", .kind = Node_Symbol.PLUS_ASSIGN },
+    .{ .symbol = "-<", .kind = Node_Symbol.MINUS_ASSIGN },
+    .{ .symbol = "*<", .kind = Node_Symbol.TIMES_ASSIGN },
+    .{ .symbol = "/<", .kind = Node_Symbol.DIVIDE_ASSIGN },
+    // zig fmt: on
 };
 
 /// Checks if a char is a symbol char
@@ -349,23 +356,21 @@ test "tokenize symbols with identifiers" {
     var lxr = Self.init(std.heap.page_allocator);
     defer lxr.deinit();
 
-    try lxr.tokenize("example foo<-baz()<-::=example:< -");
+    try lxr.tokenize("example foo<<baz()<<::=example:< <");
 
     try std.testing.expectEqual(lxr.tokens.items.len, 13);
     // zig fmt: off
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "example", .cl_start = 1,  .cl_end = 7,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "foo",     .cl_start = 9,  .cl_end = 11, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[1]);
-    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.ASSIGN,             .content = "<-",      .cl_start = 12, .cl_end = 13, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[2]);
-    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "baz",     .cl_start = 14, .cl_end = 16, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[3]);
-    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.OPEN_PARENTHESIS,   .content = "(",       .cl_start = 17, .cl_end = 17, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[4]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.ASSIGN,             .content = "<<",      .cl_start = 12, .cl_end = 13, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[2]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.CLOSED_PARENTHESIS, .content = ")",       .cl_start = 18, .cl_end = 18, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[5]);
-    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.ASSIGN,             .content = "<-",      .cl_start = 19, .cl_end = 20, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[6]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.ASSIGN,             .content = "<<",      .cl_start = 19, .cl_end = 20, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[6]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.COLON,              .content = ":",       .cl_start = 21, .cl_end = 21, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[7]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.COLON_EQUALS,       .content = ":=",      .cl_start = 22, .cl_end = 23, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[8]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "example", .cl_start = 24, .cl_end = 30, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[9]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.COLON,              .content = ":",       .cl_start = 31, .cl_end = 31, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[10]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.LESS_THAN,          .content = "<",       .cl_start = 32, .cl_end = 32, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[11]);
-    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.MINUS,              .content = "-",       .cl_start = 34, .cl_end = 34, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[12]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.LESS_THAN,          .content = "<",       .cl_start = 34, .cl_end = 34, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[12]);
     // zig fmt: on
 }
 
