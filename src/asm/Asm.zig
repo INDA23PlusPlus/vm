@@ -60,7 +60,7 @@ pub fn assemble(self: *Asm) !void {
 
     if (self.entry == null) {
         try self.errors.append(.{
-            .tag = .no_main,
+            .tag = .@"No main function",
         });
     }
 }
@@ -140,7 +140,7 @@ fn asmLabel(self: *Asm) !void {
 fn getToken(self: *Asm, extra: ?[]const u8) !Token {
     return try self.scan.next() orelse {
         try self.errors.append(.{
-            .tag = .unexpected_eof,
+            .tag = .@"Unexpected end of input",
             .where = self.scan.source[self.scan.source.len - 1 ..],
             .extra = extra,
         });
@@ -152,7 +152,7 @@ fn expect(self: *Asm, tag: std.meta.Tag(Token.Tag), extra: ?[]const u8) !Token {
     const tok = try self.getToken(extra);
     if (tok.tag != tag) {
         try self.errors.append(.{
-            .tag = .unexpected_token,
+            .tag = .@"Unexpected token",
             .where = tok.where,
             .extra = extra,
         });
@@ -165,7 +165,7 @@ fn expectKw(self: *Asm, kw: Token.Keyword, extra: ?[]const u8) !Token {
     const tok = try self.expect(.keyword, extra);
     if (tok.tag.keyword != kw) {
         try self.errors.append(.{
-            .tag = .unexpected_token,
+            .tag = .@"Unexpected token",
             .where = tok.where,
             .extra = extra,
         });

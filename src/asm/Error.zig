@@ -7,29 +7,29 @@ const SourceRef = @import("SourceRef.zig");
 /// The kind of error
 tag: enum {
     /// Invalid character in input stream
-    invalid_character,
+    @"Invalid character",
     /// (Assembler) Word following keyword prefix is not a valid keyword
-    invalid_keyword,
+    @"Invalid keyword",
     /// (Assembler) Word is not a valid instruction
-    invalid_instruction,
+    @"Invalid instruction",
     /// (Assembler) Word following literal prefix is not a valid literal
-    invalid_literal,
+    @"Invalid literal",
     /// (Assembler) String literal has no closing double quote
-    unterminated_string,
+    @"Unterminated string",
     /// (Assembler) Operand is missing from multibyte instruction
-    missing_operand,
+    @"Missing operand",
     /// (Assembler) Operand is supplied for instruction that does not take operands
-    redundant_operand,
+    @"Redundant operand",
     /// (Assembler) Referenced label or function is not declared in this scope
-    unresolved_label_or_function,
+    @"Unresolved label or function",
     /// (Assembler) Duplicate label or function
-    duplicate_label_or_function,
+    @"Duplicate label or function",
     /// No main function
-    no_main,
+    @"No main function",
     /// Unexpected token in input stream
-    unexpected_token,
+    @"Unexpected token",
     /// Unexpected end of input stream
-    unexpected_eof,
+    @"Unexpected end of input",
 },
 /// Location in source
 where: ?[]const u8 = null,

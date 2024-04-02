@@ -49,7 +49,7 @@ pub const Scanner = struct {
             else => {
                 const where = self.source[self.cursor .. self.cursor + 1];
                 self.advance();
-                try self.errors.append(.{ .tag = .invalid_character, .where = where });
+                try self.errors.append(.{ .tag = .@"Invalid character", .where = where });
                 return .{ .tag = .err, .where = where };
             },
         }
@@ -111,7 +111,7 @@ pub const Scanner = struct {
         self.advance();
         const where = self.readWord();
         const kw = std.meta.stringToEnum(Keyword, where) orelse {
-            try self.errors.append(.{ .tag = .invalid_keyword, .where = where });
+            try self.errors.append(.{ .tag = .@"Invalid keyword", .where = where });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .keyword = kw }, .where = where };
@@ -120,7 +120,7 @@ pub const Scanner = struct {
     fn instruction(self: *Scanner) !?Token {
         const where = self.readWord();
         const _instr = std.meta.stringToEnum(instr.Instruction, where) orelse {
-            try self.errors.append(.{ .tag = .invalid_instruction, .where = where });
+            try self.errors.append(.{ .tag = .@"Invalid instruction", .where = where });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .instr = _instr }, .where = where };
@@ -130,7 +130,7 @@ pub const Scanner = struct {
         self.advance();
         const where = self.readWord();
         const int = std.fmt.parseInt(i64, where, 10) catch {
-            try self.errors.append(.{ .tag = .invalid_literal, .where = where });
+            try self.errors.append(.{ .tag = .@"Invalid literal", .where = where });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .int = int }, .where = where };
@@ -140,7 +140,7 @@ pub const Scanner = struct {
         self.advance();
         const where = self.readWord();
         const float_ = std.fmt.parseFloat(f64, where) catch {
-            try self.errors.append(.{ .tag = .invalid_literal, .where = where });
+            try self.errors.append(.{ .tag = .@"Invalid literal", .where = where });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .float = float_ }, .where = where };
@@ -160,7 +160,7 @@ pub const Scanner = struct {
             if (c == '\n') {
                 const where = self.source[begin..self.cursor];
                 try self.errors.append(.{
-                    .tag = .unterminated_string,
+                    .tag = .@"Unterminated string",
                     .where = where,
                 });
                 return .{ .tag = .err, .where = self.readWord() };
@@ -174,7 +174,7 @@ pub const Scanner = struct {
         } else {
             const where = self.source[begin..self.cursor];
             try self.errors.append(.{
-                .tag = .unterminated_string,
+                .tag = .@"Unterminated string",
                 .where = where,
             });
             return .{ .tag = .err, .where = self.readWord() };
