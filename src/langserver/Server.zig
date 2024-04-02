@@ -166,6 +166,7 @@ fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !v
 
     try self.documents.updateDocument(
         params.value.textDocument.uri,
+        params.value.textDocument.version,
         params.value.textDocument.text,
     );
 }
@@ -182,6 +183,7 @@ fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) 
 
     try self.documents.updateDocument(
         params.value.textDocument.uri,
+        params.value.textDocument.version,
         params.value.contentChanges[0].text,
     );
 }
