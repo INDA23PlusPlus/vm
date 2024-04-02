@@ -114,6 +114,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
         if (parsing_type != Parsing_Type.NONE) {
             content[content_index] = char;
             content_index += 1;
+
             if (content_index == content.len) {
                 var new_content: []u8 = try self.allocator.alloc(u8, content.len * 2);
                 @memcpy(new_content, content);
@@ -176,7 +177,6 @@ fn parse_token(
             };
         },
         Parsing_Type.SYMBOL => {
-
             return Token{
                 .kind = try get_symbol(content),
                 .content = cloned_content,
@@ -394,3 +394,4 @@ test "tokenize invalid numbers with error" {
 
     try std.testing.expectError(error.CantHaveMultipleDotsInNumber, lxr.tokenize("100.0.0"));
 }
+
