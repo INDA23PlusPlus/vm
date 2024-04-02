@@ -158,5 +158,35 @@ test "Transport.readRequest" {
 }
 
 test "Transport.writeServerNotification" {
-    try error.NotImplemented; // TODO: implement
+    const Reader = void;
+    const Writer = std.ArrayList(u8).Writer;
+
+    const Params = struct {
+        foo: i32,
+        bar: []const u8,
+    };
+    const Notification = json_rpc.ServerNotification(Params);
+
+    const notification = Notification{ .method = "foo", .params = .{ .foo = 1, .bar = "hello" } };
+
+    const expected_content = "{\"jsonrpc\":\"2.0\",\"method\":\"foo\",\"params\":{\"foo\":1,\"bar\":\"hello\"}}";
+    const expected_header = "Content-Length: " ++ std.fmt.comptimePrint(
+        "{d}\r\n\r\n",
+        .{expected_content.len},
+    );
+    const expected = expected_header ++ expected_content;
+
+    var out = std.ArrayList(u8).init(std.testing.allocator);
+    defer out.deinit();
+    var writer = out.writer();
+
+    var transport = Transport(Writer, Reader).init(
+        std.testing.allocator,
+        writer,
+        Reader{},
+    );
+    defer transport.deinit();
+
+    try transport.writeServerNotification(notification);
+    try std.testing.expectEqualStrings(expected, out.items);
 }

@@ -163,5 +163,26 @@ test Request {
 }
 
 test ServerNotification {
-    try error.NotImplemented; // TODO: write ServerNotification tests
+    const Params = struct {
+        foo: i32,
+        bar: []const u8,
+    };
+
+    const notification = ServerNotification(Params){
+        .method = "foo",
+        .params = .{
+            .foo = 1,
+            .bar = "hello",
+        },
+    };
+
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    defer buffer.deinit();
+
+    try notification.write(buffer.writer());
+    try std.testing.expectEqualStrings(
+        \\{"jsonrpc":"2.0","method":"foo","params":{"foo":1,"bar":"hello"}}
+    ,
+        buffer.items,
+    );
 }
