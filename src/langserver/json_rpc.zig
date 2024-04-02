@@ -90,6 +90,20 @@ pub const Request = struct {
     }
 };
 
+/// Notification sent by the server
+pub fn ServerNotification(comptime Params: type) type {
+    return struct {
+        jsonrpc: []const u8 = "2.0",
+        method: []const u8,
+        params: Params,
+
+        pub fn write(self: @This(), writer: anytype) !void {
+            const options = default_stringify_options;
+            try std.json.stringify(self, options, writer);
+        }
+    };
+}
+
 test Response {
     const Result = struct {
         foo: i32,
@@ -146,4 +160,8 @@ test Request {
 
     try std.testing.expectEqual(@as(i32, 1), params.value.foo);
     try std.testing.expectEqualStrings("hello", params.value.bar);
+}
+
+test ServerNotification {
+    try error.NotImplemented; // TODO: write ServerNotification tests
 }

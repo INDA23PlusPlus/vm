@@ -64,6 +64,15 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
             try self.out.print("Content-Length: {}\r\n\r\n", .{self.content_buffer.items.len});
             try self.out.writeAll(self.content_buffer.items);
         }
+
+        /// Writes a notification to the client, with header part.
+        pub fn writeServerNotification(self: *Self, notification: anytype) !void {
+            self.content_buffer.clearRetainingCapacity();
+            try notification.write(self.content_buffer.writer());
+            std.log.debug("Sending notification: {s}", .{self.content_buffer.items});
+            try self.out.print("Content-Length: {}\r\n\r\n", .{self.content_buffer.items.len});
+            try self.out.writeAll(self.content_buffer.items);
+        }
     };
 }
 
@@ -146,4 +155,8 @@ test "Transport.readRequest" {
 
     try std.testing.expectEqual(@as(i32, 1), params.value.foo);
     try std.testing.expectEqualStrings("hello", params.value.bar);
+}
+
+test "Transport.writeServerNotification" {
+    try error.NotImplemented; // TODO: implement
 }

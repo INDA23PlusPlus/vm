@@ -20,6 +20,7 @@ pub const Method = enum {
     @"textDocument/didOpen",
     @"textDocument/didClose",
     @"textDocument/didChange",
+    @"textDocument/publishDiagnostics",
     // TODO: add methods as needed.
 
     pub const map = utils.TagNameMap(@This());
@@ -118,4 +119,39 @@ pub const DidCloseTextDocumentParams = struct {
     textDocument: struct {
         uri: []const u8,
     },
+};
+
+// *******************************************
+//              DIAGNOSTICS
+// *******************************************
+
+pub const DiagnosticSeverity = enum(i32) {
+    Error = 1,
+    Warning = 2,
+    Information = 3,
+    Hint = 4,
+};
+
+pub const Position = struct {
+    line: i32,
+    character: i32,
+};
+
+pub const Range = struct {
+    start: Position,
+    end: Position,
+};
+
+pub const Diagnostic = struct {
+    range: Range,
+    severity: ?i32 = null,
+    code: ?i32 = null,
+    source: ?[]const u8 = null,
+    message: []const u8,
+};
+
+pub const PublishDiagnosticsParams = struct {
+    uri: []const u8,
+    version: ?i32 = null,
+    diagnostics: []Diagnostic,
 };
