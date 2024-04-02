@@ -1,5 +1,0 @@
--function "main"
--begin
-push %1
-hello
--end

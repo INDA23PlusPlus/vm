@@ -58,3 +58,7 @@ zig-out/
 # Log files
 *.log
 *.log.*
+
+# Source files
+*.vmd
+*.mcl
