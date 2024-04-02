@@ -113,3 +113,9 @@ pub const DidChangeTextDocumentParams = struct {
         text: []const u8,
     },
 };
+
+pub const DidCloseTextDocumentParams = struct {
+    textDocument: struct {
+        uri: []const u8,
+    },
+};

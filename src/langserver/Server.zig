@@ -143,6 +143,7 @@ fn handleRequest(self: *Server, request: *const json_rpc.Request) !void {
     switch (method) {
         .@"textDocument/didOpen" => try self.handleTextDocumentDidOpen(request),
         .@"textDocument/didChange" => try self.handleTextDocumentDidChange(request),
+        .@"textDocument/didClose" => try self.handleTextDocumentDidClose(request),
         .shutdown => try self.handleShutdown(request),
         .exit => self.handleExit(),
         // TODO: add method calls
@@ -183,6 +184,18 @@ fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) 
         params.value.textDocument.uri,
         params.value.contentChanges[0].text,
     );
+}
+
+fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !void {
+    const params = try request.readParams(
+        lsp.DidCloseTextDocumentParams,
+        self.alloc,
+    );
+    defer params.deinit();
+
+    std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
+    // TODO: Error if document hasn't been opened.
+    self.documents.removeDocument(params.value.textDocument.uri);
 }
 
 fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
