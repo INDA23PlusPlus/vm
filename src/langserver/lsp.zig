@@ -54,7 +54,7 @@ pub const InitializeParams = struct {
     clientInfo: ?struct {
         name: []const u8,
         version: ?[]const u8 = null,
-    },
+    } = null,
     //locale: ?[]const u8 = null,
     //rootPath: ?[]const u8 = null,
     //rootUri: ?[]const u8 = null,
@@ -99,6 +99,17 @@ pub const DidOpenTextDocumentParams = struct {
         uri: []const u8,
         languageId: []const u8,
         version: i32,
+        text: []const u8,
+    },
+};
+
+pub const DidChangeTextDocumentParams = struct {
+    textDocument: struct {
+        uri: []const u8,
+        version: i32,
+    },
+    contentChanges: []struct {
+        // We only receive the full document, not a range.
         text: []const u8,
     },
 };

@@ -138,10 +138,14 @@ fn handleRequest(self: *Server, request: *const json_rpc.Request) !void {
 
     switch (method) {
         .@"textDocument/didOpen" => try self.handleTextDocumentDidOpen(request),
+        .@"textDocument/didChange" => try self.handleTextDocumentDidChange(request),
         .shutdown => try self.handleShutdown(request),
         .exit => self.handleExit(),
         // TODO: add method calls
-        else => std.debug.panic("Method not implemented: {s}", .{@tagName(method)}),
+        else => {
+            std.log.err("Unimplemented method: {s}", .{request.method});
+            std.os.exit(1);
+        },
     }
 }
 
@@ -155,7 +159,19 @@ fn handleTextDocumentDidOpen(self: *Server, request: *const json_rpc.Request) !v
     std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
     std.log.info("Text document language ID: {s}", .{params.value.textDocument.languageId});
     std.log.info("Text document version: {d}", .{params.value.textDocument.version});
-    std.log.info("Text document text: {s}", .{params.value.textDocument.text});
+    std.log.info("Text document content: {s}", .{params.value.textDocument.text});
+}
+
+fn handleTextDocumentDidChange(self: *Server, request: *const json_rpc.Request) !void {
+    const params = try request.readParams(
+        lsp.DidChangeTextDocumentParams,
+        self.alloc,
+    );
+    defer params.deinit();
+
+    std.log.info("Text document URI: {s}", .{params.value.textDocument.uri});
+    std.log.info("Text document version: {d}", .{params.value.textDocument.version});
+    std.log.info("Text document content: {s}", .{params.value.contentChanges[0].text});
 }
 
 fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
