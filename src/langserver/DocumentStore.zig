@@ -1,6 +1,7 @@
 //!
 //! Stores open documents. Mainly exists as a wrapper around a std.StringHashMap,
-//! that also manages keys and contents, since messages are deallocated after handling.
+//! that also manages keys, since messages are deallocated after handling. Text
+//! content is managed by individual documents.
 //!
 
 const std = @import("std");
