@@ -39,7 +39,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
 
     var parsing_type: Parsing_Type = Parsing_Type.NONE;
 
-    var content: []u8 = try self.allocator.alloc(u8, 1024);
+    var content: []u8 = try self.allocator.alloc(u8, 32);
     var content_index: u32 = 0;
     defer self.allocator.free(content);
 
@@ -114,6 +114,12 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
         if (parsing_type != Parsing_Type.NONE) {
             content[content_index] = char;
             content_index += 1;
+            if (content_index == content.len) {
+                var new_content: []u8 = try self.allocator.alloc(u8, content.len * 2);
+                @memcpy(new_content, content);
+                self.allocator.free(content);
+                content = new_content;
+            }
         }
 
         if (parsing_type == Parsing_Type.SYMBOL) {
@@ -190,13 +196,6 @@ fn parse_token(
             }
         },
     }
-}
-
-fn double_content_length(allocator: Allocator, content: []u8) !void {
-    var new_content: []u8 = try allocator.alloc(u8, content.len * 2);
-    std.mem.copy(new_content, content, content.len);
-    allocator.free(content);
-    content = new_content;
 }
 
 fn is_whitespace(c: u8) bool {
