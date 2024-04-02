@@ -7,6 +7,17 @@ const std = @import("std");
 const json_rpc = @import("json_rpc.zig");
 const lsp = @import("lsp.zig");
 
+fn lspRangeFromSourceLocation(source: []const u8, where: []const u8) !lsp.Range {
+    const ref = try asm_.SourceRef.init(source, where);
+    const line = @as(i32, @intCast(ref.line_num - 1));
+    const character = @as(i32, @intCast(ref.offset));
+    const length = @as(i32, @intCast(ref.string.len));
+    return .{
+        .start = .{ .line = line, .character = character },
+        .end = .{ .line = line, .character = character + length },
+    };
+}
+
 /// Produce diagnostics for assembly source.
 pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
     std.log.info("Producing diagnostics for document {s}", .{doc.uri});
@@ -37,21 +48,31 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
             _ = try msg_buf.writer().print(": {s}", .{extra});
         }
 
-        // Compute location
-        const ref = try asm_.SourceRef.init(doc.text, err.where.?);
-        const line = @as(i32, @intCast(ref.line_num - 1));
-        const character = @as(i32, @intCast(ref.offset));
-        const length = @as(i32, @intCast(ref.string.len));
+        // Compute location(s)
+        const range = try lspRangeFromSourceLocation(doc.text, err.where.?);
+        var related: ?[]lsp.DiagnosticRelatedInformation = null;
 
-        const range = lsp.Range{
-            .start = .{ .line = line, .character = character },
-            .end = .{ .line = line, .character = character + length },
-        };
+        if (err.related) |rel| {
+            const related_entry = lsp.DiagnosticRelatedInformation{
+                .location = .{
+                    .uri = doc.uri,
+                    .range = try lspRangeFromSourceLocation(doc.text, rel),
+                },
+                .message = try alloc.dupe(u8, err.related_msg.?),
+            };
+            related = try alloc.alloc(lsp.DiagnosticRelatedInformation, 1);
+            related.?[0] = related_entry;
+            std.log.info("Error has related info: {s}: {s}", .{
+                related.?[0].message,
+                rel,
+            });
+        }
 
         try doc.diagnostics.append(.{
             .range = range,
             .severity = @intFromEnum(lsp.DiagnosticSeverity.Error),
             .message = try alloc.dupe(u8, msg_buf.items),
+            .relatedInformation = related,
         });
     }
 }

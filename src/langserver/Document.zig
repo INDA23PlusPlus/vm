@@ -34,15 +34,19 @@ pub fn init(
 
 pub fn deinit(self: *Document, alloc: std.mem.Allocator) void {
     alloc.free(self.text);
-    for (self.diagnostics.items) |diagnostic| {
-        alloc.free(diagnostic.message);
-    }
+    self.resetDiagnostics(alloc);
     self.diagnostics.deinit();
 }
 
 pub fn resetDiagnostics(self: *Document, alloc: std.mem.Allocator) void {
     for (self.diagnostics.items) |diagnostic| {
         alloc.free(diagnostic.message);
+        if (diagnostic.relatedInformation) |related| {
+            for (related) |rel| {
+                alloc.free(rel.message);
+            }
+            alloc.free(related);
+        }
     }
     self.diagnostics.clearRetainingCapacity();
 }

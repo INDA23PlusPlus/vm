@@ -35,9 +35,14 @@ tag: enum {
 where: ?[]const u8 = null,
 /// Optional error info
 extra: ?[]const u8 = null,
+/// Related location
+related: ?[]const u8 = null,
+/// Related location message
+related_msg: ?[]const u8 = null,
 
 /// Prints error with source location
 pub fn print(self: Self, source: []const u8, writer: anytype) !void {
+    // TODO: print related information
     var ref: SourceRef = undefined;
     if (self.where) |where| {
         ref = try SourceRef.init(source, where);

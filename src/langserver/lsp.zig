@@ -142,12 +142,23 @@ pub const Range = struct {
     end: Position,
 };
 
+pub const Location = struct {
+    uri: []const u8,
+    range: Range,
+};
+
+pub const DiagnosticRelatedInformation = struct {
+    location: Location,
+    message: []const u8,
+};
+
 pub const Diagnostic = struct {
     range: Range,
     severity: ?i32 = null,
     code: ?i32 = null,
     source: ?[]const u8 = null,
     message: []const u8,
+    relatedInformation: ?[]DiagnosticRelatedInformation = null,
 };
 
 pub const PublishDiagnosticsParams = struct {

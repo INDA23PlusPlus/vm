@@ -30,10 +30,12 @@ pub fn deinit(self: *Patcher) void {
 }
 
 pub fn decl(self: *Patcher, symbol: []const u8, offset: usize) !void {
-    if (self.decls.get(symbol) != null) {
+    if (self.decls.getEntry(symbol)) |entry| {
         try self.errors.append(.{
             .tag = .@"Duplicate label or function",
             .where = symbol,
+            .related = entry.key_ptr.*,
+            .related_msg = "Previously defined here",
         });
     } else {
         try self.decls.put(symbol, offset);
