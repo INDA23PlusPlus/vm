@@ -36,6 +36,7 @@ pub fn computeCompletions(
     while (start > 0) : (start -= 1) {
         switch (text[@intCast(start - 1)]) {
             '\n', ' ', '\t' => break,
+            '#' => return,
             else => {},
         }
     }
