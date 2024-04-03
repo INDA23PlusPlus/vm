@@ -40,7 +40,11 @@ pub fn computeCompletions(
         }
     }
 
-    // TODO: find out if we are inside a comment and return
+    // Find out if we are inside a comment
+    var cursor: usize = @intCast(start);
+    while (text[cursor] != '\n' and cursor > 0) : (cursor -= 1) {
+        if (text[cursor - 1] == '#') return;
+    }
 
     const kind: lsp.CompletionItemKind = switch (text[@intCast(start)]) {
         arch.instr.prefix.keyword => blk: {
