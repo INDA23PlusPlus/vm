@@ -186,7 +186,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
 
 fn double_size(allocator: Allocator, content: []u8) ![]u8 {
     var new_content: []u8 = try allocator.alloc(u8, content.len * 2);
-    @memcpy(new_content, content);
+    @memcpy(new_content[0..content.len], content);
     allocator.free(content);
     return new_content;
 }
@@ -490,4 +490,21 @@ test "tokenize non terminated string with error" {
     defer lxr.deinit();
 
     try std.testing.expectError(error.NonTerminatedString, lxr.tokenize("\"test"));
+}
+
+test "tokens can be longer than 32 chars" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try lxr.tokenize("testabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+    try std.testing.expectEqual(lxr.tokens.items.len, 1);
+
+    try std.testing.expectEqualDeep(Token{
+        .kind = Node_Symbol.IDENTIFIER,
+        .content = "testabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+        .cl_start = 1,
+        .cl_end = 66,
+        .ln_start = 1,
+        .ln_end = 1,
+    }, lxr.tokens.items[0]);
 }
