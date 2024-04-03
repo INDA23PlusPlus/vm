@@ -144,6 +144,7 @@ fn handleRequest(self: *Server, request: *const json_rpc.Request) !void {
         .@"textDocument/didOpen" => try self.handleTextDocumentDidOpen(request),
         .@"textDocument/didChange" => try self.handleTextDocumentDidChange(request),
         .@"textDocument/didClose" => try self.handleTextDocumentDidClose(request),
+        .@"textDocument/completion" => try self.handleTextDocumentCompletion(request),
         .shutdown => try self.handleShutdown(request),
         .exit => self.handleExit(),
         // TODO: add method calls
@@ -249,4 +250,40 @@ fn publishDiagnostics(self: *Server, uri: []const u8) !void {
         },
     };
     try self.transport.writeServerNotification(notification);
+}
+
+fn handleTextDocumentCompletion(self: *Server, request: *const json_rpc.Request) !void {
+    const params = try request.readParams(
+        lsp.CompletionParams,
+        self.alloc,
+    );
+    defer params.deinit();
+
+    var list = std.ArrayList(lsp.CompletionItem).init(self.alloc);
+    defer list.deinit();
+
+    const doc = self.documents.getDocument(params.value.textDocument.uri) orelse {
+        // TODO: error response on non-existent document
+        unreachable;
+    };
+
+    const text = doc.text;
+    const lang = doc.language;
+
+    if (lang == .vmd) {
+        try @import("vmd_completion.zig").computeCompletions(
+            params.value.position,
+            text,
+            &list,
+        );
+    }
+
+    const Response = json_rpc.Response(lsp.CompletionList, json_rpc.Placeholder);
+    const response = Response{
+        .id = request.id.?,
+        .result = lsp.CompletionList{
+            .items = list.items,
+        },
+    };
+    try self.transport.writeResponse(response);
 }

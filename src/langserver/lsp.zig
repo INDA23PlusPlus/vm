@@ -21,6 +21,7 @@ pub const Method = enum {
     @"textDocument/didClose",
     @"textDocument/didChange",
     @"textDocument/publishDiagnostics",
+    @"textDocument/completion",
     // TODO: add methods as needed.
 
     pub const map = utils.TagNameMap(@This());
@@ -56,8 +57,15 @@ pub const TextDocumentSyncKind = enum(i32) {
     Incremental = 2,
 };
 
+pub const CompletionOptions = struct {
+    triggerCharacters: ?[]const []const u8 = &.{"-"},
+    // I don't know what the rest of the fields mean
+};
+
 pub const ServerCapabilities = struct {
     textDocumentSync: ?i32 = @intFromEnum(TextDocumentSyncKind.Full),
+    completionProvider: ?CompletionOptions = CompletionOptions{},
+
     // TODO: Add more capabilities as needed.
 };
 
@@ -145,4 +153,55 @@ pub const PublishDiagnosticsParams = struct {
     uri: []const u8,
     version: ?i32 = null,
     diagnostics: []Diagnostic,
+};
+
+// *******************************************
+//                 COMPLETION
+// *******************************************
+
+pub const CompletionItemKind = enum(i32) {
+    Text = 1,
+    Method = 2,
+    Function = 3,
+    Constructor = 4,
+    Field = 5,
+    Variable = 6,
+    Class = 7,
+    Interface = 8,
+    Module = 9,
+    Property = 10,
+    Unit = 11,
+    Value = 12,
+    Enum = 13,
+    Keyword = 14,
+    Snippet = 15,
+    Color = 16,
+    File = 17,
+    Reference = 18,
+    Folder = 19,
+    EnumMember = 20,
+    Constant = 21,
+    Struct = 22,
+    Event = 23,
+    Operator = 24,
+    TypeParameter = 25,
+};
+
+pub const CompletionItem = struct {
+    label: []const u8,
+    kind: ?i32 = null,
+    detail: ?[]const u8 = null,
+};
+
+pub const CompletionList = struct {
+    items: []CompletionItem,
+    // TODO: what does this mean
+    isIncomplete: bool = true,
+};
+
+pub const CompletionParams = struct {
+    textDocument: struct {
+        uri: []const u8,
+    },
+    position: Position,
 };
