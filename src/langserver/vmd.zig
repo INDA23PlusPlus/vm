@@ -7,6 +7,10 @@ const std = @import("std");
 const json_rpc = @import("json_rpc.zig");
 const lsp = @import("lsp.zig");
 
+// ALE doesn't display related information,
+// so I'm putting this here for now
+const put_related_in_separate_diagnostic = true;
+
 fn lspRangeFromSourceLocation(source: []const u8, where: []const u8) !lsp.Range {
     const ref = try asm_.SourceRef.init(source, where);
     const line = @as(i32, @intCast(ref.line_num - 1));
@@ -53,19 +57,25 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
         var related: ?[]lsp.DiagnosticRelatedInformation = null;
 
         if (err.related) |rel| {
-            const related_entry = lsp.DiagnosticRelatedInformation{
-                .location = .{
-                    .uri = doc.uri,
-                    .range = try lspRangeFromSourceLocation(doc.text, rel),
-                },
-                .message = try alloc.dupe(u8, err.related_msg.?),
-            };
-            related = try alloc.alloc(lsp.DiagnosticRelatedInformation, 1);
-            related.?[0] = related_entry;
-            std.log.info("Error has related info: {s}: {s}", .{
-                related.?[0].message,
-                rel,
-            });
+            const rel_range = try lspRangeFromSourceLocation(doc.text, rel);
+
+            if (put_related_in_separate_diagnostic) {
+                try doc.diagnostics.append(.{
+                    .range = rel_range,
+                    .severity = @intFromEnum(lsp.DiagnosticSeverity.Hint),
+                    .message = try alloc.dupe(u8, err.related_msg.?),
+                });
+            } else {
+                const related_entry = lsp.DiagnosticRelatedInformation{
+                    .location = .{
+                        .uri = doc.uri,
+                        .range = rel_range,
+                    },
+                    .message = try alloc.dupe(u8, err.related_msg.?),
+                };
+                related = try alloc.alloc(lsp.DiagnosticRelatedInformation, 1);
+                related.?[0] = related_entry;
+            }
         }
 
         try doc.diagnostics.append(.{
