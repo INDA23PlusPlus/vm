@@ -207,11 +207,26 @@ fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !
 
 fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
     self.did_shutdown = true;
-    const response = json_rpc.Response(
-        json_rpc.Placeholder,
-        json_rpc.Placeholder,
-    ){ .id = request.id.? };
-    try self.transport.writeResponse(response);
+
+    // This is an ugly hack dealing with the fact that we need to send result =
+    // null, but `error` must not exists.
+
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    switch (request.id.?) {
+        .integer => |i| try stream.writer().print(
+            "{{\"jsonrpc\": \"2.0\", \"id\": {d}, \"result\": null}}",
+            .{i},
+        ),
+        .string => |s| try stream.writer().print(
+            "{{\"jsonrpc\": \"2.0\", \"id\": \"{s}\", \"result\": null}}",
+            .{s},
+        ),
+        else => unreachable,
+    }
+    const content = stream.getWritten();
+    std.log.debug("Sending shutdown response: {s}", .{content});
+    try self.transport.out.print("Content-Length: {d}\r\n\r\n{s}", .{ content.len, content });
 }
 
 fn handleExit(self: *Server) void {
