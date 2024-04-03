@@ -27,7 +27,7 @@ pub fn deinit(self: *Self) void {
     self.tokens.deinit();
 }
 
-const Parsing_Type = enum { NONE, IDENTIFIER, SYMBOL, NUMBER };
+const Parsing_Type = enum { NONE, IDENTIFIER, SYMBOL, NUMBER, STRING };
 
 pub fn tokenize(self: *Self, text: []const u8) !void {
     // The current line and column
@@ -39,11 +39,61 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
 
     var parsing_type: Parsing_Type = Parsing_Type.NONE;
 
+    var is_esc = false;
+
     var content: []u8 = try self.allocator.alloc(u8, 32);
     var content_index: u32 = 0;
     defer self.allocator.free(content);
 
     for (text) |char| {
+        // NOTE: Just check that we don't go into invalid state
+        if (builtin.mode == .Debug) {
+            if (is_esc and parsing_type != Parsing_Type.STRING) {
+                std.debug.panic("Can't have escape char outside of string", .{});
+            }
+        }
+
+        if (parsing_type == Parsing_Type.STRING) {
+            if (is_esc) {
+                is_esc = false;
+                content[content_index] = get_esc_symbol(char);
+                content_index += 1;
+                if (content_index == content.len) {
+                    content = try double_size(self.allocator, content);
+                }
+            } else if (char == '\\') {
+                is_esc = true;
+            } else if (char == '"') {
+                var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl);
+                try self.tokens.append(token);
+                content_index = 0;
+                parsing_type = Parsing_Type.NONE;
+            } else {
+                content[content_index] = char;
+                content_index += 1;
+                if (content_index == content.len) {
+                    content = try double_size(self.allocator, content);
+                }
+            }
+
+            if (char == '\n') {
+                ln += 1;
+                cl = 1;
+            } else {
+                cl += 1;
+            }
+
+            continue;
+        }
+
+        if (char == '"') {
+            parsing_type = Parsing_Type.STRING;
+            ln_start = ln;
+            cl_start = cl;
+            cl += 1;
+            continue;
+        }
+
         if (is_whitespace(char)) {
             if (parsing_type != Parsing_Type.NONE) {
                 var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
@@ -51,12 +101,14 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                 content_index = 0;
                 parsing_type = Parsing_Type.NONE;
             }
+
             if (char == '\n') {
                 ln += 1;
                 cl = 1;
             } else {
                 cl += 1;
             }
+
             continue;
         }
 
@@ -107,10 +159,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
             content[content_index] = char;
             content_index += 1;
             if (content_index == content.len) {
-                var new_content: []u8 = try self.allocator.alloc(u8, content.len * 2);
-                @memcpy(new_content, content);
-                self.allocator.free(content);
-                content = new_content;
+                content = try double_size(self.allocator, content);
             }
         }
 
@@ -128,10 +177,20 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
         cl += 1;
     }
 
+    if (parsing_type == Parsing_Type.STRING) {
+        return error.NonTerminatedString;
+    }
     if (parsing_type != Parsing_Type.NONE) {
         var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
         try self.tokens.append(token);
     }
+}
+
+fn double_size(allocator: Allocator, content: []u8) ![]u8 {
+    var new_content: []u8 = try allocator.alloc(u8, content.len * 2);
+    @memcpy(new_content, content);
+    allocator.free(content);
+    return new_content;
 }
 
 fn parse_token(
@@ -191,6 +250,16 @@ fn parse_token(
                 std.debug.panic("Can't parse NONE as token", .{});
             }
         },
+    }
+
+fn get_esc_symbol(c: u8) u8 {
+    switch (c) {
+        'n' => return '\n',
+        't' => return '\t',
+        'r' => return '\r',
+        '\\' => return '\\',
+        '"' => return '"',
+        else => return c,
     }
 }
 
@@ -385,3 +454,31 @@ test "tokenize invalid numbers with error" {
     try std.testing.expectError(error.CantHaveMultipleDotsInNumber, lxr.tokenize("100.0.0"));
 }
 
+test "tokenize string" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try lxr.tokenize("\"test\"");
+    try std.testing.expectEqual(lxr.tokens.items.len, 1);
+    // zig fmt: off
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.STRING, .content = "test", .cl_start = 1, .cl_end = 6, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
+    // zig fmt: on
+}
+
+test "tokenize strings with escape" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try lxr.tokenize("\"test be \n 100.0 \\\" \n \"");
+    try std.testing.expectEqual(lxr.tokens.items.len, 1);
+    // zig fmt: off
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.STRING, .content = "test be \n 100.0 \" \n ", .cl_start = 1, .cl_end = 2, .ln_start = 1, .ln_end = 3 }, lxr.tokens.items[0]);
+    // zig fmt: on
+}
+
+test "tokenize non terminated string with error" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try std.testing.expectError(error.NonTerminatedString, lxr.tokenize("\"test"));
+}
