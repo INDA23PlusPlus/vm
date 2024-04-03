@@ -121,9 +121,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
             ln_start = ln;
             cl_start = cl;
             parsing_type = Parsing_Type.IDENTIFIER;
-        }
-
-        if (is_numeric(char) and parsing_type != Parsing_Type.IDENTIFIER and parsing_type != Parsing_Type.NUMBER) {
+        } else if (is_numeric(char) and parsing_type != Parsing_Type.IDENTIFIER and parsing_type != Parsing_Type.NUMBER) {
             if (parsing_type != Parsing_Type.NONE) {
                 var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                 try self.tokens.append(token);
@@ -132,9 +130,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
             parsing_type = Parsing_Type.NUMBER;
             ln_start = ln;
             cl_start = cl;
-        }
-
-        if (is_symbol(char) and !(parsing_type == Parsing_Type.NUMBER and char == '.')) {
+        } else if (is_symbol(char) and !(parsing_type == Parsing_Type.NUMBER and char == '.')) {
             if (parsing_type != Parsing_Type.SYMBOL) {
                 if (parsing_type != Parsing_Type.NONE) {
                     var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
@@ -158,6 +154,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
         if (parsing_type != Parsing_Type.NONE) {
             content[content_index] = char;
             content_index += 1;
+
             if (content_index == content.len) {
                 content = try double_size(self.allocator, content);
             }
@@ -180,6 +177,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
     if (parsing_type == Parsing_Type.STRING) {
         return error.NonTerminatedString;
     }
+
     if (parsing_type != Parsing_Type.NONE) {
         var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
         try self.tokens.append(token);
@@ -205,45 +203,25 @@ fn parse_token(
     var cloned_content: []u8 = try allocator.alloc(u8, content.len);
     @memcpy(cloned_content, content);
 
+    var kind = Node_Symbol.IDENTIFIER;
+
     switch (parsing_type) {
         Parsing_Type.IDENTIFIER => {
-            var kind = Node_Symbol.IDENTIFIER;
-
             for (keywords) |k| {
                 if (std.mem.eql(u8, k.word, content)) {
                     kind = k.kind;
                     break;
                 }
             }
-
-            return Token{
-                .kind = kind,
-                .content = cloned_content,
-                .ln_start = ln_start,
-                .ln_end = ln_end,
-                .cl_start = cl_start,
-                .cl_end = cl_end,
-            };
         },
         Parsing_Type.SYMBOL => {
-            return Token{
-                .kind = try get_symbol(content),
-                .content = cloned_content,
-                .ln_start = ln_start,
-                .ln_end = ln_end,
-                .cl_start = cl_start,
-                .cl_end = cl_end,
-            };
+            kind = try get_symbol(content);
+        },
+        Parsing_Type.STRING => {
+            kind = Node_Symbol.STRING;
         },
         Parsing_Type.NUMBER => {
-            return Token{
-                .kind = try number_node_symbol(cloned_content),
-                .content = cloned_content,
-                .ln_start = ln_start,
-                .ln_end = ln_end,
-                .cl_start = cl_start,
-                .cl_end = cl_end,
-            };
+            kind = try number_node_symbol(cloned_content);
         },
         Parsing_Type.NONE => {
             if (builtin.mode == .Debug) {
@@ -251,6 +229,16 @@ fn parse_token(
             }
         },
     }
+
+    return Token{
+        .kind = kind,
+        .content = cloned_content,
+        .ln_start = ln_start,
+        .ln_end = ln_end,
+        .cl_start = cl_start,
+        .cl_end = cl_end,
+    };
+}
 
 fn get_esc_symbol(c: u8) u8 {
     switch (c) {

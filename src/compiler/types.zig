@@ -77,16 +77,16 @@ pub const Node_Symbol = enum {
     NOT,
     EQUALS,
     NOT_EQUALS,
-    ASSIGN,
-    PLUS_EQUALS,
-    MINUS_EQUALS,
-    TIMES_EQUALS,
-    DIVIDE_EQUALS,
-    END_OF_FILE,
     LESS_THAN,
     GREATER_THAN,
     LESS_THAN_EQUALS,
     GREATER_THAN_EQUALS,
+    ASSIGN,
+    PLUS_ASSIGN,
+    MINUS_ASSIGN,
+    TIMES_ASSIGN,
+    DIVIDE_ASSIGN,
+    END_OF_FILE,
 };
 
 /// Token that the lexer generates
