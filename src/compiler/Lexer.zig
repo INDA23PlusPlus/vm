@@ -371,6 +371,27 @@ fn can_be_more_symbols(c: []const u8) bool {
     return false;
 }
 
+test "tokenize example code" {
+    var lxr = Self.init(std.heap.page_allocator);
+    defer lxr.deinit();
+
+    try lxr.tokenize("def main() {\n  ret 100;\n}");
+
+    try std.testing.expectEqual(lxr.tokens.items.len, 9);
+
+    // zig fmt: off
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.DEF,                .content = "def",     .cl_start = 1,  .cl_end = 3,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "main",    .cl_start = 5,  .cl_end = 8,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[1]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.OPEN_PARENTHESIS,   .content = "(",       .cl_start = 9,  .cl_end = 9,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[2]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.CLOSED_PARENTHESIS, .content = ")",       .cl_start = 10, .cl_end = 10, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[3]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.OPEN_CURLY,         .content = "{",       .cl_start = 12, .cl_end = 12, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[4]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.RET,                .content = "ret",     .cl_start = 3,  .cl_end = 5,  .ln_start = 2, .ln_end = 2 }, lxr.tokens.items[5]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.INT,                .content = "100",     .cl_start = 7,  .cl_end = 9,  .ln_start = 2, .ln_end = 2 }, lxr.tokens.items[6]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.SEMICOLON,          .content = ";",       .cl_start = 10, .cl_end = 10, .ln_start = 2, .ln_end = 2 }, lxr.tokens.items[7]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.CLOSED_CURLY,       .content = "}",       .cl_start = 1,  .cl_end = 1,  .ln_start = 3, .ln_end = 3 }, lxr.tokens.items[8]);
+    // zig fmt: on
+}
+
 test "tokenize just identifiers" {
     var lxr = Self.init(std.heap.page_allocator);
     defer lxr.deinit();
