@@ -431,6 +431,8 @@ test "tokenize symbols with identifiers" {
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "example", .cl_start = 1,  .cl_end = 7,  .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[0]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "foo",     .cl_start = 9,  .cl_end = 11, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[1]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.ASSIGN,             .content = "<<",      .cl_start = 12, .cl_end = 13, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[2]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.IDENTIFIER,         .content = "baz",     .cl_start = 14, .cl_end = 16, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[3]);
+    try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.OPEN_PARENTHESIS,   .content = "(",       .cl_start = 17, .cl_end = 17, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[4]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.CLOSED_PARENTHESIS, .content = ")",       .cl_start = 18, .cl_end = 18, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[5]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.ASSIGN,             .content = "<<",      .cl_start = 19, .cl_end = 20, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[6]);
     try std.testing.expectEqualDeep(Token{ .kind = Node_Symbol.COLON,              .content = ":",       .cl_start = 21, .cl_end = 21, .ln_start = 1, .ln_end = 1 }, lxr.tokens.items[7]);
