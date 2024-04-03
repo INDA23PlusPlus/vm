@@ -21,6 +21,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const build_assembler = b.step("asm", "Build the assembler");
+    const install_assembler = b.addInstallArtifact(assembler, .{});
+    build_assembler.dependOn(&install_assembler.step);
+
     const vm_mod = b.addModule(
         "vm",
         .{ .source_file = .{ .path = "src/vm/module.zig" } },
@@ -38,6 +42,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const build_vm = b.step("vm", "Build the VM");
+    const install_vm = b.addInstallArtifact(vm, .{});
+    build_vm.dependOn(&install_vm.step);
+
     const compiler_mod = b.addModule(
         "compiler",
         .{ .source_file = .{ .path = "src/compiler/module.zig" } },
@@ -50,6 +58,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const build_compiler = b.step("compiler", "Build the compiler");
+    const install_compiler = b.addInstallArtifact(compiler, .{});
+    build_compiler.dependOn(&install_compiler.step);
+
     const langserver_mod = b.addModule(
         "langserver",
         .{ .source_file = .{ .path = "src/langserver/module.zig" } },
@@ -61,6 +73,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    const build_langserver = b.step("langserver", "Build the language server");
+    const install_langserver = b.addInstallArtifact(langserver, .{});
+    build_langserver.dependOn(&install_langserver.step);
 
     langserver.linkLibC();
 
