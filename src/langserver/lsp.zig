@@ -26,30 +26,10 @@ pub const Method = enum {
     pub const map = utils.TagNameMap(@This());
 };
 
-//pub const ClientCapabilities = struct {};
-
-//pub const TraceValue = struct {};
-
 // *******************************************
 //              INITIALIZATION
 // *******************************************
 
-// ===============================================================================
-//
-// The initialize request is sent as the first request from the client to the
-// server. If the server receives a request or notification before the initialize
-// request it should act as follows:
-//
-// * For a request the response should be an error with code: -32002. The message
-//   can be picked by the server.
-// * Notifications should be dropped, except for the exit notification. This
-//   will allow the exit of a server without an initialize request.
-//
-// ===============================================================================
-
-///
-/// Method: initialize
-///
 pub const InitializeParams = struct {
     //processId: ?i32 = null,
     clientInfo: ?struct {
