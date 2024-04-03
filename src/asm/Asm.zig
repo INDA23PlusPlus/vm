@@ -87,8 +87,20 @@ fn asmFunc(self: *Asm) !void {
     self.lbl_patcher.reset();
     while (try self.scan.peek()) |tok| {
         switch (tok.tag) {
-            .label => try self.asmLabel(),
-            .instr => try self.asmInstr(),
+            .label => self.asmLabel() catch |err| {
+                if (err == std.mem.Allocator.Error.OutOfMemory) {
+                    return err;
+                } else {
+                    try self.syncUntilNextStmt();
+                }
+            },
+            .instr => self.asmInstr() catch |err| {
+                if (err == std.mem.Allocator.Error.OutOfMemory) {
+                    return err;
+                } else {
+                    try self.syncUntilNextStmt();
+                }
+            },
             else => {
                 _ = try self.expectKw(.end, "expected 'end'");
                 break;
