@@ -148,6 +148,7 @@ pub fn build(b: *std.Build) void {
     vm.addModule("arch", arch_mod);
     langserver.addModule("compiler", compiler_mod);
     langserver.addModule("asm", assembler_mod);
+    langserver.addModule("arch", arch_mod);
 
     //
     // Module-module dependencies
