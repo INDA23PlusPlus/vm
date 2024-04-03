@@ -13,8 +13,8 @@ pub fn TagNameMap(comptime T: type) type {
         create: {
             const KV = struct { []const u8, T };
             var array: [std.meta.tags(T).len]KV = undefined;
-            inline for (std.meta.tags(T)) |tag| {
-                array[@intFromEnum(tag)] = .{ @tagName(tag), tag };
+            inline for (0.., std.meta.tags(T)) |i, tag| {
+                array[i] = .{ @tagName(tag), tag };
             }
             break :create array;
         },
