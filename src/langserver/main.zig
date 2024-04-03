@@ -19,7 +19,7 @@ pub const std_options = struct {
     pub const logFn = logFnImpl;
 };
 
-var stderr: std.fs.File.Writer = undefined;
+var log_writer: std.fs.File.Writer = undefined;
 
 pub fn logFnImpl(
     comptime level: std.log.Level,
@@ -39,10 +39,7 @@ pub fn logFnImpl(
 
     const prefix = "[" ++ comptime level.asText() ++ "] ";
 
-    //std.debug.getStderrMutex().lock();
-    //defer std.debug.getStderrMutex().unlock();
-    //const stderr = std.io.getStdErr().writer();
-    nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+    nosuspend log_writer.print(prefix ++ format ++ "\n", args) catch return;
 }
 
 pub fn main() !void {
@@ -60,18 +57,18 @@ pub fn main() !void {
             var cstr = try gpa.allocator().dupeZ(u8, options.@"log-file");
             defer gpa.allocator().free(cstr);
             _ = c.mkfifo(cstr, 0o666);
-            var stderr_file = try std.fs.cwd().openFile(
+            var log_file = try std.fs.cwd().openFile(
                 options.@"log-file",
                 .{ .mode = .write_only },
             );
-            stderr = stderr_file.writer();
+            log_writer = log_file.writer();
         },
         .stderr => {
-            stderr = std.io.getStdErr().writer();
+            log_writer = std.io.getStdErr().writer();
         },
         .file => {
-            var stderr_file = try std.fs.cwd().createFile(options.@"log-file", .{});
-            stderr = stderr_file.writer();
+            var log_file = try std.fs.cwd().createFile(options.@"log-file", .{});
+            log_writer = log_file.writer();
         },
     }
 
