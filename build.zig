@@ -4,11 +4,24 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    //
+    // Arch
+    //
     const arch_mod = b.addModule(
         "arch",
         .{ .source_file = .{ .path = "src/arch/module.zig" } },
     );
 
+    const arch_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/arch/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const arch_run_tests = b.addRunArtifact(arch_tests);
+
+    //
+    // Assembler
+    //
     const assembler_mod = b.addModule(
         "assembler",
         .{ .source_file = .{ .path = "src/asm/module.zig" } },
@@ -21,18 +34,38 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const assembler_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/asm/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const assembler_run_tests = b.addRunArtifact(assembler_tests);
+
     const build_assembler = b.step("asm", "Build the assembler");
     const install_assembler = b.addInstallArtifact(assembler, .{});
     build_assembler.dependOn(&install_assembler.step);
 
-    const vm_mod = b.addModule(
-        "vm",
-        .{ .source_file = .{ .path = "src/vm/module.zig" } },
-    );
-
+    //
+    // Memory manager
+    //
     const memory_manager_mod = b.addModule(
         "memory_manager",
         .{ .source_file = .{ .path = "src/memory_manager/module.zig" } },
+    );
+
+    const memory_manager_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/memory_manager/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const memory_manager_run_tests = b.addRunArtifact(memory_manager_tests);
+
+    //
+    // VM
+    //
+    const vm_mod = b.addModule(
+        "vm",
+        .{ .source_file = .{ .path = "src/vm/module.zig" } },
     );
 
     const vm = b.addExecutable(.{
@@ -42,10 +75,20 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const vm_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/vm/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const vm_run_tests = b.addRunArtifact(vm_tests);
+
     const build_vm = b.step("vm", "Build the VM");
     const install_vm = b.addInstallArtifact(vm, .{});
     build_vm.dependOn(&install_vm.step);
 
+    //
+    // Compiler
+    //
     const compiler_mod = b.addModule(
         "compiler",
         .{ .source_file = .{ .path = "src/compiler/module.zig" } },
@@ -58,10 +101,20 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const compiler_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/compiler/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const compiler_run_tests = b.addRunArtifact(compiler_tests);
+
     const build_compiler = b.step("compiler", "Build the compiler");
     const install_compiler = b.addInstallArtifact(compiler, .{});
     build_compiler.dependOn(&install_compiler.step);
 
+    //
+    // Language server
+    //
     const langserver_mod = b.addModule(
         "langserver",
         .{ .source_file = .{ .path = "src/langserver/module.zig" } },
@@ -73,61 +126,65 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    langserver.linkLibC();
+
+    const langserver_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/langserver/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const langserver_run_tests = b.addRunArtifact(langserver_tests);
 
     const build_langserver = b.step("langserver", "Build the language server");
     const install_langserver = b.addInstallArtifact(langserver, .{});
     build_langserver.dependOn(&install_langserver.step);
 
-    langserver.linkLibC();
-
-    // Subprojects can depend on modules like so:
+    //
+    // Executable dependencies
+    //
     assembler.addModule("arch", arch_mod);
     assembler.addModule("vm", vm_mod);
     vm.addModule("memory_manager", memory_manager_mod);
     vm.addModule("arch", arch_mod);
     langserver.addModule("compiler", compiler_mod);
     langserver.addModule("asm", assembler_mod);
-    // When subprojects depend on modules that depend on other modules,
-    // we need to do this
+
+    //
+    // Module-module dependencies
+    //
     vm_mod.dependencies.put("arch", arch_mod) catch unreachable;
     assembler_mod.dependencies.put("vm", vm_mod) catch unreachable;
     assembler_mod.dependencies.put("arch", arch_mod) catch unreachable;
 
-    _ = .{
-        assembler_mod,
-        vm_mod,
-        compiler_mod,
-        memory_manager_mod,
-        langserver_mod,
-    };
+    //
+    // Test dependencies
+    //
+    assembler_tests.addModule("arch", arch_mod);
+    assembler_tests.addModule("vm", vm_mod);
+    vm_tests.addModule("arch", arch_mod);
+    vm_tests.addModule("memory_manager", memory_manager_mod);
 
+    //
+    // Unused modules
+    //
+    _ = .{ compiler_mod, langserver_mod };
+
+    //
+    // Default build step
+    //
     b.installArtifact(assembler);
     b.installArtifact(vm);
     b.installArtifact(compiler);
     b.installArtifact(langserver);
 
+    //
+    // Test step
+    //
     const test_step = b.step("test", "Run unit tests");
-    for ([_][]const u8{
-        "src/arch/module.zig",
-        "src/asm/module.zig",
-        "src/compiler/module.zig",
-        "src/memory_manager/module.zig",
-        "src/vm/module.zig",
-        "src/langserver/module.zig",
-    }) |file| {
-        const unit_tests = b.addTest(.{
-            .root_source_file = .{ .path = file },
-            .target = target,
-            .optimize = optimize,
-        });
-
-        // TODO: kind of a bad way of doing this, maybe we should separate out all the tests that have dependencies on other modules?
-        unit_tests.addModule("asm", assembler_mod);
-        unit_tests.addModule("vm", vm_mod);
-        unit_tests.addModule("arch", arch_mod);
-        unit_tests.addModule("memory_manager", memory_manager_mod);
-
-        const run_unit_tests = b.addRunArtifact(unit_tests);
-        test_step.dependOn(&run_unit_tests.step);
-    }
+    test_step.dependOn(&arch_run_tests.step);
+    test_step.dependOn(&assembler_run_tests.step);
+    test_step.dependOn(&compiler_run_tests.step);
+    test_step.dependOn(&memory_manager_run_tests.step);
+    test_step.dependOn(&vm_run_tests.step);
+    test_step.dependOn(&langserver_run_tests.step);
 }
