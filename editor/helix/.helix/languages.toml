@@ -1,0 +1,20 @@
+[language-server.mclls]
+# Assuming the language server is in $PATH
+command = "mclls"
+
+[[language]]
+name = "Melancolang"
+scope = "source.mcl"
+roots = []
+language-id = "mcl"
+file-types = ["mcl"]
+language-servers = ["mclls"]
+
+[[language]]
+name = "VeMod"
+scope = "source.vmd"
+roots = []
+comment-token = "#"
+language-id = "vmd"
+file-types = ["vmd"]
+language-servers = ["mclls"]

@@ -121,7 +121,7 @@ pub fn build(b: *std.Build) void {
     );
 
     const langserver = b.addExecutable(.{
-        .name = "langserver",
+        .name = "mclls",
         .root_source_file = .{ .path = "src/langserver/main.zig" },
         .target = target,
         .optimize = optimize,
