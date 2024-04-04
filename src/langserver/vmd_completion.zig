@@ -16,11 +16,11 @@ pub fn computeCompletions(
     // Turn position in to an offset
     var line: i32 = 0;
     var column: i32 = 0;
-    var offset: i32 = undefined;
+    var offset: usize = undefined;
 
     for (0.., text) |i, c| {
         if (line == position.line and column == position.character) {
-            offset = @intCast(i);
+            offset = i;
             break;
         }
         if (c == '\n') {
@@ -29,12 +29,12 @@ pub fn computeCompletions(
             continue;
         }
         column += 1;
-    } else offset = @intCast(text.len);
+    } else offset = text.len;
 
     // Find beginning of substring
     var start = offset;
     while (start > 0) : (start -= 1) {
-        switch (text[@intCast(start - 1)]) {
+        switch (text[start - 1]) {
             '\n', ' ', '\t' => break,
             '#' => return,
             else => {},
@@ -42,7 +42,7 @@ pub fn computeCompletions(
     }
 
     // Find out if we are inside a comment
-    var cursor: usize = @intCast(start);
+    var cursor = start;
     while (text[cursor] != '\n' and cursor > 0) : (cursor -= 1) {
         if (text[cursor - 1] == '#') return;
     }
@@ -61,11 +61,7 @@ pub fn computeCompletions(
         else => .Method,
     };
 
-    // zig fmt: off
-    const substr = text[
-        @as(usize, @intCast(start))..@as(usize, @intCast(offset))
-    ];
-    // zig fmt: on
+    const substr = text[start..offset];
 
     std.log.info("Considering substring \"{s}\" for completion", .{substr});
 
