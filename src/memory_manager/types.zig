@@ -27,6 +27,10 @@ pub const List = struct {
         self.items.deinit();
     }
 
+    pub fn get_refcount(self: *Self) u32 {
+        return self.refcount.get();
+    }
+
     pub fn deinit_refcount(self: *Self) void {
         self.refcount.deinit();
     }
@@ -70,6 +74,10 @@ pub const Object = struct {
             }
         }
         self.map.deinit();
+    }
+
+    pub fn get_refcount(self: *Self) u32 {
+        return self.refcount.get();
     }
 
     pub fn deinit_refcount(self: *Self) void {
