@@ -162,6 +162,9 @@ fn getToken(self: *Asm, extra: ?[]const u8) !Token {
 
 fn expect(self: *Asm, tag: std.meta.Tag(Token.Tag), extra: ?[]const u8) !Token {
     const tok = try self.getToken(extra);
+    if (tok.tag == .err) {
+        return error.InvalidToken;
+    }
     if (tok.tag != tag) {
         try self.errors.append(.{
             .tag = .@"Unexpected token",
