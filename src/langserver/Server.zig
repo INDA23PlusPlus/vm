@@ -86,6 +86,14 @@ fn initLSP(self: *Server) !void {
         .{if (params.value.clientInfo) |info| info.name else "unknown client"},
     );
 
+    const init_result = lsp.InitializeResult{};
+    std.log.info("Supported capabilities:", .{});
+    inline for (std.meta.fields(lsp.ServerCapabilities)) |field| {
+        if (@field(init_result.capabilities.?, field.name) != null) {
+            std.log.info("  {s}", .{field.name});
+        }
+    }
+
     const response = json_rpc.Response(lsp.InitializeResult, json_rpc.Placeholder){
         .id = request.value.id.?,
         .result = lsp.InitializeResult{},
