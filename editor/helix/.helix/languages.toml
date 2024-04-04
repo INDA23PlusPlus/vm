@@ -1,6 +1,6 @@
 [language-server.mclls]
-# Assuming the language server is in $PATH
-command = "mclls"
+# Calls wrapper script to redirect log
+command = "./mclls.sh"
 
 [[language]]
 name = "Melancolang"
