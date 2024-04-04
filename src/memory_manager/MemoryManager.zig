@@ -25,49 +25,83 @@ pub fn init(allocator: std.mem.Allocator) Self {
 
 pub fn deinit(self: *Self) void {
     for (self.allObjects.items) |value| {
-        value.deinit();
+        value.deinit_data();
+        value.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
     for (self.allLists.items) |value| {
-        value.deinit();
+        value.deinit_data();
+        value.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
     self.allObjects.deinit();
     self.allLists.deinit();
 }
 
-pub fn alloc_struct(self: *Self, allocator: std.mem.Allocator) ObjectRef {
-    var obj = allocator.create(Object) catch |e| {
+pub fn alloc_struct(self: *Self) ObjectRef {
+    var obj = self.allocator.create(Object) catch |e| {
         // TODO handle error, try gc then try again
         std.debug.panic("out of memory {}", .{e});
     };
-    obj.* = Object.init(allocator);
+    obj.* = Object.init(self.allocator);
 
     self.allObjects.append(obj) catch |e| {
         // TODO handle error, try gc then try again
-        obj.deinit();
-        allocator.destroy(obj);
+        obj.deinit_data();
+        obj.deinit_refcount();
+        self.allocator.destroy(obj);
         std.debug.panic("out of memory {}", .{e});
     };
 
     return ObjectRef{ .ref = obj };
 }
 
-pub fn alloc_list(self: *Self, allocator: std.mem.Allocator) ListRef {
-    var list = allocator.create(List) catch |e| {
+pub fn alloc_list(self: *Self) ListRef {
+    var list = self.allocator.create(List) catch |e| {
         // TODO handle error, try gc then try again
         std.debug.panic("out of memory {}", .{e});
     };
 
-    list.* = List.init(allocator);
+    list.* = List.init(self.allocator);
 
     self.allLists.append(list) catch |e| {
         // TODO handle error, try gc then try again
-        list.deinit();
-        allocator.destroy(list);
+        list.deinit_data();
+        list.deinit_refcount();
+        self.allocator.destroy(list);
         std.debug.panic("out of memory {}", .{e});
     };
     return ListRef{ .ref = list };
+}
+
+pub fn gc_pass(self: *Self) !void {
+    self.remove_unreachable_references();
+}
+
+/// Remove all objects that have a refcount of 0, but do not deinit them.
+/// Objects with a refcount of 0 are assumed to already have been deinitialized.
+/// This function simply removes them from the internal array storing objects.
+fn remove_unreachable_references(self: *Self) void {
+    // Init two pointers (read and write) to the start of the list
+    // Iterate over the list, copying all objects that are still alive
+    // to the write pointer, and incrementing the write pointer.
+    // After the iteration, set the length of the list to the write pointer
+    var read = 0;
+    var write = 0;
+
+    while (read < self.allObjects.items.len) {
+        const obj = self.allObjects.items[read];
+        if (RefCount.get(obj) > 0) {
+            self.allObjects.items[write] = obj;
+            write += 1;
+        } else {
+            // The data should already be deinitialized since the refcount == 0,
+            // so we only need to deinit the refcount
+            obj.deinit_refcount();
+            self.allocator.destroy(obj);
+        }
+        read += 1;
+    }
 }
 
 // TODO: create test for this
@@ -77,7 +111,7 @@ test "get and set to struct" {
     var memoryManager = Self.init(std.testing.allocator);
     defer memoryManager.deinit();
 
-    var objectRef = memoryManager.alloc_struct(std.testing.allocator);
+    var objectRef = memoryManager.alloc_struct();
 
     try objectRef.set(123, Type{ .int = 456 });
 
@@ -89,7 +123,7 @@ test "get and set to list" {
     var memoryManager = Self.init(std.testing.allocator);
     defer memoryManager.deinit();
 
-    var listRef = memoryManager.alloc_list(std.testing.allocator);
+    var listRef = memoryManager.alloc_list();
 
     try listRef.push(Type{ .int = 123 });
 

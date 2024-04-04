@@ -16,9 +16,36 @@ pub const List = struct {
         return .{ .items = std.ArrayList(Type).init(allocator) };
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit_data(self: *Self) void {
+        for (self.items.items) |*item| {
+            switch (item.*) {
+                Type.list => item.list.decr(),
+                Type.object => item.object.decr(),
+                else => {},
+            }
+        }
         self.items.deinit();
+    }
+
+    pub fn deinit_refcount(self: *Self) void {
         self.refcount.deinit();
+    }
+
+    pub fn deinit_refcount_unchecked(self: *Self) void {
+        self.refcount.deinit_unchecked();
+    }
+
+    pub fn incr(self: *Self) void {
+        _ = self.refcount.increment();
+    }
+
+    pub fn decr(self: *Self) void {
+        var old_count = self.refcount.decrement();
+
+        // If this was the last reference, deinit the data
+        if (old_count == 1) {
+            self.deinit_data();
+        }
     }
 };
 
@@ -33,9 +60,37 @@ pub const Object = struct {
         return .{ .map = std.AutoHashMap(u32, Type).init(allocator) };
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit_data(self: *Self) void {
+        var it = self.map.valueIterator();
+        while (it.next()) |val| {
+            switch (val.*) {
+                Type.list => val.list.decr(),
+                Type.object => val.object.decr(),
+                else => {},
+            }
+        }
         self.map.deinit();
+    }
+
+    pub fn deinit_refcount(self: *Self) void {
         self.refcount.deinit();
+    }
+
+    pub fn deinit_refcount_unchecked(self: *Self) void {
+        self.refcount.deinit_unchecked();
+    }
+
+    pub fn incr(self: *Self) void {
+        _ = self.refcount.increment();
+    }
+
+    pub fn decr(self: *Self) void {
+        var old_count = self.refcount.decrement();
+
+        // If this was the last reference, deinit the data
+        if (old_count == 1) {
+            self.deinit_data();
+        }
     }
 };
 

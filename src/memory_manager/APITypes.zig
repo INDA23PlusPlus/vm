@@ -40,11 +40,11 @@ pub const ObjectRef = struct {
     ref: *Object,
 
     pub fn incr(self: *const Self) void {
-        _ = self.ref.refcount.increment();
+        _ = self.ref.incr();
     }
 
     pub fn decr(self: *const Self) void {
-        _ = self.ref.refcount.decrement();
+        _ = self.ref.decr();
     }
 
     pub fn get(self: *Self, key: u32) ?Type {

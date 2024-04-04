@@ -11,7 +11,15 @@ pub fn init() Self {
 }
 
 pub fn deinit(self: *Self) void {
-    _ = self.decrement();
+    const refcount = self.get();
+    if (refcount != 0) {
+        std.debug.panic("deinit with non-zero refcount: {}", .{refcount});
+    }
+    self.deinit_unchecked();
+}
+
+pub fn deinit_unchecked(self: *Self) void {
+    _ = self;
 }
 
 // returns old value
@@ -34,7 +42,12 @@ pub fn get(self: *const Self) u32 {
 
 test "increment/decrement" {
     var cnt: Self = init();
-    defer cnt.deinit();
+    defer {
+        // refcount starts at 1, so for this test we need to decrement
+        // to get the refcount to zero before calling deinit.
+        _ = cnt.decrement();
+        cnt.deinit();
+    }
 
     const incr_decr = struct {
         fn incr_decr(counter: *Self, amount: usize) void {
