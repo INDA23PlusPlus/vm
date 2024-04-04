@@ -145,3 +145,56 @@ test "get and set to list" {
     try std.testing.expect(1 == listRef.length());
     try std.testing.expect(123 == listRef.get(0).?.int);
 }
+
+test "run gc pass with empty memory manager" {
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    try memoryManager.gc_pass();
+}
+
+test "gc pass removes one unused object" {
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectRef = memoryManager.alloc_struct();
+
+    try std.testing.expect(1 == memoryManager.get_object_count());
+
+    objectRef.decr();
+    try memoryManager.gc_pass();
+
+    try std.testing.expect(0 == memoryManager.get_object_count());
+}
+
+test "gc pass keeps one object still in use" {
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    _ = memoryManager.alloc_struct();
+
+    try std.testing.expect(1 == memoryManager.get_object_count());
+
+    try memoryManager.gc_pass();
+
+    try std.testing.expect(1 == memoryManager.get_object_count());
+}
+
+test "gc pass keeps one object still in use and discards one unused" {
+    const Type = types.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectRef1 = memoryManager.alloc_struct();
+    var objectRef2 = memoryManager.alloc_struct();
+
+    try objectRef1.set(123, Type{ .int = 456 });
+
+    try std.testing.expect(2 == memoryManager.get_object_count());
+
+    objectRef2.decr();
+    try memoryManager.gc_pass();
+
+    try std.testing.expect(1 == memoryManager.get_object_count());
+    try std.testing.expect(456 == objectRef1.get(123).?.int);
+}
