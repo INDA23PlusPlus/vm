@@ -126,7 +126,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    langserver.linkLibC();
 
     const langserver_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/langserver/module.zig" },

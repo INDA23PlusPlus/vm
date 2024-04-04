@@ -4,17 +4,9 @@
 
 const std = @import("std");
 
-const LogOutput = enum { stderr, file, fifo };
+const Options = struct {};
 
-const Options = struct {
-    @"log-output": LogOutput = .stderr,
-    @"log-file": []const u8 = "mclls.log",
-};
-
-const OptionsWithArgs = struct {
-    @"log-output": void,
-    @"log-file": void,
-};
+const OptionsWithArgs = struct {};
 
 pub fn parseArgs() !Options {
     var options = Options{};
@@ -29,14 +21,6 @@ pub fn parseArgs() !Options {
                     if (args.next()) |value| {
                         switch (field.type) {
                             []const u8 => @field(options, field.name) = value,
-                            LogOutput => {
-                                @field(options, field.name) = std.meta.stringToEnum(
-                                    LogOutput,
-                                    value,
-                                ) orelse {
-                                    return error.InvalidEnumValue;
-                                };
-                            },
                             else => unreachable,
                         }
                     } else {
