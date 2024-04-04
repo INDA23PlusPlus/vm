@@ -10,9 +10,5 @@ The language server currently only supports the low level language, and only
 implements diagnostics and code completion (it doesn't support requests like
 go-to-defintion etc.).
 
-## Options
-* `--log-output <OUTPUT>` - Specifies how to log output. Can be one of `stderr`, `file` or `fifo`. The default is `stderr`.
-* `--log-file <FILE>` - Specifies the path to the log file/named pipe. The default is `mclls.log`.
-
 ## Integration
 See the [editors](../../editor/) folder for integration with editors.
