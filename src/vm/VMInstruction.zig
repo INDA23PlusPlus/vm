@@ -40,6 +40,14 @@ pub fn syscall(num: i64) Self {
     return .{ .op = .syscall, .operand = .{ .int = num } };
 }
 
+pub fn call(destination: usize) Self {
+    return .{ .op = .call, .operand = .{ .location = destination } };
+}
+
+pub fn ret() Self {
+    return .{ .op = .ret };
+}
+
 pub fn store(pos: i64) Self {
     return .{ .op = .store, .operand = .{ .int = pos } };
 }

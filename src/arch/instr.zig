@@ -28,7 +28,7 @@ pub const Instruction = enum(u8) {
     load, // OP %i [] -> [value] where value = stack[BP + i]
     store, // OP %i [value] -> [] sets stack[BP + i] = value
 
-    syscall, // [args...] -> [] TODO: keep or remove
+    syscall, // [args...] -> [ret...] TODO: keep or remove
     call, // OP .f [param 0, ..., param N - 1, N] -> [param 0, ..., param N - 1, N, BP, return_address]
     // see accompanying `README.md`
     ret, // [param 0, ..., param N - 1, N, BP, ..., return_address, return_value] -> [return_value]

@@ -173,6 +173,11 @@ fn floatValue(x: anytype) !f64 {
 pub fn run(ctxt: *VMContext) !i64 {
     while (ctxt.pc < ctxt.prog.code.len) {
         const i = ctxt.prog.code[ctxt.pc];
+
+        if (ctxt.debug_output) {
+            std.debug.print("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(i.op), ctxt.stack.items.len, ctxt.bp });
+        }
+
         ctxt.pc += 1;
 
         switch (i.op) {
@@ -263,6 +268,57 @@ pub fn run(ctxt: *VMContext) !i64 {
                         try ctxt.writer().print("{}\n", .{v});
                     },
                     else => {},
+                }
+            },
+            .call => {
+                const loc = i.operand.location;
+
+                const ra = take(ctxt, types.Type.from(ctxt.pc));
+                defer drop(ctxt, ra);
+
+                const bp = take(ctxt, types.Type.from(ctxt.bp));
+                defer drop(ctxt, bp);
+
+                try push(ctxt, bp);
+                try push(ctxt, ra);
+
+                ctxt.bp = ctxt.stack.items.len;
+                ctxt.pc = loc;
+            },
+            .ret => {
+                const r = try pop(ctxt);
+                defer drop(ctxt, r);
+
+                while (ctxt.stack.items.len != ctxt.bp) {
+                    drop(ctxt, try pop(ctxt));
+                }
+
+                if (ctxt.bp == 0) {
+                    try push(ctxt, r);
+
+                    break;
+                } else {
+                    const ra = try pop(ctxt);
+                    defer drop(ctxt, ra);
+
+                    const bp = try pop(ctxt);
+                    defer drop(ctxt, bp);
+
+                    const N = try pop(ctxt);
+                    defer drop(ctxt, N);
+
+                    if (ctxt.debug_output) {
+                        std.debug.print("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
+                    }
+
+                    for (0..@intCast(N.int)) |_| {
+                        drop(ctxt, try pop(ctxt));
+                    }
+
+                    try push(ctxt, r);
+
+                    ctxt.bp = @intCast(bp.int);
+                    ctxt.pc = @intCast(ra.int);
                 }
             },
             .jmp => {
@@ -455,4 +511,31 @@ test "fibonacci" {
         \\34
         \\
     , 0);
+}
+
+test "recursive fibonacci" {
+    try testRun(&.{
+        VMInstruction.push(10),
+        VMInstruction.push(1),
+        VMInstruction.call(4),
+        VMInstruction.ret(),
+        VMInstruction.load(-4),
+        VMInstruction.push(2),
+        VMInstruction.less(),
+        VMInstruction.jmpnz(20),
+        VMInstruction.load(-4),
+        VMInstruction.push(1),
+        VMInstruction.sub(),
+        VMInstruction.push(1),
+        VMInstruction.call(4),
+        VMInstruction.load(-4),
+        VMInstruction.push(2),
+        VMInstruction.sub(),
+        VMInstruction.push(1),
+        VMInstruction.call(4),
+        VMInstruction.add(),
+        VMInstruction.ret(),
+        VMInstruction.load(-4),
+        VMInstruction.ret(),
+    }, "", 55);
 }
