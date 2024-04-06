@@ -85,7 +85,8 @@ fn asmFunc(self: *Asm) !void {
         self.entry = self.code.items.len;
     }
     self.lbl_patcher.reset();
-    while (try self.scan.peek()) |tok| {
+
+    const found_end = parse: while (try self.scan.peek()) |tok| {
         switch (tok.tag) {
             .label => self.asmLabel() catch |err| {
                 if (err == std.mem.Allocator.Error.OutOfMemory) {
@@ -103,10 +104,13 @@ fn asmFunc(self: *Asm) !void {
             },
             else => {
                 _ = try self.expectKw(.end, "expected next instruction or 'end'");
-                break;
+                break :parse true;
             },
         }
-    }
+    } else false;
+
+    if (!found_end) _ = try self.expectKw(.end, "expected next instruction or 'end'");
+
     try self.lbl_patcher.patch(self.code.items);
     self.lbl_patcher.reset();
 }
