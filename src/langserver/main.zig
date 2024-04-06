@@ -38,9 +38,6 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    const options = try @import("args.zig").parseArgs();
-    _ = options;
-
     var server = Server.init(
         gpa.allocator(),
         std.io.getStdIn().reader(),
@@ -48,7 +45,10 @@ pub fn main() !void {
     );
     defer server.deinit();
 
-    try server.run();
+    server.run() catch |err| {
+        std.log.err("Uncaught error: {s}", .{@errorName(err)});
+        std.os.exit(1);
+    };
 
     std.os.exit(if (server.did_shutdown) 0 else 1);
 }

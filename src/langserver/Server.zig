@@ -45,14 +45,30 @@ pub fn run(self: *Server) !void {
         return;
     };
 
+    // For formatting error messages
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+
     while (!self.did_exit) {
+        stream.reset();
         std.log.info("Waiting for client request...", .{});
 
+        // Read request, or send apporiate error response if it fails
         const request = self.transport.readRequest() catch |err| {
             if (err == error.EndOfStream) {
                 std.log.warn("Client disconnected", .{});
             } else {
-                std.log.err("Failed to handle request: {s}", .{@errorName(err)});
+                try stream.writer().print(
+                    "Failed to parse request: {s}\n",
+                    .{@errorName(err)},
+                );
+                std.log.err("{s}", .{stream.getWritten()});
+                try self.sendErrorResponseWithNoData(
+                    json.Value.null,
+                    ErrorCode.ParseError,
+                    stream.getWritten(),
+                );
+                continue;
             }
             return;
         };
@@ -61,8 +77,28 @@ pub fn run(self: *Server) !void {
         const msg_kind = if (request.value.isNotification()) "notification" else "request";
         std.log.info("Received {s} with method name '{s}'", .{ msg_kind, request.value.method });
 
-        try self.handleRequest(&request.value);
-        // TODO: internal error message
+        // Handle request, or send apporiate error response if it fails
+        self.handleRequest(&request.value) catch |err| {
+            const err_msg_pair = switch (err) {
+                json.ParseFromValueError.UnknownField,
+                json.ParseFromValueError.MissingField,
+                json.ParseFromValueError.DuplicateField,
+                => .{ ErrorCode.InvalidRequest, "Invalid request format" },
+                else => blk: {
+                    try stream.writer().print(
+                        "Failed to handle request: {s}\n",
+                        .{@errorName(err)},
+                    );
+                    break :blk .{ ErrorCode.RequestFailed, stream.getWritten() };
+                },
+            };
+            std.log.err("{s}", .{err_msg_pair.@"1"});
+            try self.sendErrorResponseWithNoData(
+                request.value.id.?,
+                err_msg_pair.@"0",
+                err_msg_pair.@"1",
+            );
+        };
     }
 }
 
