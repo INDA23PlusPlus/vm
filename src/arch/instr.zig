@@ -75,10 +75,10 @@ pub const Instruction = enum(u8) {
             // add instructions with operands here
             const instrs = [_]Instruction{
                 // zig fmt off
-                .jmp,          .jmpnz,       .push,         .pushf,     .load,
-                .store,        .call,        .list_alloc,   .list_load, .list_store,
-                .struct_alloc, .struct_load, .struct_store,
-                .stack_alloc,
+                .jmp,          .jmpnz,       .push,         .pushf,       .load,
+                .store,        .call,        .list_alloc,   .list_load,   .list_store,
+                .struct_alloc, .struct_load, .struct_store, .stack_alloc,
+                .syscall,
                 // zig fmt on
             };
             var arr = std.EnumArray(Instruction, bool).initFill(false);
