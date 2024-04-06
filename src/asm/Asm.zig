@@ -102,7 +102,7 @@ fn asmFunc(self: *Asm) !void {
                 }
             },
             else => {
-                _ = try self.expectKw(.end, "expected 'end'");
+                _ = try self.expectKw(.end, "expected next instruction or 'end'");
                 break;
             },
         }
