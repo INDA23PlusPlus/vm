@@ -15,6 +15,8 @@ const OptionsWithArgs = struct {
 pub fn parseArgs() !Options {
     var options = Options{};
 
+    const stderr = std.io.getStdErr().writer();
+
     var args = std.process.args();
     _ = args.skip();
 
@@ -28,12 +30,16 @@ pub fn parseArgs() !Options {
                             else => @compileError("Invalid option type"),
                         }
                     } else {
+                        try stderr.print("Missing argument for {s}\n", .{arg});
                         return error.MissingArgument;
                     }
                 }
                 continue :parse;
             }
-        } else return error.InvalidArgument;
+        } else {
+            try stderr.print("Invalid option: {s}\n", .{arg});
+            return error.InvalidArgument;
+        }
     }
 
     return options;

@@ -11,7 +11,7 @@ implements diagnostics and code completion (it doesn't support requests like
 go-to-defintion etc.).
 
 ## Options
-* `--log-level`: Set the log level. Can be one of 'debug', 'info', 'warn', 'err'.
+* `--log-level <LEVEL>`: Set the log level. Can be one of 'debug', 'info', 'warn', 'err'.
 
 ## Integration
 See the [editors](../../editor/) folder for integration with editors.
