@@ -189,9 +189,9 @@ fn handleRequest(self: *Server, request: *const json_rpc.Request) !void {
         .@"textDocument/didChange" => try self.handleTextDocumentDidChange(request),
         .@"textDocument/didClose" => try self.handleTextDocumentDidClose(request),
         .@"textDocument/completion" => try self.handleTextDocumentCompletion(request),
+        .@"textDocument/hover" => try self.handleTextDocumentHover(request),
         .shutdown => try self.handleShutdown(request),
         .exit => self.handleExit(),
-        // TODO: add method calls
         else => {
             std.log.err("Unimplemented method: {s}", .{request.method});
             std.os.exit(1);
@@ -253,8 +253,11 @@ fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !
 fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
     self.did_shutdown = true;
 
+    self.documents.deinit();
+
     // This is an ugly hack dealing with the fact that we need to send result =
     // null, but `error` must not exists.
+    // TODO: put in function or just split error reponses and regular responses
 
     var buf: [128]u8 = undefined;
     var stream = std.io.fixedBufferStream(&buf);
@@ -330,4 +333,58 @@ fn handleTextDocumentCompletion(self: *Server, request: *const json_rpc.Request)
         },
     };
     try self.transport.writeResponse(response);
+}
+
+fn handleTextDocumentHover(self: *Server, request: *const json_rpc.Request) !void {
+    const params = try request.readParams(
+        lsp.HoverParams,
+        self.alloc,
+    );
+    defer params.deinit();
+
+    const doc = self.documents.getDocument(params.value.textDocument.uri) orelse {
+        // TODO: error response on non-existent document
+        unreachable;
+    };
+
+    const text = doc.text;
+    const lang = doc.language;
+
+    var hover: ?lsp.Hover = null;
+
+    if (lang == .vmd) {
+        hover = try @import("vmd_hover.zig").getHoverInfo(
+            text,
+            params.value.position,
+            self.alloc,
+        );
+    }
+
+    if (hover) |h| {
+        std.log.info("Providing hover information: {s}", .{h.contents});
+        const Response = json_rpc.Response(lsp.Hover, json_rpc.Placeholder);
+        const response = Response{
+            .id = request.id.?,
+            .result = h,
+        };
+        try self.transport.writeResponse(response);
+    } else {
+        std.log.info("No hover information available", .{});
+        var buf: [128]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&buf);
+        switch (request.id.?) {
+            .integer => |i| try stream.writer().print(
+                "{{\"jsonrpc\": \"2.0\", \"id\": {d}, \"result\": null}}",
+                .{i},
+            ),
+            .string => |s| try stream.writer().print(
+                "{{\"jsonrpc\": \"2.0\", \"id\": \"{s}\", \"result\": null}}",
+                .{s},
+            ),
+            else => unreachable,
+        }
+        const content = stream.getWritten();
+        std.log.debug("Sending shutdown response: {s}", .{content});
+        try self.transport.out.print("Content-Length: {d}\r\n\r\n{s}", .{ content.len, content });
+    }
 }

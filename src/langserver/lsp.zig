@@ -22,6 +22,7 @@ pub const Method = enum {
     @"textDocument/didChange",
     @"textDocument/publishDiagnostics",
     @"textDocument/completion",
+    @"textDocument/hover",
     // TODO: add methods as needed.
 
     pub const map = utils.TagNameMap(@This());
@@ -65,6 +66,7 @@ pub const CompletionOptions = struct {
 pub const ServerCapabilities = struct {
     textDocumentSync: ?i32 = @intFromEnum(TextDocumentSyncKind.Full),
     completionProvider: ?CompletionOptions = CompletionOptions{},
+    hoverProvider: ?bool = true,
 
     // TODO: Add more capabilities as needed.
 };
@@ -204,4 +206,20 @@ pub const CompletionParams = struct {
         uri: []const u8,
     },
     position: Position,
+};
+
+// *******************************************
+//                HOVER
+// *******************************************
+
+pub const HoverParams = struct {
+    textDocument: struct {
+        uri: []const u8,
+    },
+    position: Position,
+};
+
+pub const Hover = struct {
+    contents: []const u8,
+    range: ?Range = null,
 };
