@@ -18,14 +18,6 @@ pub fn logFnImpl(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    // const scope_prefix = "(" ++ switch (scope) {
-    //     .my_project, .nice_library, std.log.default_log_scope => @tagName(scope),
-    //     else => if (@intFromEnum(level) <= @intFromEnum(std.log.Level.err))
-    //         @tagName(scope)
-    //     else
-    //         return,
-    // } ++ "): ";
-
     _ = scope;
 
     const prefix = "[" ++ comptime level.asText() ++ "] ";
@@ -36,19 +28,19 @@ pub fn logFnImpl(
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
 
     var server = Server.init(
         gpa.allocator(),
         std.io.getStdIn().reader(),
         std.io.getStdOut().writer(),
     );
-    defer server.deinit();
 
     server.run() catch |err| {
         std.log.err("Uncaught error: {s}", .{@errorName(err)});
         std.os.exit(1);
     };
 
-    std.os.exit(if (server.did_shutdown) 0 else 1);
+    server.deinit();
+    _ = gpa.deinit();
+    std.os.exit(if (server.did_shutdown and server.did_exit) 0 else 1);
 }
