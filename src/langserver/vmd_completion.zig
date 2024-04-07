@@ -82,6 +82,7 @@ pub fn computeCompletions(
                     try list.append(.{
                         .label = @tagName(instr),
                         .kind = @intFromEnum(kind),
+                        .detail = @import("arch").descr.text.get(instr),
                     });
                 }
             }
