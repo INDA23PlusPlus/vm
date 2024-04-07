@@ -65,6 +65,20 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
             try self.out.writeAll(self.content_buffer.items);
         }
 
+        /// Writes a response to the client, with header part,
+        /// overriding default stringify options
+        pub fn writeResponseOverrideOptions(
+            self: *Self,
+            response: anytype,
+            options: json.StringifyOptions,
+        ) !void {
+            self.content_buffer.clearRetainingCapacity();
+            try response.writeOverrideOptions(self.content_buffer.writer(), options);
+            std.log.debug("Sending response: {s}", .{self.content_buffer.items});
+            try self.out.print("Content-Length: {}\r\n\r\n", .{self.content_buffer.items.len});
+            try self.out.writeAll(self.content_buffer.items);
+        }
+
         /// Writes a notification to the client, with header part.
         pub fn writeServerNotification(self: *Self, notification: anytype) !void {
             self.content_buffer.clearRetainingCapacity();

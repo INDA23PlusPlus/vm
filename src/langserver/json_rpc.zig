@@ -6,10 +6,10 @@
 const std = @import("std");
 const json = std.json;
 
-const default_stringify_options = std.json.StringifyOptions{
+pub const default_stringify_options = std.json.StringifyOptions{
     .emit_null_optional_fields = false,
 };
-const default_parse_options = std.json.ParseOptions{
+pub const default_parse_options = std.json.ParseOptions{
     .ignore_unknown_fields = true,
 };
 
@@ -27,14 +27,40 @@ pub fn idEql(lhs: json.Value, rhs: json.Value) bool {
 }
 
 /// Responses can be created statically as Zig structs.
-/// They are parametrized by the result and error types.
-/// The error type is constructed from the Error function below.
-pub fn Response(comptime Result: type, comptime Error_: type) type {
+/// They are parametrized by the result type.
+pub fn Response(comptime Result: type) type {
     return struct {
         jsonrpc: []const u8 = "2.0",
         id: json.Value,
         result: ?Result = null,
-        @"error": ?Error_ = null,
+
+        /// Write the response as JSON.
+        /// Does not include the header part.
+        pub fn write(self: @This(), writer: anytype) !void {
+            const options = default_stringify_options;
+            try std.json.stringify(self, options, writer);
+        }
+
+        // Write the response as JSON, but provide
+        // custom stringify options.
+        // Does not include the header part.
+        pub fn writeOverrideOptions(
+            self: @This(),
+            writer: anytype,
+            options: std.json.StringifyOptions,
+        ) !void {
+            try std.json.stringify(self, options, writer);
+        }
+    };
+}
+
+/// Response object for errors.
+/// Error_ should be constructed from the Error function below.
+pub fn ErrorResponse(comptime Error_: type) type {
+    return struct {
+        jsonrpc: []const u8 = "2.0",
+        id: json.Value,
+        @"error": Error_,
 
         /// Write the response as JSON.
         /// Does not include the header part.
@@ -110,11 +136,7 @@ test Response {
         bar: []const u8,
     };
 
-    const Error_Data = struct {};
-
-    const Error_ = Error(Error_Data);
-
-    const response = Response(Result, Error_){
+    const response = Response(Result){
         .id = .{ .integer = 1 },
         .result = .{
             .foo = 1,

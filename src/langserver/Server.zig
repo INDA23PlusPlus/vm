@@ -130,7 +130,7 @@ fn initLSP(self: *Server) !void {
         }
     }
 
-    const response = json_rpc.Response(lsp.InitializeResult, json_rpc.Placeholder){
+    const response = json_rpc.Response(lsp.InitializeResult){
         .id = request.value.id.?,
         .result = lsp.InitializeResult{},
     };
@@ -153,7 +153,7 @@ fn sendErrorResponseWithNoData(
 ) !void {
     const Error = json_rpc.Error(json_rpc.Placeholder);
 
-    const response = json_rpc.Response(json_rpc.Placeholder, Error){
+    const response = json_rpc.ErrorResponse(Error){
         .id = id,
         .@"error" = .{
             .code = @intFromEnum(code),
@@ -252,29 +252,8 @@ fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !
 
 fn handleShutdown(self: *Server, request: *const json_rpc.Request) !void {
     self.did_shutdown = true;
-
     self.documents.deinit();
-
-    // This is an ugly hack dealing with the fact that we need to send result =
-    // null, but `error` must not exists.
-    // TODO: put in function or just split error reponses and regular responses
-
-    var buf: [128]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    switch (request.id.?) {
-        .integer => |i| try stream.writer().print(
-            "{{\"jsonrpc\": \"2.0\", \"id\": {d}, \"result\": null}}",
-            .{i},
-        ),
-        .string => |s| try stream.writer().print(
-            "{{\"jsonrpc\": \"2.0\", \"id\": \"{s}\", \"result\": null}}",
-            .{s},
-        ),
-        else => unreachable,
-    }
-    const content = stream.getWritten();
-    std.log.debug("Sending shutdown response: {s}", .{content});
-    try self.transport.out.print("Content-Length: {d}\r\n\r\n{s}", .{ content.len, content });
+    try self.sendNullResultResponse(request.id.?);
 }
 
 fn handleExit(self: *Server) void {
@@ -325,7 +304,7 @@ fn handleTextDocumentCompletion(self: *Server, request: *const json_rpc.Request)
         );
     }
 
-    const Response = json_rpc.Response(lsp.CompletionList, json_rpc.Placeholder);
+    const Response = json_rpc.Response(lsp.CompletionList);
     const response = Response{
         .id = request.id.?,
         .result = lsp.CompletionList{
@@ -362,7 +341,7 @@ fn handleTextDocumentHover(self: *Server, request: *const json_rpc.Request) !voi
 
     if (hover) |h| {
         std.log.info("Providing hover information: {s}", .{h.contents});
-        const Response = json_rpc.Response(lsp.Hover, json_rpc.Placeholder);
+        const Response = json_rpc.Response(lsp.Hover);
         const response = Response{
             .id = request.id.?,
             .result = h,
@@ -370,21 +349,17 @@ fn handleTextDocumentHover(self: *Server, request: *const json_rpc.Request) !voi
         try self.transport.writeResponse(response);
     } else {
         std.log.info("No hover information available", .{});
-        var buf: [128]u8 = undefined;
-        var stream = std.io.fixedBufferStream(&buf);
-        switch (request.id.?) {
-            .integer => |i| try stream.writer().print(
-                "{{\"jsonrpc\": \"2.0\", \"id\": {d}, \"result\": null}}",
-                .{i},
-            ),
-            .string => |s| try stream.writer().print(
-                "{{\"jsonrpc\": \"2.0\", \"id\": \"{s}\", \"result\": null}}",
-                .{s},
-            ),
-            else => unreachable,
-        }
-        const content = stream.getWritten();
-        std.log.debug("Sending shutdown response: {s}", .{content});
-        try self.transport.out.print("Content-Length: {d}\r\n\r\n{s}", .{ content.len, content });
+        try self.sendNullResultResponse(request.id.?);
     }
+}
+
+fn sendNullResultResponse(self: *Server, id: json.Value) !void {
+    const Response = json_rpc.Response(json_rpc.Placeholder);
+    const response = Response{
+        .id = id,
+        .result = null,
+    };
+    var options = json_rpc.default_stringify_options;
+    options.emit_null_optional_fields = true;
+    try self.transport.writeResponseOverrideOptions(response, options);
 }
