@@ -5,7 +5,7 @@ call ale#linter#Define('mcl', {
 \   'name': 'mclls',
 \   'lsp': 'stdio',
 \   'executable': 'mclls',
-\   'command': '%e 2>log',
+\   'command': '%e --log-level debug --disable completion 2>log',
 \   'project_root': '.',
 \})
 
@@ -13,6 +13,6 @@ call ale#linter#Define('vmd', {
 \   'name': 'mclls',
 \   'lsp': 'stdio',
 \   'executable': 'mclls',
-\   'command': '%e 2>log',
+\   'command': '%e --log-level debug --disable completion 2>log',
 \   'project_root': '.',
 \})

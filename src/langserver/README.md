@@ -12,6 +12,7 @@ go-to-defintion etc.).
 
 ## Options
 * `--log-level <LEVEL>`: Set the log level. Can be one of 'debug', 'info', 'warn', 'err'.
+* `--disable <FEATURE>`: Disable a feature. Can be one of 'hover', 'completion', 'diagnostics'. Can be specified multiple times.
 
 ## Integration
 See the [editors](../../editor/) folder for integration with editors.

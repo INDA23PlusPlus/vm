@@ -10,6 +10,7 @@ const json_rpc = @import("json_rpc.zig");
 const json = std.json;
 const ErrorCode = @import("error.zig").Code;
 const DocumentStore = @import("DocumentStore.zig");
+const options = &@import("Options.zig").instance;
 
 const Writer = std.fs.File.Writer;
 const Reader = std.fs.File.Reader;
@@ -122,7 +123,16 @@ fn initLSP(self: *Server) !void {
         .{if (params.value.clientInfo) |info| info.name else "unknown client"},
     );
 
-    const init_result = lsp.InitializeResult{};
+    var init_result = lsp.InitializeResult{};
+
+    if (options.disable.contains(.hover)) {
+        init_result.capabilities.?.hoverProvider = false;
+    }
+
+    if (options.disable.contains(.completion)) {
+        init_result.capabilities.?.completionProvider = null;
+    }
+
     std.log.info("Supported capabilities:", .{});
     inline for (std.meta.fields(lsp.ServerCapabilities)) |field| {
         if (@field(init_result.capabilities.?, field.name) != null) {
@@ -132,7 +142,7 @@ fn initLSP(self: *Server) !void {
 
     const response = json_rpc.Response(lsp.InitializeResult){
         .id = request.value.id.?,
-        .result = lsp.InitializeResult{},
+        .result = init_result,
     };
     try self.transport.writeResponse(response);
 
@@ -262,6 +272,8 @@ fn handleExit(self: *Server) void {
 }
 
 fn publishDiagnostics(self: *Server, uri: []const u8) !void {
+    if (options.disable.contains(.diagnostics)) return;
+
     var doc = self.documents.getDocument(uri).?;
     try doc.produceDiagnostics(self.alloc);
 
@@ -359,7 +371,7 @@ fn sendNullResultResponse(self: *Server, id: json.Value) !void {
         .id = id,
         .result = null,
     };
-    var options = json_rpc.default_stringify_options;
-    options.emit_null_optional_fields = true;
-    try self.transport.writeResponseOverrideOptions(response, options);
+    var stringify_options = json_rpc.default_stringify_options;
+    stringify_options.emit_null_optional_fields = true;
+    try self.transport.writeResponseOverrideOptions(response, stringify_options);
 }
