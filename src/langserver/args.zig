@@ -4,9 +4,13 @@
 
 const std = @import("std");
 
-const Options = struct {};
+const Options = struct {
+    @"log-level": ?[]const u8 = null,
+};
 
-const OptionsWithArgs = struct {};
+const OptionsWithArgs = struct {
+    @"log-level": void,
+};
 
 pub fn parseArgs() !Options {
     var options = Options{};
@@ -20,8 +24,8 @@ pub fn parseArgs() !Options {
                 if (@hasField(OptionsWithArgs, field.name)) {
                     if (args.next()) |value| {
                         switch (field.type) {
-                            []const u8 => @field(options, field.name) = value,
-                            else => unreachable,
+                            ?[]const u8 => @field(options, field.name) = value,
+                            else => @compileError("Invalid option type"),
                         }
                     } else {
                         return error.MissingArgument;
@@ -29,8 +33,7 @@ pub fn parseArgs() !Options {
                 }
                 continue :parse;
             }
-        }
-        return error.InvalidArgument;
+        } else return error.InvalidArgument;
     }
 
     return options;
