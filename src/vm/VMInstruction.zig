@@ -24,6 +24,10 @@ pub fn pushf(value: f64) Self {
     return .{ .op = .pushf, .operand = .{ .float = value } };
 }
 
+pub fn pushs(value: usize) Self {
+    return .{ .op = .pushs, .operand = .{ .location = value } };
+}
+
 pub fn pop() Self {
     return .{ .op = .pop };
 }
@@ -69,7 +73,7 @@ pub fn sub() Self {
 }
 
 pub fn mul() Self {
-    return .{ .op = .sub };
+    return .{ .op = .mul };
 }
 
 pub fn div() Self {

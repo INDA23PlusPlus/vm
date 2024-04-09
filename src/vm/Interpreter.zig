@@ -53,6 +53,7 @@ fn compareEq(a: Type, b: Type) bool {
 
         .int => a.as(.int).? == b.as(.int).?,
         .float => a.as(.float).? == b.as(.float).?,
+        .string => std.mem.eql(u8, a.as(.string).?.get(), b.as(.string).?.get()),
 
         .list,
         .object,
@@ -234,6 +235,21 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
+            .pushf => {
+                const v = take(ctxt, Type.from(i.operand.float));
+                defer drop(ctxt, v);
+
+                try push(ctxt, v);
+            },
+            .pushs => {
+                const p = i.operand.location;
+                try assert(p < ctxt.prog.strings.len);
+
+                const v = take(ctxt, Type.from(ctxt.prog.strings[p]));
+                defer drop(ctxt, v);
+
+                try push(ctxt, v);
+            },
             .pop => {
                 drop(ctxt, try pop(ctxt));
             },
@@ -306,6 +322,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                     const N = try pop(ctxt);
                     defer drop(ctxt, N);
+
+                    try assert(ra.tag() == .int);
+                    try assert(bp.tag() == .int);
+                    try assert(N.tag() == .int);
 
                     if (ctxt.debug_output) {
                         std.debug.print("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
@@ -381,12 +401,11 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
     return std.mem.join(allocator, " ", res.items);
 }
 
-fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_exit_code: i64) !void {
+fn testRun(prog: VMProgram, expected_output: []const u8, expected_exit_code: i64) !void {
     const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2);
     defer std.testing.allocator.free(output_buffer);
     var output_stream = std.io.fixedBufferStream(output_buffer);
 
-    const prog = VMProgram.init(code, 0);
     var ctxt = VMContext.init(prog, std.testing.allocator, output_stream.writer(), false);
     defer ctxt.deinit();
 
@@ -396,6 +415,7 @@ fn testRun(code: []const VMInstruction, expected_output: []const u8, expected_ex
     defer std.testing.allocator.free(a);
     const b = try replaceWhiteSpace(output_stream.getWritten(), std.testing.allocator);
     defer std.testing.allocator.free(b);
+
     try std.testing.expect(std.mem.eql(u8, a, b));
 }
 
@@ -425,11 +445,11 @@ test "arithmetic" {
                     });
 
                     try testRun(
-                        &.{
+                        VMProgram.init(&.{
                             VMInstruction.push(lhs),
                             VMInstruction.push(rhs),
                             VMInstruction{ .op = op },
-                        },
+                        }, 0, &.{}),
                         "",
                         res,
                     );
@@ -452,31 +472,31 @@ test "arithmetic" {
     try util.testBinaryOp(.cmp_ne);
 
     try testRun(
-        &.{
+        VMProgram.init(&.{
             VMInstruction.push(0),
             VMInstruction.dup(),
             VMInstruction.pop(),
-        },
+        }, 0, &.{}),
         "",
         0,
     );
 
     // decrement value, starting at 10, until its zero, 10 is not special, any value should work
     try testRun(
-        &.{
+        VMProgram.init(&.{
             VMInstruction.push(10),
             VMInstruction.push(1),
             VMInstruction.sub(),
             VMInstruction.dup(),
             VMInstruction.jmpnz(1),
-        },
+        }, 0, &.{}),
         "",
         0,
     );
 }
 
 test "fibonacci" {
-    try testRun(&.{
+    try testRun(VMProgram.init(&.{
         VMInstruction.push(10),
         VMInstruction.push(0),
         VMInstruction.push(1),
@@ -498,7 +518,7 @@ test "fibonacci" {
         VMInstruction.pop(),
         VMInstruction.pop(),
         VMInstruction.push(0),
-    },
+    }, 0, &.{}),
         \\0
         \\1
         \\1
@@ -514,7 +534,7 @@ test "fibonacci" {
 }
 
 test "recursive fibonacci" {
-    try testRun(&.{
+    try testRun(VMProgram.init(&.{
         VMInstruction.push(10),
         VMInstruction.push(1),
         VMInstruction.call(4),
@@ -537,5 +557,27 @@ test "recursive fibonacci" {
         VMInstruction.ret(),
         VMInstruction.load(-4),
         VMInstruction.ret(),
-    }, "", 55);
+    }, 0, &.{}), "", 55);
+}
+
+test "hello world" {
+    try testRun(VMProgram.init(&.{
+        VMInstruction.pushs(0),
+        VMInstruction.syscall(0),
+        VMInstruction.push(0),
+    }, 0, &.{"Hello World!"}), "Hello World!", 0);
+}
+
+test "string compare" {
+    try testRun(VMProgram.init(&.{
+        VMInstruction.pushs(0),
+        VMInstruction.pushs(1),
+        VMInstruction.equal(),
+    }, 0, &.{ "aaa", "aaa" }), "", 1);
+
+    try testRun(VMProgram.init(&.{
+        VMInstruction.pushs(0),
+        VMInstruction.pushs(1),
+        VMInstruction.equal(),
+    }, 0, &.{ "aaa", "bbb" }), "", 1);
 }

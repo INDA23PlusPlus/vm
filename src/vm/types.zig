@@ -5,6 +5,24 @@
 const std = @import("std");
 const memory_manager = @import("memory_manager");
 
+const StringLit = []const u8;
+const StringRef = struct {
+    // TODO: memory_manager.APITypes.StringRef
+    const Self = @This();
+
+    pub fn incr(self: *const Self) void {
+        _ = self;
+    }
+
+    pub fn decr(self: *const Self) void {
+        _ = self;
+    }
+
+    pub fn get(self: *const Self) []const u8 {
+        _ = self;
+        return "";
+    }
+};
 const ListRef = memory_manager.APITypes.ListRef;
 const ObjectRef = memory_manager.APITypes.ObjectRef;
 
@@ -15,12 +33,50 @@ pub const UnitType = packed struct {
     }
 };
 
+const String = union(enum) {
+    // Common string type, can be either a string slice or a reference to a dynamic string
+    const Self = @This();
+
+    lit: StringLit,
+    ref: StringRef,
+
+    pub fn incr(self: *const Self) void {
+        switch (self.*) {
+            .lit => {},
+            .ref => self.ref.incr(),
+        }
+    }
+
+    pub fn decr(self: *const Self) void {
+        switch (self.*) {
+            .lit => {},
+            .ref => self.ref.decr(),
+        }
+    }
+
+    pub fn get(self: *const Self) []const u8 {
+        switch (self.*) {
+            .lit => return self.lit,
+            .ref => return self.ref.get(),
+        }
+    }
+
+    pub fn from(x: anytype) Self {
+        switch (@TypeOf(x)) {
+            StringLit => return .{ .lit = x },
+            StringRef => return .{ .ref = x },
+            else => @compileError(std.fmt.comptimePrint("type {} is not convertible to String", .{x})),
+        }
+    }
+};
+
 pub const Type = union(enum) {
     const Self = @This();
     const Tag = std.meta.Tag(Self);
     unit: UnitType,
     int: i64,
     float: f64,
+    string: String,
     list: ListRef,
     object: ObjectRef,
 
@@ -29,6 +85,7 @@ pub const Type = union(enum) {
             .unit => UnitType,
             .int => i64,
             .float => f64,
+            .string => String,
             .list => ListRef,
             .object => ObjectRef,
         };
@@ -37,6 +94,7 @@ pub const Type = union(enum) {
     pub fn clone(self: *const Self) Self {
         var res = self.*;
         switch (res) {
+            .string => |*m| m.incr(),
             .list => |*m| m.incr(),
             .object => |*m| m.incr(),
             else => {},
@@ -46,6 +104,7 @@ pub const Type = union(enum) {
 
     pub fn deinit(self: *const Self) void {
         switch (self.tag()) {
+            .string => self.string.decr(),
             .list => self.list.decr(),
             .object => self.object.decr(),
             else => {},
@@ -59,6 +118,11 @@ pub const Type = union(enum) {
     pub fn from(x: anytype) Self {
         const T = @TypeOf(x);
 
+        if (T == StringLit or T == StringRef) {
+            var res = .{ .string = String.from(x) };
+            res.string.incr();
+            return res;
+        }
         if (T == ListRef) {
             var res = .{ .list = x };
             res.list.incr();
@@ -110,6 +174,7 @@ pub const Type = union(enum) {
             .unit => |c| if (T == .unit) c else unreachable,
             .int => |c| if (T == .int) c else unreachable,
             .float => |c| if (T == .float) c else unreachable,
+            .string => |c| if (T == .string) c else unreachable,
             .list => |c| if (T == .list) c else unreachable,
             .object => |c| if (T == .object) c else unreachable,
         };
@@ -122,6 +187,7 @@ pub const Type = union(enum) {
             .unit => writer.print("()", .{}),
             .int => |i| writer.print("{}", .{i}),
             .float => |f| writer.print("{d}", .{f}),
+            .string => |s| writer.print("{s}", .{s.get()}),
             else => @panic("unimplemented"), // TODO: implement formatting for lists and objects
         };
     }

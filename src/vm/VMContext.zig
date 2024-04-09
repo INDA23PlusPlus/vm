@@ -31,6 +31,12 @@ pub fn init(prog: VMProgram, alloc: Allocator, output_writer: anytype, debug_out
     return .{ .prog = prog, .pc = prog.entry, .bp = 0, .stack = Stack.init(alloc), .refc = 0, .write_ctxt = &output_writer, .write_fn = write_fn, .debug_output = debug_output };
 }
 
+pub fn reset(self: *Self) void {
+    self.pc = 0;
+    self.bp = 0;
+    self.stack.clearAndFree();
+}
+
 pub fn write(self: *const Self, bytes: []const u8) anyerror!usize {
     return self.write_fn(self.write_ctxt, bytes);
 }
