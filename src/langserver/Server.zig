@@ -256,7 +256,15 @@ fn handleTextDocumentDidClose(self: *Server, request: *const json_rpc.Request) !
     );
     defer params.deinit();
 
-    // TODO: Error if document hasn't been opened.
+    if (!self.documents.hasDocument(params.value.textDocument.uri)) {
+        try self.sendErrorResponseWithNoData(
+            request.id.?,
+            .RequestFailed,
+            "Document does not exist",
+        );
+        return;
+    }
+
     self.documents.removeDocument(params.value.textDocument.uri);
 }
 
@@ -301,8 +309,12 @@ fn handleTextDocumentCompletion(self: *Server, request: *const json_rpc.Request)
     defer list.deinit();
 
     const doc = self.documents.getDocument(params.value.textDocument.uri) orelse {
-        // TODO: error response on non-existent document
-        unreachable;
+        try self.sendErrorResponseWithNoData(
+            request.id.?,
+            .RequestFailed,
+            "Document does not exist",
+        );
+        return;
     };
 
     const text = doc.text;
@@ -334,8 +346,12 @@ fn handleTextDocumentHover(self: *Server, request: *const json_rpc.Request) !voi
     defer params.deinit();
 
     const doc = self.documents.getDocument(params.value.textDocument.uri) orelse {
-        // TODO: error response on non-existent document
-        unreachable;
+        try self.sendErrorResponseWithNoData(
+            request.id.?,
+            .RequestFailed,
+            "Document does not exist",
+        );
+        return;
     };
 
     const text = doc.text;
