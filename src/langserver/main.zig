@@ -21,6 +21,7 @@ pub fn logFnImpl(
     comptime format: []const u8,
     args: anytype,
 ) void {
+    if (Options.instance.quiet) return;
     if (@intFromEnum(level) > @intFromEnum(Options.instance.@"log-level")) return;
 
     _ = scope;
@@ -36,6 +37,11 @@ pub fn main() !void {
     errdefer _ = gpa.deinit();
 
     try Options.parseArgs();
+
+    if (Options.instance.help) {
+        try Options.usage(std.io.getStdOut().writer());
+        std.os.exit(0);
+    }
 
     var server = Server.init(
         gpa.allocator(),

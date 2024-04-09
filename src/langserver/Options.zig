@@ -7,6 +7,25 @@ const Options = @This();
 
 @"log-level": std.log.Level = .err,
 disable: std.EnumSet(Feature) = std.EnumSet(Feature).initEmpty(),
+quiet: bool = false,
+help: bool = false,
+
+pub fn usage(writer: anytype) !void {
+    try writer.print(
+        \\Usage:
+        \\    mclls <options>
+        \\
+        \\Options:
+        \\    --quiet                 Supress log output.
+        \\    --log-level <level>     Set log level to <level>. Can be one of
+        \\                            `err`, `warn`, `info`, `debug`. Default is
+        \\                            `err`.
+        \\    --disable <feature>     Disables <feature>. Can be one of `hover`,
+        \\                            `diagnostics`, `completion`. All features
+        \\                            are enabled by default.
+        \\
+    , .{});
+}
 
 pub var instance: Options = .{};
 
@@ -34,6 +53,7 @@ pub fn parseArgs() !void {
                                     instance.@"log-level" = level;
                                 } else {
                                     try stderr.print("Invalid log level: {s}\n", .{value});
+                                    try usage(stderr);
                                     return error.InvalidArgument;
                                 }
                             },
@@ -42,6 +62,7 @@ pub fn parseArgs() !void {
                                     instance.disable.insert(feature);
                                 } else {
                                     try stderr.print("Invalid feature: {s}\n", .{value});
+                                    try usage(stderr);
                                     return error.InvalidArgument;
                                 }
                             },
@@ -49,13 +70,20 @@ pub fn parseArgs() !void {
                         }
                     } else {
                         try stderr.print("Missing argument for {s}\n", .{arg});
+                        try usage(stderr);
                         return error.MissingArgument;
                     }
+                } else {
+                    if (field.type != bool) {
+                        @compileError("Option without argument must be boolean");
+                    }
+                    @field(instance, field.name) = true;
                 }
                 continue :parse;
             }
         } else {
             try stderr.print("Invalid option: {s}\n", .{arg});
+            try usage(stderr);
             return error.InvalidArgument;
         }
     }
