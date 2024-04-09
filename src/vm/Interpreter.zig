@@ -579,5 +579,5 @@ test "string compare" {
         VMInstruction.pushs(0),
         VMInstruction.pushs(1),
         VMInstruction.equal(),
-    }, 0, &.{ "aaa", "bbb" }), "", 1);
+    }, 0, &.{ "aaa", "bbb" }), "", 0);
 }
