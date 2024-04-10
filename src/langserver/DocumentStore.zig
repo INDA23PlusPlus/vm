@@ -58,19 +58,18 @@ pub fn updateDocument(
     text: []const u8,
 ) !void {
     if (self.hasDocument(uri)) {
-        // TODO: something something errdefer
         std.log.info("Update document {s} (version = {d})", .{ uri, version });
         var doc = self.docs.getPtr(uri).?;
-        doc.*.version = version;
+        const new_text = try self.alloc.dupe(u8, text);
         self.alloc.free(doc.*.text);
-        doc.*.text = try self.alloc.dupe(u8, text);
+        doc.*.text = new_text;
+        doc.*.version = version;
     } else {
         try self.addDocument(uri, version, languageId, text);
     }
 }
 
 pub fn removeDocument(self: *DocumentStore, uri: []const u8) void {
-    // TODO: assert it exists
     std.log.info("Remove document {s}", .{uri});
     var entry = self.docs.getEntry(uri).?;
     entry.value_ptr.deinit(self.alloc);
