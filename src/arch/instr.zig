@@ -3,11 +3,14 @@ const std = @import("std");
 pub const Instruction = enum(u8) {
     // TODO: explicit opcodes (actually a unified instruction interface towards assembler/vm makes this unecessary)
 
+    // TODO: define overflow behavior for integers
+    // Implemented with two's complement wrapping for now
     add, // [a, b] -> [a + b]
     sub, // [a, b] -> [a - b]
     mul, // [a, b] -> [a * b]
     div, // [a, b] -> [a / b] (rounds toward zero)
     mod, // [a, b] -> [a % b] TODO: decide how to handle modulo/remainder
+    // Implemented such that { a mod b = a - b(a / b) } for now
 
     // 1 if true, 0 if false
     cmp_lt, // [a, b] -> [res] where res = a < b

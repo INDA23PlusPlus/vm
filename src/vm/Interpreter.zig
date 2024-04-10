@@ -18,15 +18,26 @@ fn assert(b: bool) !void {
     }
 }
 
-fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) T {
-    return switch (op) {
-        .add => a + b,
-        .sub => a - b,
-        .mul => a * b,
-        .div => if (a < 0 or b < 0) std.debug.panic("not decided how to handle division or modulo involving negative numbers yet", .{}) else @divFloor(a, b),
-        .mod => if (a < 0 or b < 0) std.debug.panic("not decided how to handle division or modulo involving negative numbers yet", .{}) else @mod(a, b),
-        else => unreachable,
-    };
+fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) !T {
+    if (T == types.Type.GetRepr(.int)) {
+        return switch (op) {
+            .add => a +% b,
+            .sub => a -% b,
+            .mul => a *% b,
+            .div => if (b == 0 or (a == std.math.minInt(T) and b == -1)) error.InvalidOperation else @divTrunc(a, b),
+            .mod => if (b == 0 or (a == std.math.minInt(T) and b == -1)) error.InvalidOperation else a - b * @divTrunc(a, b),
+            else => unreachable,
+        };
+    } else {
+        return switch (op) {
+            .add => a + b,
+            .sub => a - b,
+            .mul => a * b,
+            .div => a / b,
+            .mod => if (b < 0) @rem(-a, -b) else @rem(a, b),
+            else => unreachable,
+        };
+    }
 }
 
 fn doComparison(comptime T: type, a: T, op: Instruction, b: T) i64 {
@@ -65,7 +76,7 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     if (a.as(.int)) |ai| {
         if (b.as(.int)) |bi| {
             if (op.isArithmetic()) {
-                return Type.from(doArithmetic(Type.GetRepr(.int), ai, op, bi));
+                return Type.from(try doArithmetic(Type.GetRepr(.int), ai, op, bi));
             } else if (op.isComparison()) {
                 return Type.from(doComparison(Type.GetRepr(.int), ai, op, bi));
             } else {
@@ -75,7 +86,7 @@ fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
     }
 
     if (op.isArithmetic()) {
-        return Type.from(doArithmetic(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
+        return Type.from(try doArithmetic(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
     } else if (op.isComparison()) {
         return Type.from(doComparison(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
     } else {
@@ -493,6 +504,36 @@ test "arithmetic" {
         "",
         0,
     );
+
+    // Division / remainder with negative numbers
+    try testRun(VMProgram.init(&.{
+        VMInstruction.push(-10),
+        VMInstruction.push(3),
+        VMInstruction.div(),
+        VMInstruction.push(3),
+        VMInstruction.mul(),
+        VMInstruction.push(-10),
+        VMInstruction.push(3),
+        VMInstruction.mod(),
+        VMInstruction.add(),
+        VMInstruction.push(-10),
+        VMInstruction.equal(),
+        VMInstruction.ret(),
+    }, 0, &.{}), "", 1);
+    try testRun(VMProgram.init(&.{
+        VMInstruction.push(10),
+        VMInstruction.push(-3),
+        VMInstruction.div(),
+        VMInstruction.push(-3),
+        VMInstruction.mul(),
+        VMInstruction.push(10),
+        VMInstruction.push(-3),
+        VMInstruction.mod(),
+        VMInstruction.add(),
+        VMInstruction.push(10),
+        VMInstruction.equal(),
+        VMInstruction.ret(),
+    }, 0, &.{}), "", 1);
 }
 
 test "fibonacci" {
@@ -573,11 +614,11 @@ test "string compare" {
         VMInstruction.pushs(0),
         VMInstruction.pushs(1),
         VMInstruction.equal(),
-    }, 0, &.{ "aaa", "aaa" }), "", 1);
+    }, 0, &.{ "foo", "foo" }), "", 1);
 
     try testRun(VMProgram.init(&.{
         VMInstruction.pushs(0),
         VMInstruction.pushs(1),
         VMInstruction.equal(),
-    }, 0, &.{ "aaa", "bbb" }), "", 0);
+    }, 0, &.{ "bar", "baz" }), "", 0);
 }
