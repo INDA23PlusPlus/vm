@@ -62,3 +62,6 @@ zig-out/
 # Source files
 *.vmd
 *.mcl
+
+# Make
+Makefile
