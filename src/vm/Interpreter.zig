@@ -505,36 +505,6 @@ test "arithmetic" {
         0,
     );
 
-    // Division / remainder with negative numbers
-    try testRun(VMProgram.init(&.{
-        VMInstruction.push(-10),
-        VMInstruction.push(3),
-        VMInstruction.div(),
-        VMInstruction.push(3),
-        VMInstruction.mul(),
-        VMInstruction.push(-10),
-        VMInstruction.push(3),
-        VMInstruction.mod(),
-        VMInstruction.add(),
-        VMInstruction.push(-10),
-        VMInstruction.equal(),
-        VMInstruction.ret(),
-    }, 0, &.{}), "", 1);
-    try testRun(VMProgram.init(&.{
-        VMInstruction.push(10),
-        VMInstruction.push(-3),
-        VMInstruction.div(),
-        VMInstruction.push(-3),
-        VMInstruction.mul(),
-        VMInstruction.push(10),
-        VMInstruction.push(-3),
-        VMInstruction.mod(),
-        VMInstruction.add(),
-        VMInstruction.push(10),
-        VMInstruction.equal(),
-        VMInstruction.ret(),
-    }, 0, &.{}), "", 1);
-
     // ensure a/b*b + a%b == a
     for (0..201) |i| {
         for (0..201) |j| {
