@@ -534,6 +534,39 @@ test "arithmetic" {
         VMInstruction.equal(),
         VMInstruction.ret(),
     }, 0, &.{}), "", 1);
+
+    // ensure a/b*b + a%b == a
+    for (0..201) |i| {
+        for (0..201) |j| {
+            const a = @as(i64, @intCast(i)) - 100;
+            const b = @as(i64, @intCast(j)) - 100;
+            if (b == 0) continue;
+
+            try testRun(VMProgram.init(&.{
+                VMInstruction.push(a),
+                VMInstruction.push(b),
+                VMInstruction.div(),
+                // stack is now a / b
+
+                VMInstruction.push(b),
+                VMInstruction.mul(),
+                // stack is now a / b * b
+
+                VMInstruction.push(a),
+                VMInstruction.push(b),
+                VMInstruction.mod(),
+                // stack is now a/b*b, a%b
+
+                VMInstruction.add(),
+                // stack should now be just a
+
+                VMInstruction.push(a),
+                VMInstruction.equal(),
+                VMInstruction.ret(),
+                // ensure stack is actually just a
+            }, 0, &.{}), "", 1);
+        }
+    }
 }
 
 test "fibonacci" {
