@@ -94,23 +94,12 @@ pub fn build(b: *std.Build) void {
         .{ .source_file = .{ .path = "src/compiler/module.zig" } },
     );
 
-    const compiler = b.addExecutable(.{
-        .name = "compiler",
-        .root_source_file = .{ .path = "src/compiler/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
     const compiler_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/compiler/module.zig" },
         .target = target,
         .optimize = optimize,
     });
     const compiler_run_tests = b.addRunArtifact(compiler_tests);
-
-    const build_compiler = b.step("compiler", "Build the compiler");
-    const install_compiler = b.addInstallArtifact(compiler, .{});
-    build_compiler.dependOn(&install_compiler.step);
 
     //
     // Language server
@@ -174,7 +163,6 @@ pub fn build(b: *std.Build) void {
     //
     b.installArtifact(assembler);
     b.installArtifact(vm);
-    b.installArtifact(compiler);
     b.installArtifact(langserver);
 
     //
