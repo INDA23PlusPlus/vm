@@ -21,6 +21,11 @@ write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usiz
 debug_output: bool,
 
 pub fn init(prog: VMProgram, alloc: Allocator, output_writer: anytype, debug_output: bool) Self {
+    switch (@typeInfo(@TypeOf(output_writer))) {
+        .Pointer => {},
+        else => @compileError("output_writer has to be a pointer toto writer writer"),
+    }
+
     const write_fn = struct {
         fn write(write_ctxt: *const anyopaque, data: []const u8) anyerror!usize {
             return @as(@TypeOf(output_writer), @ptrCast(@alignCast(write_ctxt))).write(data);
