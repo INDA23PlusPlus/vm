@@ -23,7 +23,7 @@ debug_output: bool,
 pub fn init(prog: VMProgram, alloc: Allocator, output_writer: anytype, debug_output: bool) Self {
     switch (@typeInfo(@TypeOf(output_writer))) {
         .Pointer => {},
-        else => @compileError("output_writer has to be a pointer toto writer writer"),
+        else => @compileError("output_writer has to be a pointer to a writer"),
     }
 
     const write_fn = struct {
