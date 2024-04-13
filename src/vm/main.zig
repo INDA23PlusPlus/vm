@@ -6,6 +6,8 @@ const VMProgram = @import("VMProgram.zig");
 
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var output_stream = std.io.getStdOut();
+    const output_writer = output_stream.writer();
 
     const prog = VMProgram.init(&.{
         VMInstruction.pushs(0),
@@ -14,7 +16,7 @@ pub fn main() !u8 {
         VMInstruction.ret(),
     }, 0, &.{"Hello World!"});
 
-    var ctxt = VMContext.init(prog, gpa.allocator(), std.io.getStdOut().writer(), false);
+    var ctxt = VMContext.init(prog, gpa.allocator(), &output_writer, false);
     defer ctxt.deinit();
 
     return @intCast(try Interpreter.run(&ctxt));

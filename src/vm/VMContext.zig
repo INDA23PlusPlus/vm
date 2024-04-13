@@ -23,11 +23,11 @@ debug_output: bool,
 pub fn init(prog: VMProgram, alloc: Allocator, output_writer: anytype, debug_output: bool) Self {
     const write_fn = struct {
         fn write(write_ctxt: *const anyopaque, data: []const u8) anyerror!usize {
-            return @as(@TypeOf(&output_writer), @ptrCast(@alignCast(write_ctxt))).write(data);
+            return @as(@TypeOf(output_writer), @ptrCast(@alignCast(write_ctxt))).write(data);
         }
     }.write;
 
-    return .{ .prog = prog, .pc = prog.entry, .bp = 0, .stack = Stack.init(alloc), .refc = 0, .write_ctxt = &output_writer, .write_fn = write_fn, .debug_output = debug_output };
+    return .{ .prog = prog, .pc = prog.entry, .bp = 0, .stack = Stack.init(alloc), .refc = 0, .write_ctxt = output_writer, .write_fn = write_fn, .debug_output = debug_output };
 }
 
 pub fn reset(self: *Self) void {

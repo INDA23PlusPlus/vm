@@ -414,8 +414,9 @@ fn testRun(prog: VMProgram, expected_output: []const u8, expected_exit_code: i64
     const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2);
     defer std.testing.allocator.free(output_buffer);
     var output_stream = std.io.fixedBufferStream(output_buffer);
+    const output_writer = output_stream.writer();
 
-    var ctxt = VMContext.init(prog, std.testing.allocator, output_stream.writer(), false);
+    var ctxt = VMContext.init(prog, std.testing.allocator, &output_writer, false);
     defer ctxt.deinit();
 
     try std.testing.expectEqual(expected_exit_code, try run(&ctxt));
