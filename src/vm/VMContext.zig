@@ -4,8 +4,7 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const types = @import("types.zig");
-const Type = types.Type;
+const Type = @import("types.zig").Type;
 const Stack = std.ArrayList(Type);
 const VMInstruction = @import("VMInstruction.zig");
 const VMProgram = @import("VMProgram.zig");

@@ -4,9 +4,7 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const types = @import("types.zig");
-const Type = types.Type;
-const Stack = std.ArrayList(Type);
+const Type = @import("types.zig").Type;
 const Instruction = @import("arch").instr.Instruction;
 const VMContext = @import("VMContext.zig");
 const VMInstruction = @import("VMInstruction.zig");
@@ -19,7 +17,7 @@ fn assert(b: bool) !void {
 }
 
 fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) !T {
-    if (T == types.Type.GetRepr(.int)) {
+    if (T == Type.GetRepr(.int)) {
         return switch (op) {
             .add => a +% b,
             .sub => a -% b,
@@ -300,10 +298,10 @@ pub fn run(ctxt: *VMContext) !i64 {
             .call => {
                 const loc = i.operand.location;
 
-                const ra = take(ctxt, types.Type.from(ctxt.pc));
+                const ra = take(ctxt, Type.from(ctxt.pc));
                 defer drop(ctxt, ra);
 
-                const bp = take(ctxt, types.Type.from(ctxt.bp));
+                const bp = take(ctxt, Type.from(ctxt.bp));
                 defer drop(ctxt, bp);
 
                 try push(ctxt, bp);
