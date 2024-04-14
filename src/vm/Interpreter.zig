@@ -178,8 +178,7 @@ fn floatValue(x: anytype) !f64 {
 
     return error.InvalidOperation;
 }
-
-fn prettyPrint(x: *Type, ctxt: *VMContext) !void {
+fn printImpl(x: *Type, ctxt: *VMContext) !void {
     const writer = ctxt.writer();
     switch (x.*) {
         .unit => try writer.print("()", .{}),
@@ -218,6 +217,11 @@ fn prettyPrint(x: *Type, ctxt: *VMContext) !void {
             @panic("unimplemented");
         },
     }
+}
+
+fn print(x: *Type, ctxt: *VMContext) !void {
+    try printImpl(x, ctxt);
+    _ = try ctxt.write("\n");
 }
 
 /// returns exit code of the program
@@ -331,7 +335,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                         var v = try pop(ctxt);
                         defer drop(ctxt, v);
 
-                        try prettyPrint(&v, ctxt);
+                        try print(&v, ctxt);
                     },
                     else => {},
                 }
@@ -500,7 +504,7 @@ test "arithmetic" {
                             VMInstruction.push(lhs),
                             VMInstruction.push(rhs),
                             VMInstruction{ .op = op },
-                        }, 0, &.{}),
+                        }, 0, &.{}, &.{}),
                         "",
                         res,
                     );
@@ -527,7 +531,7 @@ test "arithmetic" {
             VMInstruction.push(0),
             VMInstruction.dup(),
             VMInstruction.pop(),
-        }, 0, &.{}),
+        }, 0, &.{}, &.{}),
         "",
         0,
     );
@@ -540,7 +544,7 @@ test "arithmetic" {
             VMInstruction.sub(),
             VMInstruction.dup(),
             VMInstruction.jmpnz(1),
-        }, 0, &.{}),
+        }, 0, &.{}, &.{}),
         "",
         0,
     );
@@ -574,7 +578,7 @@ test "arithmetic" {
                 VMInstruction.equal(),
                 VMInstruction.ret(),
                 // ensure stack is actually just a
-            }, 0, &.{}), "", 1);
+            }, 0, &.{}, &.{}), "", 1);
         }
     }
 }
@@ -602,7 +606,7 @@ test "fibonacci" {
         VMInstruction.pop(),
         VMInstruction.pop(),
         VMInstruction.push(0),
-    }, 0, &.{}),
+    }, 0, &.{}, &.{}),
         \\0
         \\1
         \\1
@@ -641,7 +645,7 @@ test "recursive fibonacci" {
         VMInstruction.ret(),
         VMInstruction.load(-4),
         VMInstruction.ret(),
-    }, 0, &.{}), "", 55);
+    }, 0, &.{}, &.{}), "", 55);
 }
 
 test "hello world" {
@@ -649,7 +653,7 @@ test "hello world" {
         VMInstruction.pushs(0),
         VMInstruction.syscall(0),
         VMInstruction.push(0),
-    }, 0, &.{"Hello World!"}), "Hello World!", 0);
+    }, 0, &.{"Hello World!"}, &.{}), "Hello World!", 0);
 }
 
 test "string compare" {
@@ -657,11 +661,11 @@ test "string compare" {
         VMInstruction.pushs(0),
         VMInstruction.pushs(1),
         VMInstruction.equal(),
-    }, 0, &.{ "foo", "foo" }), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
 
     try testRun(VMProgram.init(&.{
         VMInstruction.pushs(0),
         VMInstruction.pushs(1),
         VMInstruction.equal(),
-    }, 0, &.{ "bar", "baz" }), "", 0);
+    }, 0, &.{ "bar", "baz" }, &.{}), "", 0);
 }

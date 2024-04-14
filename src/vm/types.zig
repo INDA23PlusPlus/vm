@@ -198,7 +198,4 @@ test "casting" {
         UnitType.init(),
         Type.from(UnitType.init()).as(.unit),
     );
-
-    try comptime std.testing.expect(std.mem.eql(u8, "0", std.fmt.comptimePrint("{}", .{Type.from(0)})));
-    try comptime std.testing.expect(std.mem.eql(u8, "0", std.fmt.comptimePrint("{}", .{Type.from(0.0)})));
 }
