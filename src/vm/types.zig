@@ -179,18 +179,6 @@ pub const Type = union(enum) {
             .object => |c| if (T == .object) c else unreachable,
         };
     }
-
-    pub fn format(self: *const Self, fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = options;
-        _ = fmt;
-        try switch (self.*) {
-            .unit => writer.print("()", .{}),
-            .int => |i| writer.print("{}", .{i}),
-            .float => |f| writer.print("{d}", .{f}),
-            .string => |s| writer.print("{s}", .{s.get()}),
-            else => @panic("unimplemented"), // TODO: implement formatting for lists and objects
-        };
-    }
 };
 
 test "casting" {

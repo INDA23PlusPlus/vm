@@ -14,7 +14,7 @@ pub fn main() !u8 {
         VMInstruction.syscall(0),
         VMInstruction.push(0),
         VMInstruction.ret(),
-    }, 0, &.{"Hello World!"});
+    }, 0, &.{"Hello World!"}, &.{});
 
     var ctxt = VMContext.init(prog, gpa.allocator(), &output_writer, false);
     defer ctxt.deinit();

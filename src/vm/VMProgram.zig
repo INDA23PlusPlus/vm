@@ -9,7 +9,8 @@ const Self = @This();
 code: []const VMInstruction,
 entry: usize,
 strings: []const []const u8,
+field_names: []const []const u8,
 
-pub fn init(code: []const VMInstruction, entry: usize, strings: []const []const u8) Self {
-    return .{ .code = code, .entry = entry, .strings = strings };
+pub fn init(code: []const VMInstruction, entry: usize, strings: []const []const u8, field_names: []const []const u8) Self {
+    return .{ .code = code, .entry = entry, .strings = strings, .field_names = field_names };
 }

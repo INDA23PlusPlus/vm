@@ -165,7 +165,7 @@ fn instructionToString(op: Instruction) []const u8 {
         .cmp_le => "<=",
         .cmp_ge => ">=",
         .cmp_eq => "==",
-        .cmp_ne => "!= ",
+        .cmp_ne => "!=",
         else => @tagName(op),
     };
 }
@@ -177,6 +177,47 @@ fn floatValue(x: anytype) !f64 {
         return @floatFromInt(i);
 
     return error.InvalidOperation;
+}
+
+fn prettyPrint(x: *Type, ctxt: *VMContext) !void {
+    const writer = ctxt.writer();
+    switch (x.*) {
+        .unit => try writer.print("()", .{}),
+        .int => |i| try writer.print("{}", .{i}),
+        .float => |f| try writer.print("{d}", .{f}),
+        .string => |*s| try writer.print("{s}", .{s.get()}),
+        .list => |*l| {
+            _ = l;
+            // TODO: actually print, api is inconvenient right now
+
+            // const len = l.length();
+            // _ = try writer.write("[");
+            // for (0..len) |i| {
+            //     if (i > 0) _ = try writer.write(", ");
+            //     var tmp: Type = l.get(i).?;
+            //     try prettyPrint(&tmp, ctxt);
+            // }
+            // _ = try writer.write("]");
+            @panic("unimplemented");
+        },
+        .object => |*o| {
+            _ = o;
+            // TODO: actually print, api is inconvenient right now
+
+            // const keys = o.keys();
+            // var first = true;
+            //
+            // _ = try writer.write("{");
+            // for (keys) |k| {
+            //     if (!first) _ = try writer.write(", ");
+            //     var tmp: Type = o.get(k).?;
+            //     try writer.print("{s}: ", .{ctxt.prog.field_names[k]});
+            //     try prettyPrint(&tmp, ctxt);
+            // }
+            // _ = try writer.write("}");
+            @panic("unimplemented");
+        },
+    }
 }
 
 /// returns exit code of the program
@@ -287,10 +328,10 @@ pub fn run(ctxt: *VMContext) !i64 {
             .syscall => {
                 switch (i.operand.int) {
                     0 => {
-                        const v = try pop(ctxt);
+                        var v = try pop(ctxt);
                         defer drop(ctxt, v);
 
-                        try ctxt.writer().print("{}\n", .{v});
+                        try prettyPrint(&v, ctxt);
                     },
                     else => {},
                 }
