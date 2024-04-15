@@ -16,13 +16,14 @@ pub fn usage(writer: anytype) !void {
         \\    mclls <options>
         \\
         \\Options:
-        \\    --quiet                 Supress log output.
+        \\    --quiet                 Suppress log output.
         \\    --log-level <level>     Set log level to <level>. Can be one of
         \\                            `err`, `warn`, `info`, `debug`. Default is
         \\                            `err`.
         \\    --disable <feature>     Disables <feature>. Can be one of `hover`,
         \\                            `diagnostics`, `completion`. All features
         \\                            are enabled by default.
+        \\    --help                  Display this message and exit.
         \\
     , .{});
 }
