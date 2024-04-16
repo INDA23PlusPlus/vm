@@ -4,7 +4,7 @@
 const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
-const Type = types.Type;
+const InternalType = types.Type;
 
 pub const ListRef = struct {
     const Self = @This();
@@ -23,15 +23,15 @@ pub const ListRef = struct {
     }
 
     pub fn get(self: *Self, index: usize) ?Type {
-        return self.ref.items.items[index];
+        return Type.from(&self.ref.items.items[index]);
     }
 
     pub fn set(self: *Self, key: usize, value: Type) void {
-        self.ref.items.items[key] = value;
+        self.ref.items.items[key] = value.to_internal();
     }
 
     pub fn push(self: *Self, value: Type) !void {
-        try self.ref.items.append(value);
+        try self.ref.items.append(value.to_internal());
     }
 };
 
@@ -48,10 +48,44 @@ pub const ObjectRef = struct {
     }
 
     pub fn get(self: *Self, key: u32) ?Type {
-        return self.ref.map.get(key);
+        var val = self.ref.map.get(key);
+        if (val == null) {
+            return null;
+        }
+        return Type.from(&val.?);
     }
 
     pub fn set(self: *Self, key: u32, value: Type) !void {
-        try self.ref.map.put(key, value);
+        try self.ref.map.put(key, value.to_internal());
+    }
+};
+
+pub const Type = union(enum) {
+    unit: @TypeOf(.{}),
+    int: i64,
+    float: f64,
+    list: ListRef,
+    object: ObjectRef,
+
+    const Self = @This();
+
+    pub fn from(internal: *InternalType) Type {
+        return switch (internal.*) {
+            InternalType.unit => Type{ .unit = .{} },
+            InternalType.list => |*val| Type{ .list = ListRef{ .ref = val } },
+            InternalType.object => |*val| Type{ .object = ObjectRef{ .ref = val } },
+            InternalType.int => Type{ .int = internal.int },
+            InternalType.float => Type{ .float = internal.float },
+        };
+    }
+
+    pub fn to_internal(self: Self) InternalType {
+        return switch (self) {
+            Type.unit => InternalType{ .unit = .{} },
+            Type.list => |*val| InternalType{ .list = val.ref.* },
+            Type.object => |*val| InternalType{ .object = val.ref.* },
+            Type.int => InternalType{ .int = self.int },
+            Type.float => InternalType{ .float = self.float },
+        };
     }
 };

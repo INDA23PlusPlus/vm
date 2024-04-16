@@ -122,7 +122,7 @@ pub fn get_object_count(self: *Self) usize {
 // TODO: create test for this
 
 test "get and set to struct" {
-    const Type = types.Type;
+    const Type = APITypes.Type;
     var memoryManager = try Self.init(std.testing.allocator);
     defer memoryManager.deinit();
 
@@ -134,7 +134,7 @@ test "get and set to struct" {
 }
 
 test "get and set to list" {
-    const Type = types.Type;
+    const Type = APITypes.Type;
     var memoryManager = try Self.init(std.testing.allocator);
     defer memoryManager.deinit();
 
@@ -181,7 +181,7 @@ test "gc pass keeps one object still in use" {
 }
 
 test "gc pass keeps one object still in use and discards one unused" {
-    const Type = types.Type;
+    const Type = APITypes.Type;
     var memoryManager = try Self.init(std.testing.allocator);
     defer memoryManager.deinit();
 
