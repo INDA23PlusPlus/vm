@@ -33,19 +33,10 @@ pub const Method = enum {
 // *******************************************
 
 pub const InitializeParams = struct {
-    //processId: ?i32 = null,
     clientInfo: ?struct {
         name: []const u8,
         version: ?[]const u8 = null,
     } = null,
-    //locale: ?[]const u8 = null,
-    //rootPath: ?[]const u8 = null,
-    //rootUri: ?[]const u8 = null,
-    //initializationOptions: ?json.Value = null,
-    //capabilities: ?ClientCapabilities = null,
-    //trace: ?TraceValue = null,
-    //workspaceFolders: ?std.ArrayList(json.Value),
-
 };
 
 pub const InitializeErrorData = struct {
