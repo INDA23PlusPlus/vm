@@ -95,8 +95,7 @@ test "Transport.writeResponse" {
     const Writer = std.ArrayList(u8).Writer;
 
     const Result = i32;
-    const Error = json_rpc.Error(struct {});
-    const Response = json_rpc.Response(Result, Error);
+    const Response = json_rpc.Response(Result);
 
     const response = Response{ .id = .{ .integer = 1 }, .result = 42 };
 
