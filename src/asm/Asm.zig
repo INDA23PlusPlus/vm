@@ -202,7 +202,7 @@ fn syncUntilNextFunc(self: *Asm) !void {
 
 fn syncUntilNextStmt(self: *Asm) !void {
     while (try self.scan.peek()) |tok| {
-        if (tok.tag == .instr) break;
+        if (tok.tag == .instr or (tok.tag == .keyword and tok.tag.keyword == .end)) break;
         _ = try self.scan.next();
     }
 }
