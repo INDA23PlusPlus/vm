@@ -3,7 +3,7 @@
 //!
 
 const std = @import("std");
-const lsp = @import("lsp.zig");
+const lsp = @import("../lsp.zig");
 const asm_ = @import("asm");
 const arch = @import("arch");
 

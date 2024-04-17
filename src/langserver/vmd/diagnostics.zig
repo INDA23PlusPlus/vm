@@ -1,11 +1,11 @@
 //!
 //! VeMod Assembly diagnostics.
 //!
-const Document = @import("Document.zig");
+const Document = @import("../Document.zig");
 const asm_ = @import("asm");
 const std = @import("std");
-const json_rpc = @import("json_rpc.zig");
-const lsp = @import("lsp.zig");
+const json_rpc = @import("../json_rpc.zig");
+const lsp = @import("../lsp.zig");
 
 // ALE doesn't display related information,
 // so I'm putting this here for now

@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const arch = @import("arch");
-const lsp = @import("lsp.zig");
+const lsp = @import("../lsp.zig");
 const asm_ = @import("asm");
 
 pub fn getHoverInfo(

@@ -6,7 +6,7 @@ const std = @import("std");
 const Document = @This();
 const lsp = @import("lsp.zig");
 const lang = @import("lang.zig");
-const vmd = @import("vmd.zig");
+const vmd = @import("vmd/vmd.zig");
 
 // `uri` is managed by DocumentStore as it's used as key to this document
 uri: []const u8,

@@ -11,6 +11,7 @@ const json = std.json;
 const ErrorCode = @import("error.zig").Code;
 const DocumentStore = @import("DocumentStore.zig");
 const options = &@import("Options.zig").instance;
+const vmd = @import("vmd/vmd.zig");
 
 const Writer = std.fs.File.Writer;
 const Reader = std.fs.File.Reader;
@@ -321,7 +322,7 @@ fn handleTextDocumentCompletion(self: *Server, request: *const json_rpc.Request)
     const lang = doc.language;
 
     if (lang == .vmd) {
-        try @import("vmd_completion.zig").computeCompletions(
+        try vmd.computeCompletions(
             params.value.position,
             text,
             &list,
@@ -360,7 +361,7 @@ fn handleTextDocumentHover(self: *Server, request: *const json_rpc.Request) !voi
     var hover: ?lsp.Hover = null;
 
     if (lang == .vmd) {
-        hover = try @import("vmd_hover.zig").getHoverInfo(
+        hover = try vmd.getHoverInfo(
             text,
             params.value.position,
             self.alloc,
