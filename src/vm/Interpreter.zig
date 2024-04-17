@@ -23,7 +23,7 @@ fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) !T {
             .sub => a -% b,
             .mul => a *% b,
             .div => if (b == 0 or (a == std.math.minInt(T) and b == -1)) error.InvalidOperation else @divTrunc(a, b),
-            .mod => if (b == 0 or (a == std.math.minInt(T) and b == -1)) error.InvalidOperation else a - b * @divTrunc(a, b),
+            .mod => if (b == 0) error.InvalidOperation else if (b == -1) 0 else a - b * @divTrunc(a, b),
             else => unreachable,
         };
     } else {
