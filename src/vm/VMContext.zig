@@ -36,9 +36,10 @@ pub fn init(prog: VMProgram, alloc: Allocator, output_writer: anytype, debug_out
 }
 
 pub fn reset(self: *Self) void {
-    self.pc = 0;
+    self.pc = self.prog.entry;
     self.bp = 0;
     self.stack.clearAndFree();
+    self.refc = 0;
 }
 
 pub fn write(self: *const Self, bytes: []const u8) anyerror!usize {
