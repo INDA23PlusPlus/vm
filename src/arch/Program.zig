@@ -2,7 +2,7 @@
 //! Program struct
 //!
 
-const Instruction = @import("instruction.zig");
+const Instruction = @import("Instruction.zig");
 
 const Self = @This();
 
