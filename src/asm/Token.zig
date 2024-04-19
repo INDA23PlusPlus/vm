@@ -1,6 +1,6 @@
 const std = @import("std");
 const Token = @This();
-const instr = @import("arch").instr;
+const Opcode = @import("arch").Opcode;
 const Error = @import("Error.zig");
 
 tag: Tag,
@@ -12,7 +12,7 @@ pub const Tag = union(enum) {
     label,
     int: i64,
     float: f64,
-    instr: instr.Instruction,
+    instr: Opcode,
     err,
 };
 
@@ -20,6 +20,15 @@ pub const Keyword = enum {
     function,
     begin,
     end,
+};
+
+/// The prefix for tokens in the IR
+/// E.g. `-function` or `.label`
+pub const prefix = struct {
+    pub const keyword = '-';
+    pub const label = '.';
+    pub const integer = '%';
+    pub const float = '@';
 };
 
 pub const Scanner = struct {
@@ -40,10 +49,10 @@ pub const Scanner = struct {
         const c = self.current().?;
 
         switch (c) {
-            instr.prefix.keyword => return self.keyword(),
-            instr.prefix.integer => return self.integer(),
-            instr.prefix.float => return self.float(),
-            instr.prefix.label => return self.label(),
+            prefix.keyword => return self.keyword(),
+            prefix.integer => return self.integer(),
+            prefix.float => return self.float(),
+            prefix.label => return self.label(),
             '"' => return self.string(),
             'a'...'z', 'A'...'Z' => return self.instruction(),
             else => {
@@ -119,7 +128,7 @@ pub const Scanner = struct {
 
     fn instruction(self: *Scanner) !?Token {
         const where = self.readWord();
-        const _instr = std.meta.stringToEnum(instr.Instruction, where) orelse {
+        const _instr = std.meta.stringToEnum(Opcode, where) orelse {
             try self.errors.append(.{ .tag = .@"Invalid instruction", .where = where });
             return .{ .tag = .err, .where = where };
         };

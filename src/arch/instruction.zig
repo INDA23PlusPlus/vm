@@ -3,18 +3,17 @@
 //!
 
 const std = @import("std");
-const Instruction = @import("arch").instr.Instruction;
-const UnitType = @import("memory_manager").APITypes.UnitType;
+const Opcode = @import("opcode.zig").Opcode;
 
 const Self = @This();
 
-op: Instruction,
+op: Opcode,
 operand: union {
     int: i64,
     float: f64,
     location: usize,
-    none: UnitType,
-} = .{ .none = .{} }, // either an immediate i64 value or a number of instructions to jump forward or backward
+    none: void,
+} = .{ .none = void{} }, // either an immediate i64 value or a number of instructions to jump forward or backward
 
 pub fn push(value: i64) Self {
     return .{ .op = .push, .operand = .{ .int = value } };

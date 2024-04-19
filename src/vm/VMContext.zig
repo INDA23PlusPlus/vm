@@ -6,12 +6,13 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Type = @import("memory_manager").APITypes.Type;
 const Stack = std.ArrayList(Type);
-const VMInstruction = @import("VMInstruction.zig");
-const VMProgram = @import("VMProgram.zig");
+const Arch = @import("arch");
+const Instruction = Arch.Instruction;
+const Program = Arch.Program;
 
 const Self = @This();
 
-prog: VMProgram,
+prog: Program,
 pc: usize,
 bp: usize,
 stack: Stack,
@@ -20,7 +21,7 @@ write_ctxt: *const anyopaque,
 write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 debug_output: bool,
 
-pub fn init(prog: VMProgram, alloc: Allocator, output_writer: anytype, debug_output: bool) Self {
+pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, debug_output: bool) Self {
     switch (@typeInfo(@TypeOf(output_writer))) {
         .Pointer => {},
         else => @compileError("output_writer has to be a pointer to a writer"),

@@ -1,5 +1,5 @@
 const std = @import("std");
-const VMInstruction = @import("vm").VMInstruction;
+const Instruction = @import("arch").Instruction;
 const Error = @import("Error.zig");
 
 const Patcher = @This();
@@ -46,7 +46,7 @@ pub fn reference(self: *Patcher, symbol: []const u8, offset: usize) !void {
     try self.refs.append(.{ .symbol = symbol, .offset = offset });
 }
 
-pub fn patch(self: *Patcher, code: []VMInstruction) !void {
+pub fn patch(self: *Patcher, code: []Instruction) !void {
     for (self.refs.items) |ref| {
         const offset = self.decls.get(ref.symbol) orelse {
             try self.errors.append(.{

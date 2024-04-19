@@ -3,10 +3,10 @@
 //!
 
 const std = @import("std");
-const Instruction = @import("instr.zig").Instruction;
+const Opcode = @import("opcode.zig").Opcode;
 
 pub const text = blk: {
-    var arr = std.EnumArray(Instruction, []const u8).initUndefined();
+    var arr = std.EnumArray(Opcode, []const u8).initUndefined();
     arr.set(.add, " [a, b] -> [a + b]");
     arr.set(.sub, " [a, b] -> [a - b]");
     arr.set(.mul, " [a, b] -> [a * b]");

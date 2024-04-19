@@ -5,10 +5,11 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Type = @import("memory_manager").APITypes.Type;
-const Instruction = @import("arch").instr.Instruction;
+const Arch = @import("arch");
+const Opcode = Arch.Opcode;
+const Instruction = Arch.Instruction;
+const Program = Arch.Program;
 const VMContext = @import("VMContext.zig");
-const VMInstruction = @import("VMInstruction.zig");
-const VMProgram = @import("VMProgram.zig");
 
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
@@ -16,7 +17,7 @@ fn assert(b: bool) !void {
     }
 }
 
-fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) !T {
+fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {
     if (T == Type.GetRepr(.int)) {
         return switch (op) {
             .add => a +% b,
@@ -38,7 +39,7 @@ fn doArithmetic(comptime T: type, a: T, op: Instruction, b: T) !T {
     }
 }
 
-fn doComparison(comptime T: type, a: T, op: Instruction, b: T) i64 {
+fn doComparison(comptime T: type, a: T, op: Opcode, b: T) i64 {
     return @intFromBool(switch (op) {
         .cmp_lt => a < b,
         .cmp_gt => a > b,
@@ -70,7 +71,7 @@ fn compareEq(a: Type, b: Type) bool {
     };
 }
 
-fn doBinaryOp(a: Type, op: Instruction, b: Type) !Type {
+fn doBinaryOp(a: Type, op: Opcode, b: Type) !Type {
     if (a.as(.int)) |ai| {
         if (b.as(.int)) |bi| {
             if (op.isArithmetic()) {
@@ -153,7 +154,7 @@ fn pop(ctxt: *VMContext) !Type {
     return ctxt.stack.pop();
 }
 
-fn instructionToString(op: Instruction) []const u8 {
+fn opcodeToString(op: Opcode) []const u8 {
     return switch (op) {
         .add => "+",
         .sub => "-",
@@ -249,10 +250,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 if (ctxt.debug_output) {
                     if (op.isArithmetic()) {
-                        std.debug.print("arithmetic: {} {s} {} = {}\n", .{ a, instructionToString(op), b, r });
+                        std.debug.print("arithmetic: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
                     }
                     if (op.isComparison()) {
-                        std.debug.print("comparison: {} {s} {} = {}\n", .{ a, instructionToString(op), b, r });
+                        std.debug.print("comparison: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
                     }
                 }
 
@@ -448,7 +449,7 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
     return std.mem.join(allocator, " ", res.items);
 }
 
-fn testRun(prog: VMProgram, expected_output: []const u8, expected_exit_code: i64) !void {
+fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) !void {
     const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2);
     defer std.testing.allocator.free(output_buffer);
     var output_stream = std.io.fixedBufferStream(output_buffer);
@@ -469,7 +470,7 @@ fn testRun(prog: VMProgram, expected_output: []const u8, expected_exit_code: i64
 
 test "arithmetic" {
     const util = struct {
-        fn testBinaryOp(op: Instruction) !void {
+        fn testBinaryOp(op: Opcode) !void {
             for (0..100) |a| {
                 for (1..100) |b| {
                     const lhs: i64 = @intCast(a);
@@ -493,10 +494,10 @@ test "arithmetic" {
                     });
 
                     try testRun(
-                        VMProgram.init(&.{
-                            VMInstruction.push(lhs),
-                            VMInstruction.push(rhs),
-                            VMInstruction{ .op = op },
+                        Program.init(&.{
+                            Instruction.push(lhs),
+                            Instruction.push(rhs),
+                            Instruction{ .op = op },
                         }, 0, &.{}, &.{}),
                         "",
                         res,
@@ -520,10 +521,10 @@ test "arithmetic" {
     try util.testBinaryOp(.cmp_ne);
 
     try testRun(
-        VMProgram.init(&.{
-            VMInstruction.push(0),
-            VMInstruction.dup(),
-            VMInstruction.pop(),
+        Program.init(&.{
+            Instruction.push(0),
+            Instruction.dup(),
+            Instruction.pop(),
         }, 0, &.{}, &.{}),
         "",
         0,
@@ -531,12 +532,12 @@ test "arithmetic" {
 
     // decrement value, starting at 10, until its zero, 10 is not special, any value should work
     try testRun(
-        VMProgram.init(&.{
-            VMInstruction.push(10),
-            VMInstruction.push(1),
-            VMInstruction.sub(),
-            VMInstruction.dup(),
-            VMInstruction.jmpnz(1),
+        Program.init(&.{
+            Instruction.push(10),
+            Instruction.push(1),
+            Instruction.sub(),
+            Instruction.dup(),
+            Instruction.jmpnz(1),
         }, 0, &.{}, &.{}),
         "",
         0,
@@ -549,27 +550,27 @@ test "arithmetic" {
             const b = @as(i64, @intCast(j)) - 100;
             if (b == 0) continue;
 
-            try testRun(VMProgram.init(&.{
-                VMInstruction.push(a),
-                VMInstruction.push(b),
-                VMInstruction.div(),
+            try testRun(Program.init(&.{
+                Instruction.push(a),
+                Instruction.push(b),
+                Instruction.div(),
                 // stack is now a / b
 
-                VMInstruction.push(b),
-                VMInstruction.mul(),
+                Instruction.push(b),
+                Instruction.mul(),
                 // stack is now a / b * b
 
-                VMInstruction.push(a),
-                VMInstruction.push(b),
-                VMInstruction.mod(),
+                Instruction.push(a),
+                Instruction.push(b),
+                Instruction.mod(),
                 // stack is now a/b*b, a%b
 
-                VMInstruction.add(),
+                Instruction.add(),
                 // stack should now be just a
 
-                VMInstruction.push(a),
-                VMInstruction.equal(),
-                VMInstruction.ret(),
+                Instruction.push(a),
+                Instruction.equal(),
+                Instruction.ret(),
                 // ensure stack is actually just a
             }, 0, &.{}, &.{}), "", 1);
         }
@@ -577,28 +578,28 @@ test "arithmetic" {
 }
 
 test "fibonacci" {
-    try testRun(VMProgram.init(&.{
-        VMInstruction.push(10),
-        VMInstruction.push(0),
-        VMInstruction.push(1),
-        VMInstruction.load(1),
-        VMInstruction.dup(),
-        VMInstruction.syscall(0),
-        VMInstruction.load(2),
-        VMInstruction.dup(),
-        VMInstruction.store(1),
-        VMInstruction.add(),
-        VMInstruction.store(2),
-        VMInstruction.load(0),
-        VMInstruction.push(1),
-        VMInstruction.sub(),
-        VMInstruction.dup(),
-        VMInstruction.store(0),
-        VMInstruction.jmpnz(3),
-        VMInstruction.pop(),
-        VMInstruction.pop(),
-        VMInstruction.pop(),
-        VMInstruction.push(0),
+    try testRun(Program.init(&.{
+        Instruction.push(10),
+        Instruction.push(0),
+        Instruction.push(1),
+        Instruction.load(1),
+        Instruction.dup(),
+        Instruction.syscall(0),
+        Instruction.load(2),
+        Instruction.dup(),
+        Instruction.store(1),
+        Instruction.add(),
+        Instruction.store(2),
+        Instruction.load(0),
+        Instruction.push(1),
+        Instruction.sub(),
+        Instruction.dup(),
+        Instruction.store(0),
+        Instruction.jmpnz(3),
+        Instruction.pop(),
+        Instruction.pop(),
+        Instruction.pop(),
+        Instruction.push(0),
     }, 0, &.{}, &.{}),
         \\0
         \\1
@@ -615,50 +616,95 @@ test "fibonacci" {
 }
 
 test "recursive fibonacci" {
-    try testRun(VMProgram.init(&.{
-        VMInstruction.push(10),
-        VMInstruction.push(1),
-        VMInstruction.call(4),
-        VMInstruction.ret(),
-        VMInstruction.load(-4),
-        VMInstruction.push(2),
-        VMInstruction.less(),
-        VMInstruction.jmpnz(20),
-        VMInstruction.load(-4),
-        VMInstruction.push(1),
-        VMInstruction.sub(),
-        VMInstruction.push(1),
-        VMInstruction.call(4),
-        VMInstruction.load(-4),
-        VMInstruction.push(2),
-        VMInstruction.sub(),
-        VMInstruction.push(1),
-        VMInstruction.call(4),
-        VMInstruction.add(),
-        VMInstruction.ret(),
-        VMInstruction.load(-4),
-        VMInstruction.ret(),
+    try testRun(Program.init(&.{
+        Instruction.push(10),
+        Instruction.push(1),
+        Instruction.call(4),
+        Instruction.ret(),
+        Instruction.load(-4),
+        Instruction.push(2),
+        Instruction.less(),
+        Instruction.jmpnz(20),
+        Instruction.load(-4),
+        Instruction.push(1),
+        Instruction.sub(),
+        Instruction.push(1),
+        Instruction.call(4),
+        Instruction.load(-4),
+        Instruction.push(2),
+        Instruction.sub(),
+        Instruction.push(1),
+        Instruction.call(4),
+        Instruction.add(),
+        Instruction.ret(),
+        Instruction.load(-4),
+        Instruction.ret(),
     }, 0, &.{}, &.{}), "", 55);
+
+    const Asm = @import("asm").Asm;
+    const AsmError = @import("asm").Error;
+    var errors = std.ArrayList(AsmError).init(std.testing.allocator);
+    defer errors.deinit();
+
+    const source =
+        \\-function "main"
+        \\-begin
+        \\push %10
+        \\push %1
+        \\call "fib"
+        \\ret
+        \\-end
+        \\
+        \\-function "fib"
+        \\-begin
+        \\load %-4
+        \\push %2
+        \\cmp_lt
+        \\jmpnz .foo
+        \\load %-4
+        \\push %1
+        \\sub
+        \\push %1
+        \\call "fib"
+        \\load %-4
+        \\push %2
+        \\sub
+        \\push %1
+        \\call "fib"
+        \\add
+        \\ret
+        \\.foo
+        \\load %-4
+        \\ret
+        \\-end
+    ;
+
+    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    defer asm_.deinit();
+
+    try asm_.assemble();
+    try assert(errors.items.len == 0);
+    try testRun(asm_.getProgram(), "", 55);
 }
 
 test "hello world" {
-    try testRun(VMProgram.init(&.{
-        VMInstruction.pushs(0),
-        VMInstruction.syscall(0),
-        VMInstruction.push(0),
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.syscall(0),
+        Instruction.push(0),
     }, 0, &.{"Hello World!"}, &.{}), "Hello World!", 0);
 }
 
 test "string compare" {
-    try testRun(VMProgram.init(&.{
-        VMInstruction.pushs(0),
-        VMInstruction.pushs(1),
-        VMInstruction.equal(),
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.equal(),
     }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
 
-    try testRun(VMProgram.init(&.{
-        VMInstruction.pushs(0),
-        VMInstruction.pushs(1),
-        VMInstruction.equal(),
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.equal(),
     }, 0, &.{ "bar", "baz" }, &.{}), "", 0);
 }

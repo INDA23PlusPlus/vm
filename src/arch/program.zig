@@ -2,15 +2,15 @@
 //! VM program struct
 //!
 
-const VMInstruction = @import("VMInstruction.zig");
+const Instruction = @import("instruction.zig");
 
 const Self = @This();
 
-code: []const VMInstruction,
+code: []const Instruction,
 entry: usize,
 strings: []const []const u8,
 field_names: []const []const u8,
 
-pub fn init(code: []const VMInstruction, entry: usize, strings: []const []const u8, field_names: []const []const u8) Self {
+pub fn init(code: []const Instruction, entry: usize, strings: []const []const u8, field_names: []const []const u8) Self {
     return .{ .code = code, .entry = entry, .strings = strings, .field_names = field_names };
 }

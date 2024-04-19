@@ -10,15 +10,18 @@
 
 const Asm = @This();
 const std = @import("std");
-const vm = @import("vm");
 const Patcher = @import("Patcher.zig");
 const Error = @import("Error.zig");
 const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
-const Instruction = @import("instr").Instruction;
+const Arch = @import("arch");
+const Instruction = Arch.Instruction;
+const Program = Arch.Program;
 const emit_ = @import("emit.zig");
 
-code: std.ArrayList(vm.VMInstruction),
+const entry_name = "main";
+
+code: std.ArrayList(Instruction),
 entry: ?usize,
 scan: Scanner,
 fn_patcher: Patcher,
@@ -31,7 +34,7 @@ pub fn init(
     errors: *std.ArrayList(Error),
 ) Asm {
     return .{
-        .code = std.ArrayList(vm.VMInstruction).init(allocator),
+        .code = std.ArrayList(Instruction).init(allocator),
         .scan = .{ .source = source, .errors = errors },
         .fn_patcher = Patcher.init(allocator, errors),
         .lbl_patcher = Patcher.init(allocator, errors),
@@ -69,10 +72,12 @@ pub fn emit(self: *Asm, writer: anytype) !void {
     try emit_.emit(self, writer);
 }
 
-pub fn getProgram(self: *Asm) vm.VMProgram {
+pub fn getProgram(self: *Asm) Program {
     return .{
         .code = self.code.items,
         .entry = self.entry.?,
+        .strings = &.{}, // TODO: @Ludvig
+        .field_names = &.{}, // TODO: @Ludvig
     };
 }
 

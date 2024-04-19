@@ -153,6 +153,7 @@ pub fn build(b: *std.Build) void {
     assembler_tests.addModule("vm", vm_mod);
     vm_tests.addModule("arch", arch_mod);
     vm_tests.addModule("memory_manager", memory_manager_mod);
+    vm_tests.addModule("asm", assembler_mod);
 
     //
     // Unused modules

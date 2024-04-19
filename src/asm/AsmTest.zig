@@ -1,7 +1,7 @@
 const std = @import("std");
 const Asm = @import("Asm.zig");
 const Error = @import("Error.zig");
-const Instruction = @import("arch").instr.Instruction;
+const Opcode = @import("arch").Opcode;
 
 const Tag = @TypeOf(@as(Error, undefined).tag);
 
@@ -140,7 +140,7 @@ test "patching calls" {
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
     try std.testing.expectEqual(@as(usize, 6), code.len);
-    try std.testing.expectEqual(Instruction.call, code[0].op);
+    try std.testing.expectEqual(Opcode.call, code[0].op);
     try std.testing.expectEqual(@as(usize, 5), code[0].operand.location);
 }
 
@@ -167,7 +167,7 @@ test "patching labels" {
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
     try std.testing.expectEqual(@as(usize, 4), code.len);
-    try std.testing.expectEqual(Instruction.jmp, code[0].op);
+    try std.testing.expectEqual(Opcode.jmp, code[0].op);
     try std.testing.expectEqual(@as(usize, 3), code[0].operand.location);
 }
 

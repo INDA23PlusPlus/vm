@@ -48,14 +48,14 @@ pub fn computeCompletions(
     }
 
     const kind: lsp.CompletionItemKind = switch (text[@intCast(start)]) {
-        arch.instr.prefix.keyword => blk: {
+        asm_.Token.prefix.keyword => blk: {
             start += 1;
             break :blk .Keyword;
         },
         // We don't offer completion for labels, literals or strings
-        arch.instr.prefix.label,
-        arch.instr.prefix.integer,
-        arch.instr.prefix.float,
+        asm_.Token.prefix.label,
+        asm_.Token.prefix.integer,
+        asm_.Token.prefix.float,
         '"',
         => return,
         else => .Method,
@@ -77,12 +77,12 @@ pub fn computeCompletions(
             }
         },
         .Method => {
-            for (std.enums.values(arch.instr.Instruction)) |instr| {
+            for (std.enums.values(arch.Opcode)) |instr| {
                 if (std.mem.startsWith(u8, @tagName(instr), substr)) {
                     try list.append(.{
                         .label = @tagName(instr),
                         .kind = @intFromEnum(kind),
-                        .detail = @import("arch").descr.text.get(instr),
+                        .detail = arch.descr.text.get(instr),
                     });
                 }
             }

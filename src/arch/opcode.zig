@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Instruction = enum(u8) {
+pub const Opcode = enum(u8) {
     // TODO: explicit opcodes (actually a unified instruction interface towards assembler/vm makes this unecessary)
 
     // TODO: define overflow behavior for integers
@@ -49,7 +49,7 @@ pub const Instruction = enum(u8) {
     list_load, // [l, i] -> [l, v] where v = l[i]
     list_store, // [l, i, v] -> [l] sets l[i] = v
 
-    pub fn isArithmetic(self: Instruction) bool {
+    pub fn isArithmetic(self: Opcode) bool {
         return switch (self) {
             .add,
             .sub,
@@ -61,7 +61,7 @@ pub const Instruction = enum(u8) {
         };
     }
 
-    pub fn isComparison(self: Instruction) bool {
+    pub fn isComparison(self: Opcode) bool {
         return switch (self) {
             .cmp_lt,
             .cmp_gt,
@@ -75,10 +75,10 @@ pub const Instruction = enum(u8) {
     }
 
     /// Returns whether an operand is to be expected following this instruction
-    pub fn hasOperand(self: Instruction) bool {
+    pub fn hasOperand(self: Opcode) bool {
         const arr = comptime blk: {
             // add instructions with operands here
-            const instrs = [_]Instruction{
+            const instrs = [_]Opcode{
                 // zig fmt off
                 .jmp,          .jmpnz,       .push,         .pushf,       .load,
                 .store,        .call,        .list_alloc,   .list_load,   .list_store,
@@ -86,21 +86,10 @@ pub const Instruction = enum(u8) {
                 .syscall,
                 // zig fmt on
             };
-            var arr = std.EnumArray(Instruction, bool).initFill(false);
+            var arr = std.EnumArray(Opcode, bool).initFill(false);
             for (instrs) |i| arr.set(i, true);
             break :blk arr;
         };
         return arr.get(self);
     }
 };
-
-/// The prefix for tokens in the IR
-/// E.g. `-function` or `.label`
-pub const prefix = struct {
-    pub const keyword = '-';
-    pub const label = '.';
-    pub const integer = '%';
-    pub const float = '@';
-};
-
-pub const entry_name = "main";
