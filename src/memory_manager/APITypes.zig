@@ -1,11 +1,12 @@
 //!
 //! Exposed types from memory manager for use in VM
 //!
+const std = @import("std");
 const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
 const InternalType = types.Type;
-const KeyIterator = @import("std").AutoHashMap(usize, void).KeyIterator;
+const KeyIterator = std.AutoHashMap(usize, void).KeyIterator;
 
 pub const ListRef = struct {
     const Self = @This();
@@ -24,15 +25,15 @@ pub const ListRef = struct {
     }
 
     pub fn get(self: *Self, index: usize) ?Type {
-        return Type.from(&self.ref.items.items[index]);
+        return Type.fromInternal(&self.ref.items.items[index]);
     }
 
     pub fn set(self: *Self, key: usize, value: Type) void {
-        self.ref.items.items[key] = value.to_internal();
+        self.ref.items.items[key] = value.toInternal();
     }
 
     pub fn push(self: *Self, value: Type) !void {
-        try self.ref.items.append(value.to_internal());
+        try self.ref.items.append(value.toInternal());
     }
 };
 
@@ -53,11 +54,11 @@ pub const ObjectRef = struct {
         if (val == null) {
             return null;
         }
-        return Type.from(&val.?);
+        return Type.fromInternal(&val.?);
     }
 
     pub fn set(self: *Self, key: u32, value: Type) !void {
-        try self.ref.map.put(key, value.to_internal());
+        try self.ref.map.put(key, value.toInternal());
     }
 
     pub fn keys(self: *Self) KeyIterator {
@@ -65,32 +66,222 @@ pub const ObjectRef = struct {
     }
 };
 
+const StringLit = []const u8;
+const StringRef = struct {
+    // TODO: memory_manager.APITypes.StringRef
+    const Self = @This();
+
+    pub fn incr(self: *const Self) void {
+        _ = self;
+    }
+
+    pub fn decr(self: *const Self) void {
+        _ = self;
+    }
+
+    pub fn get(self: *const Self) []const u8 {
+        _ = self;
+        return "";
+    }
+};
+
+pub const UnitType = struct {
+    const Self = @This();
+    pub fn init() Self {
+        return .{};
+    }
+};
+
+const String = union(enum) {
+    // Common string type, can be either a string slice or a reference to a dynamic string
+    const Self = @This();
+
+    lit: StringLit,
+    ref: StringRef,
+
+    pub fn incr(self: *const Self) void {
+        switch (self.*) {
+            .lit => {},
+            .ref => self.ref.incr(),
+        }
+    }
+
+    pub fn decr(self: *const Self) void {
+        switch (self.*) {
+            .lit => {},
+            .ref => self.ref.decr(),
+        }
+    }
+
+    pub fn get(self: *const Self) []const u8 {
+        switch (self.*) {
+            .lit => return self.lit,
+            .ref => return self.ref.get(),
+        }
+    }
+
+    pub fn from(x: anytype) Self {
+        switch (@TypeOf(x)) {
+            StringLit => return .{ .lit = x },
+            StringRef => return .{ .ref = x },
+            else => @compileError(std.fmt.comptimePrint("type {} is not convertible to String", .{x})),
+        }
+    }
+};
+
 pub const Type = union(enum) {
-    unit: @TypeOf(.{}),
+    const Self = @This();
+    const Tag = std.meta.Tag(Self);
+    unit: UnitType,
     int: i64,
     float: f64,
+    string: String,
     list: ListRef,
     object: ObjectRef,
 
-    const Self = @This();
-
-    pub fn from(internal: *InternalType) Type {
-        return switch (internal.*) {
-            InternalType.unit => Type{ .unit = .{} },
-            InternalType.list => |*val| Type{ .list = ListRef{ .ref = val } },
-            InternalType.object => |*val| Type{ .object = ObjectRef{ .ref = val } },
-            InternalType.int => Type{ .int = internal.int },
-            InternalType.float => Type{ .float = internal.float },
+    pub fn GetRepr(comptime E: Type.Tag) type {
+        return switch (E) {
+            .unit => UnitType,
+            .int => i64,
+            .float => f64,
+            .string => String,
+            .list => ListRef,
+            .object => ObjectRef,
         };
     }
 
-    pub fn to_internal(self: Self) InternalType {
+    pub fn clone(self: *const Self) Self {
+        var res = self.*;
+        switch (res) {
+            .string => |*m| m.incr(),
+            .list => |*m| m.incr(),
+            .object => |*m| m.incr(),
+            else => {},
+        }
+        return res;
+    }
+
+    pub fn deinit(self: *const Self) void {
+        switch (self.tag()) {
+            .string => self.string.decr(),
+            .list => self.list.decr(),
+            .object => self.object.decr(),
+            else => {},
+        }
+    }
+
+    pub fn tag(self: *const Self) Tag {
+        return @as(Tag, self.*);
+    }
+
+    pub fn from(x: anytype) Self {
+        const T = @TypeOf(x);
+
+        if (T == StringLit or T == StringRef) {
+            var res = .{ .string = String.from(x) };
+            res.string.incr();
+            return res;
+        }
+        if (T == ListRef) {
+            var res = .{ .list = x };
+            res.list.incr();
+            return res;
+        }
+        if (T == ObjectRef) {
+            var res = .{ .object = x };
+            res.object.incr();
+            return res;
+        }
+        if (T == UnitType) {
+            return .{ .unit = x };
+        }
+
+        return switch (@typeInfo(T)) {
+            .Int, .ComptimeInt => .{ .int = @intCast(x) },
+
+            .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
+
+            else => @compileError(std.fmt.comptimePrint(
+                "'{s}' not an int, float, Object, or List\n",
+                .{@typeName(T)},
+            )),
+        };
+    }
+
+    /// returns whether the active member of `self` is of type `T`
+    pub fn is(self: *const Self, comptime T: Tag) bool {
+        return self.tag() == T;
+    }
+
+    /// returns the active member of `self` if it is of type `T`, else `null`
+    pub fn as(self: *const Self, comptime T: Tag) ?GetRepr(T) {
+        return if (self.is(T)) self.asUnChecked(T) else null;
+    }
+
+    /// UB if `!self.is(T)`
+    pub fn asUnChecked(self: *const Self, comptime T: Tag) GetRepr(T) {
+        // check anyway if in debug mode
+        if (std.debug.runtime_safety and !self.is(T)) {
+            std.debug.panic("was supposed to be {s} but was {s}", .{
+                @tagName(T),
+                @tagName(self.*),
+            });
+        }
+
+        // kinda horrible but what can you do
+        return switch (self.*) {
+            .unit => |c| if (T == .unit) c else unreachable,
+            .int => |c| if (T == .int) c else unreachable,
+            .float => |c| if (T == .float) c else unreachable,
+            .string => |c| if (T == .string) c else unreachable,
+            .list => |c| if (T == .list) c else unreachable,
+            .object => |c| if (T == .object) c else unreachable,
+        };
+    }
+
+    pub fn fromInternal(internal: *InternalType) Type {
+        return switch (internal.*) {
+            .unit => Type{ .unit = .{} },
+            .list => |*val| Type{ .list = ListRef{ .ref = val } },
+            .object => |*val| Type{ .object = ObjectRef{ .ref = val } },
+            .int => Type{ .int = internal.int },
+            .float => Type{ .float = internal.float },
+        };
+    }
+
+    pub fn toInternal(self: Self) InternalType {
         return switch (self) {
-            Type.unit => InternalType{ .unit = .{} },
-            Type.list => |*val| InternalType{ .list = val.ref.* },
-            Type.object => |*val| InternalType{ .object = val.ref.* },
-            Type.int => InternalType{ .int = self.int },
-            Type.float => InternalType{ .float = self.float },
+            .unit => InternalType{ .unit = .{} },
+            .list => |*val| InternalType{ .list = val.ref.* },
+            .object => |*val| InternalType{ .object = val.ref.* },
+            .int => InternalType{ .int = self.int },
+            .float => InternalType{ .float = self.float },
+            .string => @panic("unimplemented"),
         };
     }
 };
+
+test "casting" {
+    try std.testing.expect(
+        Type.from(0).as(.int).? == 0,
+    );
+    try std.testing.expect(
+        Type.from(0.0).as(.float).? == 0.0,
+    );
+    try std.testing.expect(
+        Type.from(0).as(.float) == null,
+    );
+    try std.testing.expect(
+        Type.from(0.0).as(.int) == null,
+    );
+    try std.testing.expectEqual(
+        UnitType.init(),
+        Type.from(UnitType.init()).as(.unit),
+    );
+
+    {
+        var t = Type.from(0);
+        var internal = Type.toInternal(t);
+        try std.testing.expectEqual(t.as(.int), Type.fromInternal(&internal).as(.int));
+    }
+}

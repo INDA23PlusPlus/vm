@@ -142,6 +142,7 @@ pub fn build(b: *std.Build) void {
     // Module-module dependencies
     //
     vm_mod.dependencies.put("arch", arch_mod) catch unreachable;
+    vm_mod.dependencies.put("memory_manager", memory_manager_mod) catch unreachable;
     assembler_mod.dependencies.put("vm", vm_mod) catch unreachable;
     assembler_mod.dependencies.put("arch", arch_mod) catch unreachable;
 

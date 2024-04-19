@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Type = @import("types.zig").Type;
+const Type = @import("memory_manager").APITypes.Type;
 const Instruction = @import("arch").instr.Instruction;
 const VMContext = @import("VMContext.zig");
 const VMInstruction = @import("VMInstruction.zig");

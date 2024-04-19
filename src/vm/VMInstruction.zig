@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const Instruction = @import("arch").instr.Instruction;
-const UnitType = @import("types.zig").UnitType;
+const UnitType = @import("memory_manager").APITypes.UnitType;
 
 const Self = @This();
 
