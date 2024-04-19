@@ -6,7 +6,6 @@ const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
 const InternalType = types.Type;
-const KeyIterator = std.AutoHashMap(usize, void).KeyIterator;
 
 pub const ListRef = struct {
     const Self = @This();
@@ -61,7 +60,7 @@ pub const ObjectRef = struct {
         try self.ref.map.put(key, value.toInternal());
     }
 
-    pub fn keys(self: *Self) KeyIterator {
+    pub fn keys(self: *Self) @TypeOf(self.ref.map.keyIterator()) {
         return self.ref.map.keyIterator();
     }
 };

@@ -178,7 +178,7 @@ fn floatValue(x: anytype) !f64 {
 
     return error.InvalidOperation;
 }
-fn printImpl(x: *Type, ctxt: *VMContext) !void {
+fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
     const writer = ctxt.writer();
     switch (x.*) {
         .unit => try writer.print("()", .{}),
@@ -186,35 +186,28 @@ fn printImpl(x: *Type, ctxt: *VMContext) !void {
         .float => |f| try writer.print("{d}", .{f}),
         .string => |*s| try writer.print("{s}", .{s.get()}),
         .list => |*l| {
-            _ = l;
-            // TODO: actually print, api is inconvenient right now
+            const len = l.length();
 
-            // const len = l.length();
-            // _ = try writer.write("[");
-            // for (0..len) |i| {
-            //     if (i > 0) _ = try writer.write(", ");
-            //     var tmp: Type = l.get(i).?;
-            //     try prettyPrint(&tmp, ctxt);
-            // }
-            // _ = try writer.write("]");
-            @panic("unimplemented");
+            _ = try writer.write("[");
+            for (0..len) |i| {
+                if (i > 0) _ = try writer.write(", ");
+                var tmp: Type = l.get(i).?;
+                try printImpl(&tmp, ctxt);
+            }
+            _ = try writer.write("]");
         },
         .object => |*o| {
-            _ = o;
-            // TODO: actually print, api is inconvenient right now
+            var keys = o.keys();
 
-            // const keys = o.keys();
-            // var first = true;
-            //
-            // _ = try writer.write("{");
-            // for (keys) |k| {
-            //     if (!first) _ = try writer.write(", ");
-            //     var tmp: Type = o.get(k).?;
-            //     try writer.print("{s}: ", .{ctxt.prog.field_names[k]});
-            //     try prettyPrint(&tmp, ctxt);
-            // }
-            // _ = try writer.write("}");
-            @panic("unimplemented");
+            _ = try writer.write("{");
+            var first = true;
+            while (keys.next()) |k| {
+                if (!first) _ = try writer.write(", ");
+                var tmp: Type = o.get(k.*).?;
+                try writer.print("{s}: ", .{ctxt.prog.field_names[@as(usize, k.*)]});
+                try printImpl(&tmp, ctxt);
+            }
+            _ = try writer.write("}");
         },
     }
 }
