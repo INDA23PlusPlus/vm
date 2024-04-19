@@ -20,4 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.11.0
       - run: zig fmt --check .
