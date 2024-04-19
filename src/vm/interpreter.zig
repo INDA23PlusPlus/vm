@@ -635,7 +635,7 @@ test "recursive fibonacci" {
         \\    load    %-4             # load n
         \\    push    %2              # push 2
         \\    cmp_lt                  # n < 2 ?
-        \\    jmpnz   .less_than_two
+        \\    jmpnz   .less_than_two  # if true skip next block
         \\
         \\    load    %-4             # load n
         \\    push    %1              # push 1
