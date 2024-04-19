@@ -1,5 +1,5 @@
 const std = @import("std");
-const Interpreter = @import("Interpreter.zig");
+const interpreter = @import("interpreter.zig");
 const VMContext = @import("VMContext.zig");
 const Arch = @import("arch");
 const Instruction = Arch.Instruction;
@@ -20,5 +20,5 @@ pub fn main() !u8 {
     var ctxt = VMContext.init(prog, gpa.allocator(), &output_writer, false);
     defer ctxt.deinit();
 
-    return @intCast(try Interpreter.run(&ctxt));
+    return @intCast(try interpreter.run(&ctxt));
 }

@@ -1,3 +1,3 @@
 test {
-    _ = @import("Interpreter.zig");
+    _ = @import("interpreter.zig");
 }
