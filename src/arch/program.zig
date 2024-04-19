@@ -1,5 +1,5 @@
 //!
-//! VM program struct
+//! Program struct
 //!
 
 const Instruction = @import("instruction.zig");

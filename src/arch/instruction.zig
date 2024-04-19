@@ -1,5 +1,5 @@
 //!
-//! VM internal instruction representation
+//! Instruction representation
 //!
 
 const std = @import("std");
