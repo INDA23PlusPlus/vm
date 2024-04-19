@@ -616,31 +616,6 @@ test "fibonacci" {
 }
 
 test "recursive fibonacci" {
-    try testRun(Program.init(&.{
-        Instruction.push(10),
-        Instruction.push(1),
-        Instruction.call(4),
-        Instruction.ret(),
-        Instruction.load(-4),
-        Instruction.push(2),
-        Instruction.less(),
-        Instruction.jmpnz(20),
-        Instruction.load(-4),
-        Instruction.push(1),
-        Instruction.sub(),
-        Instruction.push(1),
-        Instruction.call(4),
-        Instruction.load(-4),
-        Instruction.push(2),
-        Instruction.sub(),
-        Instruction.push(1),
-        Instruction.call(4),
-        Instruction.add(),
-        Instruction.ret(),
-        Instruction.load(-4),
-        Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 55);
-
     const Asm = @import("asm").Asm;
     const AsmError = @import("asm").Error;
     var errors = std.ArrayList(AsmError).init(std.testing.allocator);
@@ -649,33 +624,35 @@ test "recursive fibonacci" {
     const source =
         \\-function "main"
         \\-begin
-        \\push %10
-        \\push %1
-        \\call "fib"
-        \\ret
+        \\    push    %10             # push n
+        \\    push    %1              # one arg
+        \\    call    "fib"           # call fib(n)
+        \\    ret                     # return result
         \\-end
         \\
         \\-function "fib"
         \\-begin
-        \\load %-4
-        \\push %2
-        \\cmp_lt
-        \\jmpnz .foo
-        \\load %-4
-        \\push %1
-        \\sub
-        \\push %1
-        \\call "fib"
-        \\load %-4
-        \\push %2
-        \\sub
-        \\push %1
-        \\call "fib"
-        \\add
-        \\ret
-        \\.foo
-        \\load %-4
-        \\ret
+        \\    load    %-4             # load n
+        \\    push    %2              # push 2
+        \\    cmp_lt                  # n < 2 ?
+        \\    jmpnz   .less_than_two
+        \\
+        \\    load    %-4             # load n
+        \\    push    %1              # push 1
+        \\    sub                     # n - 1
+        \\    push    %1              # one arg
+        \\    call    "fib"           # fib(n - 1)
+        \\    load    %-4             # load n
+        \\    push    %2              # push 2
+        \\    sub                     # n - 2
+        \\    push    %1              # one arg
+        \\    call    "fib"           # fib(n - 2)
+        \\    add                     # sum fib(n - 1) + fib(n - 2)
+        \\    ret                     # return sum
+        \\
+        \\.less_than_two
+        \\    load    %-4             # load n
+        \\    ret                     # return n
         \\-end
     ;
 
