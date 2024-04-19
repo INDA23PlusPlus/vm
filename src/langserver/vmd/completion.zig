@@ -4,8 +4,8 @@
 
 const std = @import("std");
 const lsp = @import("../lsp.zig");
-const asm_ = @import("asm");
 const arch = @import("arch");
+const asm_ = @import("asm");
 
 pub fn computeCompletions(
     position: lsp.Position,

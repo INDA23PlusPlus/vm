@@ -1,6 +1,6 @@
 const std = @import("std");
-const Token = @This();
 const Opcode = @import("arch").Opcode;
+const Token = @This();
 const Error = @import("Error.zig");
 
 tag: Tag,

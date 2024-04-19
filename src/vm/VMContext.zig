@@ -4,11 +4,11 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const arch = @import("arch");
+const Instruction = arch.Instruction;
+const Program = arch.Program;
 const Type = @import("memory_manager").APITypes.Type;
 const Stack = std.ArrayList(Type);
-const Arch = @import("arch");
-const Instruction = Arch.Instruction;
-const Program = Arch.Program;
 
 const Self = @This();
 

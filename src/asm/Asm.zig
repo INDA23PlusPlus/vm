@@ -10,13 +10,13 @@
 
 const Asm = @This();
 const std = @import("std");
+const arch = @import("arch");
+const Instruction = arch.Instruction;
+const Program = arch.Program;
 const Patcher = @import("Patcher.zig");
 const Error = @import("Error.zig");
 const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
-const Arch = @import("arch");
-const Instruction = Arch.Instruction;
-const Program = Arch.Program;
 const emit_ = @import("emit.zig");
 
 const entry_name = "main";

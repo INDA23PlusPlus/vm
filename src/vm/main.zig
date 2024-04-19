@@ -1,9 +1,9 @@
 const std = @import("std");
+const arch = @import("arch");
+const Instruction = arch.Instruction;
+const Program = arch.Program;
 const interpreter = @import("interpreter.zig");
 const VMContext = @import("VMContext.zig");
-const Arch = @import("arch");
-const Instruction = Arch.Instruction;
-const Program = Arch.Program;
 
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

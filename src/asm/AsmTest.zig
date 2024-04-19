@@ -1,7 +1,7 @@
 const std = @import("std");
+const Opcode = @import("arch").Opcode;
 const Asm = @import("Asm.zig");
 const Error = @import("Error.zig");
-const Opcode = @import("arch").Opcode;
 
 const Tag = @TypeOf(@as(Error, undefined).tag);
 

@@ -4,11 +4,11 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const arch = @import("arch");
+const Opcode = arch.Opcode;
+const Instruction = arch.Instruction;
+const Program = arch.Program;
 const Type = @import("memory_manager").APITypes.Type;
-const Arch = @import("arch");
-const Opcode = Arch.Opcode;
-const Instruction = Arch.Instruction;
-const Program = Arch.Program;
 const VMContext = @import("VMContext.zig");
 
 fn assert(b: bool) !void {
