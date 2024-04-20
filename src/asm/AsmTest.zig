@@ -24,7 +24,7 @@ fn testCase(
 
 test "unexpected token" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\push .label
         \\-end
@@ -35,7 +35,7 @@ test "unexpected token" {
 
 test "duplicate label" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\.label
         \\.label
@@ -47,10 +47,10 @@ test "duplicate label" {
 
 test "duplicate function" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\-end
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\-end
     ;
@@ -60,7 +60,7 @@ test "duplicate function" {
 
 test "unresolved label" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\jmp .label
         \\-end
@@ -71,9 +71,9 @@ test "unresolved label" {
 
 test "unresolved function" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
-        \\call "func"
+        \\call $func
         \\-end
     ;
 
@@ -82,12 +82,12 @@ test "unresolved function" {
 
 test "success" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
-        \\call "other"
+        \\call $other
         \\-end
         \\
-        \\-function "other"
+        \\-function $other
         \\-begin
         \\push %0
         \\pushf @3.1415
@@ -114,16 +114,16 @@ test "success" {
 
 test "patching calls" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
-        \\call "other" #0
+        \\call $other  #0
         \\push %0      #1 (doing some other stuff to make it interesting)
         \\pop          #2
         \\load %0      #3
         \\store %0     #4
         \\-end
         \\
-        \\-function "other"
+        \\-function $other
         \\-begin
         \\push %0      #5
         \\-end
@@ -146,7 +146,7 @@ test "patching calls" {
 
 test "patching labels" {
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\jmp .label   #0
         \\push %0      #1
@@ -173,7 +173,7 @@ test "patching labels" {
 
 test "no main" {
     const source =
-        \\-function "not_main"
+        \\-function $not_main
         \\-begin
         \\-end
     ;

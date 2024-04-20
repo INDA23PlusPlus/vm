@@ -622,15 +622,15 @@ test "recursive fibonacci" {
     defer errors.deinit();
 
     const source =
-        \\-function "main"
+        \\-function $main
         \\-begin
         \\    push    %10             # push n
         \\    push    %1              # one arg
-        \\    call    "fib"           # call fib(n)
+        \\    call    $fib            # call fib(n)
         \\    ret                     # return result
         \\-end
         \\
-        \\-function "fib"
+        \\-function $fib
         \\-begin
         \\    load    %-4             # load n
         \\    push    %2              # push 2
@@ -641,12 +641,12 @@ test "recursive fibonacci" {
         \\    push    %1              # push 1
         \\    sub                     # n - 1
         \\    push    %1              # one arg
-        \\    call    "fib"           # fib(n - 1)
+        \\    call    $fib            # fib(n - 1)
         \\    load    %-4             # load n
         \\    push    %2              # push 2
         \\    sub                     # n - 2
         \\    push    %1              # one arg
-        \\    call    "fib"           # fib(n - 2)
+        \\    call    $fib            # fib(n - 2)
         \\    add                     # sum fib(n - 1) + fib(n - 2)
         \\    ret                     # return sum
         \\

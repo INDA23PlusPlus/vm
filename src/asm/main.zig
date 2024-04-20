@@ -83,5 +83,5 @@ pub fn main() !void {
         std.os.exit(1);
     }
 
-    try asm_.emit(output.writer());
+    //try asm_.emit(output.writer());
 }

@@ -17,6 +17,7 @@ const Patcher = @import("Patcher.zig");
 const Error = @import("Error.zig");
 const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
+const StringPool = @import("StringPool.zig");
 const emit_ = @import("emit.zig");
 
 const entry_name = "main";
@@ -26,7 +27,10 @@ entry: ?usize,
 scan: Scanner,
 fn_patcher: Patcher,
 lbl_patcher: Patcher,
+str_patcher: Patcher,
+string_pool: StringPool,
 errors: *std.ArrayList(Error),
+str_build: std.ArrayList(u8),
 
 pub fn init(
     source: []const u8,
@@ -38,8 +42,11 @@ pub fn init(
         .scan = .{ .source = source, .errors = errors },
         .fn_patcher = Patcher.init(allocator, errors),
         .lbl_patcher = Patcher.init(allocator, errors),
+        .str_patcher = Patcher.init(allocator, errors),
+        .string_pool = StringPool.init(allocator),
         .errors = errors,
         .entry = null,
+        .str_build = std.ArrayList(u8).init(allocator),
     };
 }
 
@@ -47,29 +54,54 @@ pub fn deinit(self: *Asm) void {
     self.code.deinit();
     self.fn_patcher.deinit();
     self.lbl_patcher.deinit();
+    self.str_patcher.deinit();
+    self.string_pool.deinit();
+    self.str_build.deinit();
 }
 
 pub fn assemble(self: *Asm) !void {
-    while (try self.scan.peek()) |_| {
-        self.asmFunc() catch |err| {
+    while (try self.scan.peek()) |leading| {
+        if (leading.tag != .keyword) {
+            try self.errors.append(.{
+                .where = leading.where,
+                .tag = .@"Unexpected token",
+                .extra = "expected '-string' or '-function'",
+            });
+            try self.syncUntilNextToplevel();
+            continue;
+        }
+
+        const result = switch (leading.tag.keyword) {
+            .function => self.asmFunc(),
+            .string => self.asmString(),
+            else => {
+                try self.errors.append(.{
+                    .where = leading.where,
+                    .tag = .@"Unexpected token",
+                    .extra = "expected '-string' or '-function'",
+                });
+                try self.syncUntilNextToplevel();
+                continue;
+            },
+        };
+
+        _ = result catch |err| {
             if (err == std.mem.Allocator.Error.OutOfMemory) {
                 return err;
             } else {
-                try syncUntilNextFunc(self);
+                try syncUntilNextToplevel(self);
             }
         };
     }
+
     try self.fn_patcher.patch(self.code.items);
+    try self.str_patcher.patch(self.code.items);
 
     if (self.entry == null) {
         try self.errors.append(.{
             .tag = .@"No main function",
         });
     }
-}
-
-pub fn emit(self: *Asm, writer: anytype) !void {
-    try emit_.emit(self, writer);
 }
 
 pub fn getProgram(self: *Asm) Program {
@@ -81,10 +113,32 @@ pub fn getProgram(self: *Asm) Program {
     };
 }
 
+fn asmString(self: *Asm) !void {
+    _ = try self.expectKw(.string, "expected '-string'");
+    const name = (try self.expect(.identifier, "expected string identifier")).where;
+
+    self.str_build.clearRetainingCapacity();
+    var writer = self.str_build.writer();
+
+    var content = (try self.expect(.string, "expected string literal")).where;
+    _ = try writer.write(content);
+
+    while (try self.scan.peek()) |peeked| {
+        if (peeked.tag != .string) {
+            break;
+        }
+        _ = try writer.write(peeked.where);
+        _ = try self.scan.next();
+    }
+
+    const pool_id = try self.string_pool.getOrIntern(self.str_build.items);
+    try self.str_patcher.decl(name, pool_id);
+}
+
 fn asmFunc(self: *Asm) !void {
-    _ = try self.expectKw(.function, "expected 'function'");
-    const name = try self.expect(.string, "expected function name");
-    _ = try self.expectKw(.begin, "expected 'begin'");
+    _ = try self.expectKw(.function, "expected '-function'");
+    const name = try self.expect(.identifier, "expected function identifier");
+    _ = try self.expectKw(.begin, "expected '-begin'");
     try self.fn_patcher.decl(name.where, self.code.items.len);
     if (std.mem.eql(u8, name.where, "main")) {
         self.entry = self.code.items.len;
@@ -108,13 +162,13 @@ fn asmFunc(self: *Asm) !void {
                 }
             },
             else => {
-                _ = try self.expectKw(.end, "expected next instruction or 'end'");
+                _ = try self.expectKw(.end, "expected next instruction or '-end'");
                 break :parse true;
             },
         }
     } else false;
 
-    if (!found_end) _ = try self.expectKw(.end, "expected next instruction or 'end'");
+    if (!found_end) _ = try self.expectKw(.end, "expected next instruction or '-end'");
 
     try self.lbl_patcher.patch(self.code.items);
     self.lbl_patcher.reset();
@@ -130,7 +184,7 @@ fn asmInstr(self: *Asm) !void {
     if (instr.tag.instr.hasOperand()) {
         switch (instr.tag.instr) {
             .call => {
-                const func = try self.expect(.string, "expected function name");
+                const func = try self.expect(.identifier, "expected function identifier");
                 try self.fn_patcher.reference(func.where, offset);
             },
             .jmp, .jmpnz => {
@@ -198,9 +252,9 @@ fn expectKw(self: *Asm, kw: Token.Keyword, extra: ?[]const u8) !Token {
     return tok;
 }
 
-fn syncUntilNextFunc(self: *Asm) !void {
+fn syncUntilNextToplevel(self: *Asm) !void {
     while (try self.scan.peek()) |tok| {
-        if (tok.tag == .keyword and tok.tag.keyword == .function) break;
+        if (tok.tag == .keyword and (tok.tag.keyword == .function or tok.tag.keyword == .string)) break;
         _ = try self.scan.next();
     }
 }

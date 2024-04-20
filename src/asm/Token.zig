@@ -9,6 +9,7 @@ where: []const u8,
 pub const Tag = union(enum) {
     keyword: Keyword,
     string,
+    identifier,
     label,
     int: i64,
     float: f64,
@@ -20,6 +21,7 @@ pub const Keyword = enum {
     function,
     begin,
     end,
+    string,
 };
 
 /// The prefix for tokens in the IR
@@ -29,6 +31,7 @@ pub const prefix = struct {
     pub const label = '.';
     pub const integer = '%';
     pub const float = '@';
+    pub const identifier = '$';
 };
 
 pub const Scanner = struct {
@@ -53,6 +56,7 @@ pub const Scanner = struct {
             prefix.integer => return self.integer(),
             prefix.float => return self.float(),
             prefix.label => return self.label(),
+            prefix.identifier => return self.identifier(),
             '"' => return self.string(),
             'a'...'z', 'A'...'Z' => return self.instruction(),
             else => {
@@ -126,6 +130,12 @@ pub const Scanner = struct {
         return Token{ .tag = .{ .keyword = kw }, .where = where };
     }
 
+    fn identifier(self: *Scanner) !?Token {
+        self.advance();
+        const where = self.readWord();
+        return Token{ .tag = .identifier, .where = where };
+    }
+
     fn instruction(self: *Scanner) !?Token {
         const where = self.readWord();
         const _instr = std.meta.stringToEnum(Opcode, where) orelse {
@@ -162,6 +172,7 @@ pub const Scanner = struct {
     }
 
     fn string(self: *Scanner) !?Token {
+        // TODO: escape characters
         self.advance();
         const begin = self.cursor;
         var end: usize = undefined;
