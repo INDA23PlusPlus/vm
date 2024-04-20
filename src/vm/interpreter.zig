@@ -201,7 +201,7 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
         .object => |*o| {
             var keys = o.keys();
 
-            var fields = std.ArrayList(u32).init(ctxt.alloc);
+            var fields = std.ArrayList(usize).init(ctxt.alloc);
             defer fields.deinit();
 
             while (keys.next()) |k| {
@@ -209,12 +209,12 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
             }
 
             const sortUtils = struct {
-                pub fn less(_: @TypeOf(.{}), a: u32, b: u32) bool {
+                pub fn less(_: @TypeOf(.{}), a: usize, b: usize) bool {
                     return a < b;
                 }
             };
 
-            std.sort.pdq(u32, fields.items, .{}, sortUtils.less);
+            std.sort.pdq(usize, fields.items, .{}, sortUtils.less);
 
             _ = try writer.write("{");
             var first = true;
@@ -222,7 +222,7 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
                 if (!first) _ = try writer.write(", ");
                 first = false;
                 var tmp: Type = o.get(k).?;
-                try writer.print("{s}: ", .{ctxt.prog.field_names[@as(usize, k)]});
+                try writer.print("{s}: ", .{ctxt.prog.field_names[k]});
                 try printImpl(&tmp, ctxt);
             }
             _ = try writer.write("}");
@@ -450,7 +450,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(s.is(.object));
 
                 var obj = s.asUnChecked(.object);
-                try obj.set(@intCast(f), v);
+                try obj.set(f, v);
             },
             .struct_load => {
                 var f = i.operand.field_id;
@@ -462,7 +462,7 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 var obj = s.asUnChecked(.object);
 
-                var v = obj.get(@intCast(f)) orelse Type.from(Mem.APITypes.UnitType.init());
+                var v = obj.get(f) orelse Type.from(Mem.APITypes.UnitType.init());
                 try push(ctxt, v);
             },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),

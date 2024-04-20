@@ -48,7 +48,7 @@ pub const ObjectRef = struct {
         _ = self.ref.decr();
     }
 
-    pub fn get(self: *Self, key: u32) ?Type {
+    pub fn get(self: *Self, key: usize) ?Type {
         var val = self.ref.map.get(key);
         if (val == null) {
             return null;
@@ -56,7 +56,7 @@ pub const ObjectRef = struct {
         return Type.fromInternal(&val.?);
     }
 
-    pub fn set(self: *Self, key: u32, value: Type) !void {
+    pub fn set(self: *Self, key: usize, value: Type) !void {
         try self.ref.map.put(key, value.toInternal());
     }
 

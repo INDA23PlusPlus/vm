@@ -56,12 +56,12 @@ pub const List = struct {
 pub const Object = struct {
     const Self = @This();
     // TODO Maybe use AutoHashMapUnmanaged
-    map: std.AutoHashMap(u32, Type),
+    map: std.AutoHashMap(usize, Type),
 
     refcount: RefCount = RefCount.init(), // stack references
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        return .{ .map = std.AutoHashMap(u32, Type).init(allocator) };
+        return .{ .map = std.AutoHashMap(usize, Type).init(allocator) };
     }
 
     pub fn deinit_data(self: *Self) void {
