@@ -115,7 +115,7 @@ pub fn structLoad(field: usize) Self {
     return .{ .op = .struct_load, .operand = .{ .field_id = field } };
 }
 pub fn structStore(field: usize) Self {
-    return .{ .op = .struct_store, .operand = .{ .field_id = field }  };
+    return .{ .op = .struct_store, .operand = .{ .field_id = field } };
 }
 
 pub fn listAlloc() Self {
