@@ -115,27 +115,27 @@ pub fn getProgram(self: *Asm, allocator: std.mem.Allocator) !Program {
     // i.e. the main funciton exists.
     const entry = self.entry.?;
 
+    const num_strings = self.string_pool.entries.items.len;
     const string_buffer = try allocator.dupe(u8, self.string_pool.getContiguous());
-    var strings = std.ArrayList([]const u8).init(allocator);
-    // Don't 'defer strings.deinit()', we return items.
+    var strings = try allocator.alloc([]const u8, num_strings);
 
-    for (self.string_pool.entries.items) |e| {
-        try strings.append(string_buffer[e.begin..e.end]);
+    for (0.., self.string_pool.entries.items) |i, e| {
+        strings[i] = string_buffer[e.begin..e.end];
     }
 
+    const num_field_names = self.field_name_pool.entries.items.len;
     const field_name_buffer = try allocator.dupe(u8, self.field_name_pool.getContiguous());
-    var field_names = std.ArrayList([]const u8).init(allocator);
-    // Don't 'defer field_names.deinit()', we return items.
+    var field_names = try allocator.alloc([]const u8, num_field_names);
 
-    for (self.field_name_pool.entries.items) |e| {
-        try field_names.append(field_name_buffer[e.begin..e.end]);
+    for (0.., self.field_name_pool.entries.items) |i, e| {
+        field_names[i] = field_name_buffer[e.begin..e.end];
     }
 
     return .{
         .code = code,
         .entry = entry,
-        .strings = strings.items,
-        .field_names = field_names.items,
+        .strings = strings,
+        .field_names = field_names,
         .deinit_data = .{
             .allocator = allocator,
             .strings = string_buffer,
