@@ -3,6 +3,9 @@ const std = @import("std");
 pub const Opcode = enum(u8) {
     // TODO: explicit opcodes (actually a unified instruction interface towards assembler/vm makes this unecessary)
 
+    // WARNING: Please change corresponding entries in descr.zig and hasOperand if you
+    // add or change anything here.
+
     // TODO: define overflow behavior for integers
     // Implemented with two's complement wrapping for now
     add, // [a, b] -> [a + b]
