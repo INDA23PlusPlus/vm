@@ -111,11 +111,11 @@ pub fn notEqual() Self {
 pub fn structAlloc() Self {
     return .{ .op = .struct_alloc };
 }
-pub fn structLoad() Self {
-    return .{ .op = .struct_load };
+pub fn structLoad(field: usize) Self {
+    return .{ .op = .struct_load, .operand = .{ .field_id = field } };
 }
-pub fn structStore() Self {
-    return .{ .op = .struct_store };
+pub fn structStore(field: usize) Self {
+    return .{ .op = .struct_store, .operand = .{ .field_id = field }  };
 }
 
 pub fn listAlloc() Self {

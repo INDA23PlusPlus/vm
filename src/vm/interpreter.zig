@@ -443,31 +443,26 @@ pub fn run(ctxt: *VMContext) !i64 {
                 var v = try pop(ctxt);
                 defer drop(ctxt, v);
 
-                var f = try pop(ctxt);
-                defer drop(ctxt, f);
-
+                var f = i.operand.field_id;
                 var s = try pop(ctxt);
                 defer drop(ctxt, s);
 
                 try assert(s.is(.object));
-                try assert(f.is(.int));
 
                 var obj = s.asUnChecked(.object);
-                try obj.set(@intCast(f.asUnChecked(.int)), v);
+                try obj.set(@intCast(f), v);
             },
             .struct_load => {
-                var f = try pop(ctxt);
-                defer drop(ctxt, f);
+                var f = i.operand.field_id;
 
                 var s = try pop(ctxt);
                 defer drop(ctxt, s);
 
                 try assert(s.is(.object));
-                try assert(f.is(.int));
 
                 var obj = s.asUnChecked(.object);
 
-                var v = obj.get(@intCast(f.asUnChecked(.int))) orelse Type.from(Mem.APITypes.UnitType.init());
+                var v = obj.get(@intCast(f)) orelse Type.from(Mem.APITypes.UnitType.init());
                 try push(ctxt, v);
             },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),
@@ -528,19 +523,16 @@ test "structs" {
         Instruction.structAlloc(),
         Instruction.dup(),
         Instruction.dup(),
-        Instruction.push(0),
         Instruction.push(42),
-        Instruction.structStore(),
-        Instruction.push(0),
-        Instruction.structLoad(),
+        Instruction.structStore(0),
+        Instruction.structLoad(0),
     }, 0, &.{}, &.{}), "", 42);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
         Instruction.dup(),
-        Instruction.push(0),
         Instruction.push(42),
-        Instruction.structStore(),
+        Instruction.structStore(0),
         Instruction.syscall(0),
         Instruction.push(0),
     }, 0, &.{}, &.{"a"}), "{a: 42}", 0);
@@ -549,12 +541,10 @@ test "structs" {
         Instruction.structAlloc(),
         Instruction.dup(),
         Instruction.dup(),
-        Instruction.push(0),
         Instruction.push(42),
-        Instruction.structStore(),
-        Instruction.push(1),
+        Instruction.structStore(0),
         Instruction.push(43),
-        Instruction.structStore(),
+        Instruction.structStore(1),
         Instruction.syscall(0),
         Instruction.push(0),
     }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
