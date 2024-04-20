@@ -18,10 +18,10 @@
 | Field data size | u64 | The size of the field data section in bytes |
 | Code size | u64 | The size of the code section in bytes |
 | Entry point | u64 | The address of the first instruction of the main function |
-| String table | See [Table format](#Table-format) ||
 | String data | []u8 ||
-| Field table | See [Table format](#Table-format) ||
+| String table | See [Table format](#Table-format) ||
 | Field data | []u8 ||
+| Field table | See [Table format](#Table-format) ||
 | Code section | See [Code format](#Code-format) ||
 
 ## Table format
