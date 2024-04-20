@@ -92,6 +92,8 @@ test "success" {
         \\push %0
         \\pushf @3.1415
         \\load %0
+        \\struct_load $hello
+        \\struct_store $goodbye
         \\add
         \\jmp .label
         \\stack_alloc %1000000

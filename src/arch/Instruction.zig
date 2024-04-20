@@ -12,6 +12,7 @@ operand: union {
     int: i64,
     float: f64,
     location: usize,
+    field_id: usize,
     none: void,
 } = .{ .none = void{} }, // either an immediate i64 value or a number of instructions to jump forward or backward
 

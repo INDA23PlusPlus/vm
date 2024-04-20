@@ -29,6 +29,7 @@ fn_patcher: Patcher,
 lbl_patcher: Patcher,
 str_patcher: Patcher,
 string_pool: StringPool,
+field_name_pool: StringPool,
 errors: *std.ArrayList(Error),
 str_build: std.ArrayList(u8),
 
@@ -44,6 +45,7 @@ pub fn init(
         .lbl_patcher = Patcher.init(allocator, errors),
         .str_patcher = Patcher.init(allocator, errors),
         .string_pool = StringPool.init(allocator),
+        .field_name_pool = StringPool.init(allocator),
         .errors = errors,
         .entry = null,
         .str_build = std.ArrayList(u8).init(allocator),
@@ -56,6 +58,7 @@ pub fn deinit(self: *Asm) void {
     self.lbl_patcher.deinit();
     self.str_patcher.deinit();
     self.string_pool.deinit();
+    self.field_name_pool.deinit();
     self.str_build.deinit();
 }
 
@@ -120,18 +123,23 @@ pub fn getProgram(self: *Asm, allocator: std.mem.Allocator) !Program {
         try strings.append(string_buffer[e.begin..e.end]);
     }
 
-    const field_names_buffer = try allocator.alloc(u8, 1);
-    const field_names: []const []const u8 = &.{};
+    const field_name_buffer = try allocator.dupe(u8, self.field_name_pool.getContiguous());
+    var field_names = std.ArrayList([]const u8).init(allocator);
+    // Don't 'defer field_names.deinit()', we return items.
+
+    for (self.field_name_pool.entries.items) |e| {
+        try field_names.append(field_name_buffer[e.begin..e.end]);
+    }
 
     return .{
         .code = code,
         .entry = entry,
         .strings = strings.items,
-        .field_names = field_names,
+        .field_names = field_names.items,
         .deinit_data = .{
             .allocator = allocator,
             .strings = string_buffer,
-            .field_names = field_names_buffer,
+            .field_names = field_name_buffer,
         },
     };
 }
@@ -219,6 +227,11 @@ fn asmInstr(self: *Asm) !void {
                 self.code.items[offset].operand = .{
                     .float = float_.tag.float,
                 };
+            },
+            .struct_load, .struct_store => {
+                const name = try self.expect(.identifier, "expected field identifier");
+                const id = try self.field_name_pool.getOrIntern(name.where);
+                self.code.items[offset].operand = .{ .field_id = id };
             },
             else => {
                 const int = try self.expect(.int, "expected integer");
