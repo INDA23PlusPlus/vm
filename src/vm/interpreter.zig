@@ -201,12 +201,28 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
         .object => |*o| {
             var keys = o.keys();
 
+            var fields = std.ArrayList(u32).init(ctxt.alloc);
+            defer fields.deinit();
+
+            while (keys.next()) |k| {
+                try fields.append(k.*);
+            }
+
+            const sortUtils = struct {
+                pub fn less(_: @TypeOf(.{}), a: u32, b: u32) bool {
+                    return a < b;
+                }
+            };
+
+            std.sort.pdq(u32, fields.items, .{}, sortUtils.less);
+
             _ = try writer.write("{");
             var first = true;
-            while (keys.next()) |k| {
+            for (fields.items) |k| {
                 if (!first) _ = try writer.write(", ");
-                var tmp: Type = o.get(k.*).?;
-                try writer.print("{s}: ", .{ctxt.prog.field_names[@as(usize, k.*)]});
+                first = false;
+                var tmp: Type = o.get(k).?;
+                try writer.print("{s}: ", .{ctxt.prog.field_names[@as(usize, k)]});
                 try printImpl(&tmp, ctxt);
             }
             _ = try writer.write("}");
@@ -527,8 +543,32 @@ test "structs" {
         Instruction.structStore(),
         Instruction.syscall(0),
         Instruction.push(0),
-        Instruction.ret(),
     }, 0, &.{}, &.{"a"}), "{a: 42}", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.dup(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.structStore(),
+        Instruction.push(1),
+        Instruction.push(43),
+        Instruction.structStore(),
+        Instruction.syscall(0),
+        Instruction.push(0),
+    }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
+
+    // TODO: fix alignement issue
+    // try testRun(Program.init(&.{
+    //     Instruction.structAlloc(),
+    //     Instruction.dup(),
+    //     Instruction.push(0),
+    //     Instruction.structAlloc(),
+    //     Instruction.structStore(),
+    //     Instruction.syscall(0),
+    //     Instruction.push(0),
+    // }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
 }
 
 test "arithmetic" {
