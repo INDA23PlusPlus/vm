@@ -159,7 +159,7 @@ pub fn build(b: *std.Build) void {
     vm_mod.dependencies.put("memory_manager", memory_manager_mod) catch unreachable;
     assembler_mod.dependencies.put("vm", vm_mod) catch unreachable;
     assembler_mod.dependencies.put("arch", arch_mod) catch unreachable;
-    binary_mod.dependencies.put("arch", arch_mod);
+    binary_mod.dependencies.put("arch", arch_mod) catch unreachable;
 
     //
     // Test dependencies
@@ -169,6 +169,7 @@ pub fn build(b: *std.Build) void {
     vm_tests.addModule("arch", arch_mod);
     vm_tests.addModule("memory_manager", memory_manager_mod);
     vm_tests.addModule("asm", assembler_mod);
+    binary_tests.addModule("arch", arch_mod);
 
     //
     // Unused modules
