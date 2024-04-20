@@ -8,7 +8,8 @@ const arch = @import("arch");
 const Opcode = arch.Opcode;
 const Instruction = arch.Instruction;
 const Program = arch.Program;
-const Type = @import("memory_manager").APITypes.Type;
+const Mem = @import("memory_manager");
+const Type = Mem.APITypes.Type;
 const VMContext = @import("VMContext.zig");
 
 fn assert(b: bool) !void {
@@ -220,6 +221,8 @@ fn print(x: *Type, ctxt: *VMContext) !void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
+    var mem = try Mem.MemoryManager.init(ctxt.alloc);
+    defer mem.deinit();
     while (ctxt.pc < ctxt.prog.code.len) {
         const i = ctxt.prog.code[ctxt.pc];
 
@@ -417,6 +420,41 @@ pub fn run(ctxt: *VMContext) !i64 {
                     }
                 }
             },
+            .struct_alloc => {
+                try push(ctxt, Type.from(mem.alloc_struct()));
+            },
+            .struct_store => {
+                var v = try pop(ctxt);
+                defer drop(ctxt, v);
+
+                var f = try pop(ctxt);
+                defer drop(ctxt, f);
+
+                var s = try pop(ctxt);
+                defer drop(ctxt, s);
+
+                try assert(s.is(.object));
+                try assert(f.is(.int));
+
+                var obj = s.asUnChecked(.object);
+                try obj.set(@intCast(f.asUnChecked(.int)), take(ctxt, v));
+            },
+            .struct_load => {
+                var f = try pop(ctxt);
+                defer drop(ctxt, f);
+
+                var s = try pop(ctxt);
+                defer drop(ctxt, s);
+
+                try assert(s.is(.object));
+                try assert(f.is(.int));
+
+                var obj = s.asUnChecked(.object);
+
+                var v = obj.get(@intCast(f.asUnChecked(.int))) orelse Type.from(Mem.APITypes.UnitType.init());
+                defer drop(ctxt, v);
+                try push(ctxt, v);
+            },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),
         }
     }
@@ -465,7 +503,33 @@ fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) 
     const b = try replaceWhiteSpace(output_stream.getWritten(), std.testing.allocator);
     defer std.testing.allocator.free(b);
 
+    if (!std.mem.eql(u8, a, b))
+        std.debug.print("{s} {s} {s} {s}\n", .{ a, b, expected_output, output_stream.getWritten() });
     try std.testing.expect(std.mem.eql(u8, a, b));
+}
+
+test "structs" {
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.dup(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.structStore(),
+        Instruction.push(0),
+        Instruction.structLoad(),
+    }, 0, &.{}, &.{}), "", 42);
+
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.structStore(),
+        Instruction.syscall(0),
+        Instruction.push(0),
+        Instruction.ret(),
+    }, 0, &.{}, &.{"a"}), "{a: 42}", 0);
 }
 
 test "arithmetic" {

@@ -46,7 +46,7 @@ pub const Opcode = enum(u8) {
 
     struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
     struct_load, // [s, f] -> [s, v] where v = s.f
-    struct_store, // [s, f] -> [r]
+    struct_store, // [s, f, v] -> []
 
     list_alloc, // [] -> [l] where l is a reference to the newly allocated list
     list_load, // [l, i] -> [l, v] where v = l[i]

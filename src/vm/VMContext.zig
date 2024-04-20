@@ -15,6 +15,7 @@ const Self = @This();
 prog: Program,
 pc: usize,
 bp: usize,
+alloc: Allocator,
 stack: Stack,
 refc: i64,
 write_ctxt: *const anyopaque,
@@ -33,7 +34,7 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, debug_outpu
         }
     }.write;
 
-    return .{ .prog = prog, .pc = prog.entry, .bp = 0, .stack = Stack.init(alloc), .refc = 0, .write_ctxt = output_writer, .write_fn = write_fn, .debug_output = debug_output };
+    return .{ .prog = prog, .pc = prog.entry, .bp = 0, .stack = Stack.init(alloc), .alloc = alloc, .refc = 0, .write_ctxt = output_writer, .write_fn = write_fn, .debug_output = debug_output };
 }
 
 pub fn reset(self: *Self) void {

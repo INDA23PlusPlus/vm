@@ -106,3 +106,23 @@ pub fn equal() Self {
 pub fn notEqual() Self {
     return .{ .op = .cmp_ne };
 }
+
+pub fn structAlloc() Self {
+    return .{ .op = .struct_alloc };
+}
+pub fn structLoad() Self {
+    return .{ .op = .struct_load };
+}
+pub fn structStore() Self {
+    return .{ .op = .struct_store };
+}
+
+pub fn listAlloc() Self {
+    return .{ .op = .list_alloc };
+}
+pub fn listLoad() Self {
+    return .{ .op = .list_load };
+}
+pub fn listStore() Self {
+    return .{ .op = .list_store };
+}
