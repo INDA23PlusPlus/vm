@@ -437,7 +437,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(f.is(.int));
 
                 var obj = s.asUnChecked(.object);
-                try obj.set(@intCast(f.asUnChecked(.int)), take(ctxt, v));
+                try obj.set(@intCast(f.asUnChecked(.int)), v);
             },
             .struct_load => {
                 var f = try pop(ctxt);
@@ -452,7 +452,6 @@ pub fn run(ctxt: *VMContext) !i64 {
                 var obj = s.asUnChecked(.object);
 
                 var v = obj.get(@intCast(f.asUnChecked(.int))) orelse Type.from(Mem.APITypes.UnitType.init());
-                defer drop(ctxt, v);
                 try push(ctxt, v);
             },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),
