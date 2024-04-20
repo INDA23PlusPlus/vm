@@ -128,6 +128,20 @@ pub fn build(b: *std.Build) void {
     build_langserver.dependOn(&install_langserver.step);
 
     //
+    // Binary format deserializer & serializer.
+    //
+    const binary_mod = b.addModule(
+        "binary",
+        .{ .source_file = .{ .path = "src/binary/module.zig" } },
+    );
+    const binary_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/binary/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const binary_run_tests = b.addRunArtifact(binary_tests);
+
+    //
     // Executable dependencies
     //
     assembler.addModule("arch", arch_mod);
@@ -145,6 +159,7 @@ pub fn build(b: *std.Build) void {
     vm_mod.dependencies.put("memory_manager", memory_manager_mod) catch unreachable;
     assembler_mod.dependencies.put("vm", vm_mod) catch unreachable;
     assembler_mod.dependencies.put("arch", arch_mod) catch unreachable;
+    binary_mod.dependencies.put("arch", arch_mod);
 
     //
     // Test dependencies
@@ -158,7 +173,7 @@ pub fn build(b: *std.Build) void {
     //
     // Unused modules
     //
-    _ = .{ compiler_mod, langserver_mod };
+    _ = .{ compiler_mod, langserver_mod, binary_mod };
 
     //
     // Default build step
@@ -177,4 +192,5 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&memory_manager_run_tests.step);
     test_step.dependOn(&vm_run_tests.step);
     test_step.dependOn(&langserver_run_tests.step);
+    test_step.dependOn(&binary_run_tests.step);
 }
