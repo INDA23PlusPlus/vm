@@ -24,6 +24,10 @@ tag: enum {
     @"Unresolved label or function",
     /// (Assembler) Duplicate label or function
     @"Duplicate label or function",
+    /// (Assembler) An invalid escape character was encountered in a string
+    @"Invalid escape character",
+    /// (Assembler) String ended directly after a '\'
+    @"Missing escape character",
     /// No main function
     @"No main function",
     /// Unexpected token in input stream

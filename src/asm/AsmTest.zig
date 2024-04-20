@@ -80,8 +80,20 @@ test "unresolved function" {
     try testCase(source, .@"Unresolved label or function", "func");
 }
 
+test "invalid escape character" {
+    const source =
+        \\-string $message "Hello \m there!"
+        \\-function $main
+        \\-begin
+        \\-end
+    ;
+
+    try testCase(source, .@"Invalid escape character", "m");
+}
+
 test "success" {
     const source =
+        \\-string $message "My name is:\n" "\"Ludvig\""
         \\-function $main
         \\-begin
         \\call $other

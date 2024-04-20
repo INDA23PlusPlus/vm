@@ -172,7 +172,6 @@ pub const Scanner = struct {
     }
 
     fn string(self: *Scanner) !?Token {
-        // TODO: escape characters
         self.advance();
         const begin = self.cursor;
         var end: usize = undefined;
@@ -184,6 +183,11 @@ pub const Scanner = struct {
                     .where = where,
                 });
                 return .{ .tag = .err, .where = self.readWord() };
+            }
+            if (c == '\\') {
+                self.advance();
+                self.advance();
+                continue;
             }
             if (c == '"') {
                 end = self.cursor;

@@ -18,6 +18,7 @@ const Error = @import("Error.zig");
 const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
 const StringPool = @import("StringPool.zig");
+const StringParser = @import("StringParser.zig");
 const emit_ = @import("emit.zig");
 
 const entry_name = "main";
@@ -32,6 +33,7 @@ string_pool: StringPool,
 field_name_pool: StringPool,
 errors: *std.ArrayList(Error),
 str_build: std.ArrayList(u8),
+str_parser: StringParser,
 
 pub fn init(
     source: []const u8,
@@ -49,6 +51,7 @@ pub fn init(
         .errors = errors,
         .entry = null,
         .str_build = std.ArrayList(u8).init(allocator),
+        .str_parser = StringParser.init(allocator, errors),
     };
 }
 
@@ -60,6 +63,7 @@ pub fn deinit(self: *Asm) void {
     self.string_pool.deinit();
     self.field_name_pool.deinit();
     self.str_build.deinit();
+    self.str_parser.deinit();
 }
 
 pub fn assemble(self: *Asm) !void {
@@ -151,14 +155,16 @@ fn asmString(self: *Asm) !void {
     self.str_build.clearRetainingCapacity();
     var writer = self.str_build.writer();
 
-    var content = (try self.expect(.string, "expected string literal")).where;
-    _ = try writer.write(content);
+    const content = (try self.expect(.string, "expected string literal")).where;
+    var escaped = try self.str_parser.parse(content);
+    _ = try writer.write(escaped);
 
     while (try self.scan.peek()) |peeked| {
         if (peeked.tag != .string) {
             break;
         }
-        _ = try writer.write(peeked.where);
+        escaped = try self.str_parser.parse(peeked.where);
+        _ = try writer.write(escaped);
         _ = try self.scan.next();
     }
 
