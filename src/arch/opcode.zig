@@ -3,54 +3,43 @@ const std = @import("std");
 pub const Opcode = enum(u8) {
     // TODO: explicit opcodes (actually a unified instruction interface towards assembler/vm makes this unecessary)
 
-    // WARNING: Please change corresponding entries in descr.zig and hasOperand if you
-    // add or change anything here.
+    // see descr.zig for descriptions
+    add,
+    sub,
+    mul,
+    div,
+    mod,
 
-    // TODO: define overflow behavior for integers
-    // Implemented with two's complement wrapping for now
-    add, // [a, b] -> [a + b]
-    sub, // [a, b] -> [a - b]
-    mul, // [a, b] -> [a * b]
-    div, // [a, b] -> [a / b] (rounds toward zero)
-    mod, // [a, b] -> [a % b] TODO: decide how to handle modulo/remainder
-    // Implemented such that { a mod b = a - b(a / b) } for now
+    cmp_lt, 
+    cmp_gt, 
+    cmp_le, 
+    cmp_ge, 
+    cmp_eq, 
+    cmp_ne, 
 
-    // 1 if true, 0 if false
-    cmp_lt, // [a, b] -> [res] where res = a < b
-    cmp_gt, // [a, b] -> [res] where res = a > b
-    cmp_le, // [a, b] -> [res] where res = a <= b
-    cmp_ge, // [a, b] -> [res] where res = a <= b
-    cmp_eq, // [a, b] -> [res] where res = a == b
-    cmp_ne, // [a, b] -> [res] where res = a != b
+    jmp,
+    jmpnz,
 
-    jmp, // OP .destination [] -> [] control flow continues at .destination
-    jmpnz, // OP .destination [a] -> [] control flow continues at .destination if a != 0
+    push,
+    pushs, 
+    pop,
+    dup,
 
-    push, // OP %value [] -> [value]
-    pushf, // OP @value [] -> [value]
-    pushs, // OP %value [] -> [string @ value]
-    pop, // [a] -> []
-    dup, // [a] -> [a, a]
+    load,
+    store, 
 
-    load, // OP %i [] -> [value] where value = stack[BP + i]
-    store, // OP %i [value] -> [] sets stack[BP + i] = value
+    syscall, //TODO: keep or remove syscalls as a concept
+    call,
+    ret,
 
-    syscall, // [args...] -> [ret...] TODO: keep or remove syscalls as a concept
-    // 0: write value to output ([value] -> [])
-    call, // OP .f [param 0, ..., param N - 1, N] -> [param 0, ..., param N - 1, N, BP, return_address]
-    // see accompanying `README.md`
-    ret, // [param 0, ..., param N - 1, N, BP, ..., return_address, return_value] -> [return_value]
-    // see accompanying `README.md`
+    stack_alloc,
 
-    stack_alloc, // Allocates N unit object on the stack
+    struct_alloc,
+    struct_load, 
+    struct_store,
 
-    struct_alloc, // [] -> [s] where s is a reference to the newly allocated struct
-    struct_load, // [s, f] -> [s, v] where v = s.f
-    struct_store, // [s, f, v] -> []
-
-    list_alloc, // [] -> [l] where l is a reference to the newly allocated list
-    list_load, // [l, i] -> [l, v] where v = l[i]
-    list_store, // [l, i, v] -> [l] sets l[i] = v
+    list_alloc,
+    list_load,
 
     pub fn isArithmetic(self: Opcode) bool {
         return switch (self) {
