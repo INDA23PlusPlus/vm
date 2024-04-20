@@ -10,23 +10,24 @@ pub const Opcode = enum(u8) {
     div,
     mod,
 
-    cmp_lt, 
-    cmp_gt, 
-    cmp_le, 
-    cmp_ge, 
-    cmp_eq, 
-    cmp_ne, 
+    cmp_lt,
+    cmp_gt,
+    cmp_le,
+    cmp_ge,
+    cmp_eq,
+    cmp_ne,
 
     jmp,
     jmpnz,
 
     push,
-    pushs, 
+    pushf,
+    pushs,
     pop,
     dup,
 
     load,
-    store, 
+    store,
 
     syscall, //TODO: keep or remove syscalls as a concept
     call,
@@ -35,11 +36,12 @@ pub const Opcode = enum(u8) {
     stack_alloc,
 
     struct_alloc,
-    struct_load, 
+    struct_load,
     struct_store,
 
     list_alloc,
     list_load,
+    list_store,
 
     pub fn isArithmetic(self: Opcode) bool {
         return switch (self) {
