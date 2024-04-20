@@ -21,9 +21,9 @@ tag: enum {
     /// (Assembler) Operand is supplied for instruction that does not take operands
     @"Redundant operand",
     /// (Assembler) Referenced label or function is not declared in this scope
-    @"Unresolved label or function",
+    @"Unresolved symbol",
     /// (Assembler) Duplicate label or function
-    @"Duplicate label or function",
+    @"Duplicate symbol",
     /// (Assembler) An invalid escape character was encountered in a string
     @"Invalid escape character",
     /// (Assembler) String ended directly after a '\'

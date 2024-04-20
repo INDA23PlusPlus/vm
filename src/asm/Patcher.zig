@@ -32,7 +32,7 @@ pub fn deinit(self: *Patcher) void {
 pub fn decl(self: *Patcher, symbol: []const u8, offset: usize) !void {
     if (self.decls.getEntry(symbol)) |entry| {
         try self.errors.append(.{
-            .tag = .@"Duplicate label or function",
+            .tag = .@"Duplicate symbol",
             .where = symbol,
             .related = entry.key_ptr.*,
             .related_msg = "Previously defined here",
@@ -50,7 +50,7 @@ pub fn patch(self: *Patcher, code: []Instruction) !void {
     for (self.refs.items) |ref| {
         const offset = self.decls.get(ref.symbol) orelse {
             try self.errors.append(.{
-                .tag = .@"Unresolved label or function",
+                .tag = .@"Unresolved symbol",
                 .where = ref.symbol,
             });
             continue;

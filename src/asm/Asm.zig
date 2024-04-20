@@ -234,6 +234,10 @@ fn asmInstr(self: *Asm) !void {
                     .float = float_.tag.float,
                 };
             },
+            .pushs => {
+                const identifier = try self.expect(.identifier, "expected string identifier");
+                try self.str_patcher.reference(identifier.where, offset);
+            },
             .struct_load, .struct_store => {
                 const name = try self.expect(.identifier, "expected field identifier");
                 const id = try self.field_name_pool.getOrIntern(name.where);

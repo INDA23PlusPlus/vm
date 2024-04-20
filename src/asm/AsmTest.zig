@@ -42,7 +42,7 @@ test "duplicate label" {
         \\-end
     ;
 
-    try testCase(source, .@"Duplicate label or function", "label");
+    try testCase(source, .@"Duplicate symbol", "label");
 }
 
 test "duplicate function" {
@@ -55,7 +55,19 @@ test "duplicate function" {
         \\-end
     ;
 
-    try testCase(source, .@"Duplicate label or function", "main");
+    try testCase(source, .@"Duplicate symbol", "main");
+}
+
+test "duplicate string" {
+    const source =
+        \\-string $string "hej"
+        \\-string $string "nej"
+        \\-function $main
+        \\-begin
+        \\-end
+    ;
+
+    try testCase(source, .@"Duplicate symbol", "string");
 }
 
 test "unresolved label" {
@@ -66,7 +78,7 @@ test "unresolved label" {
         \\-end
     ;
 
-    try testCase(source, .@"Unresolved label or function", "label");
+    try testCase(source, .@"Unresolved symbol", "label");
 }
 
 test "unresolved function" {
@@ -77,7 +89,18 @@ test "unresolved function" {
         \\-end
     ;
 
-    try testCase(source, .@"Unresolved label or function", "func");
+    try testCase(source, .@"Unresolved symbol", "func");
+}
+
+test "unresolved string" {
+    const source =
+        \\-function $main
+        \\-begin
+        \\pushs $string
+        \\-end
+    ;
+
+    try testCase(source, .@"Unresolved symbol", "string");
 }
 
 test "invalid escape character" {
@@ -104,6 +127,7 @@ test "success" {
         \\push %0
         \\pushf @3.1415
         \\load %0
+        \\pushs $message
         \\struct_load $hello
         \\struct_store $goodbye
         \\add
