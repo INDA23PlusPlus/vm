@@ -661,7 +661,11 @@ test "recursive fibonacci" {
 
     try asm_.assemble();
     try assert(errors.items.len == 0);
-    try testRun(asm_.getProgram(), "", 55);
+
+    var program = try asm_.getProgram(std.testing.allocator);
+    defer program.deinit();
+
+    try testRun(program, "", 55);
 }
 
 test "hello world" {

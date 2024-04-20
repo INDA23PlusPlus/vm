@@ -104,12 +104,35 @@ pub fn assemble(self: *Asm) !void {
     }
 }
 
-pub fn getProgram(self: *Asm) Program {
+/// Copies relevant data and constructs a VM program.
+pub fn getProgram(self: *Asm, allocator: std.mem.Allocator) !Program {
+    const code = try allocator.dupe(Instruction, self.code.items);
+
+    // This assumes there were no assembler errors,
+    // i.e. the main funciton exists.
+    const entry = self.entry.?;
+
+    const string_buffer = try allocator.dupe(u8, self.string_pool.getContiguous());
+    var strings = std.ArrayList([]const u8).init(allocator);
+    // Don't 'defer strings.deinit()', we return items.
+
+    for (self.string_pool.entries.items) |e| {
+        try strings.append(string_buffer[e.begin..e.end]);
+    }
+
+    const field_names_buffer = try allocator.alloc(u8, 1);
+    const field_names: []const []const u8 = &.{};
+
     return .{
-        .code = self.code.items,
-        .entry = self.entry.?,
-        .strings = &.{}, // TODO: @Ludvig
-        .field_names = &.{}, // TODO: @Ludvig
+        .code = code,
+        .entry = entry,
+        .strings = strings.items,
+        .field_names = field_names,
+        .deinit_data = .{
+            .allocator = allocator,
+            .strings = string_buffer,
+            .field_names = field_names_buffer,
+        },
     };
 }
 
