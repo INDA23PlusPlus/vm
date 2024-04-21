@@ -73,12 +73,9 @@ pub const Opcode = enum(u8) {
         const arr = comptime blk: {
             // add instructions with operands here
             const instrs = [_]Opcode{
-                // zig fmt off
-                .jmp,         .jmpnz,        .push,        .pushf,     .pushs,      .load,
-                .store,       .call,         .list_alloc,  .list_load, .list_store, .struct_alloc,
-                .struct_load, .struct_store, .stack_alloc,
-                .syscall,
-                // zig fmt on
+                .jmp,         .jmpnz,   .push,      .pushf,      .pushs,       .load,
+                .store,       .call,    .list_load, .list_store, .struct_load, .struct_store,
+                .stack_alloc, .syscall,
             };
             var arr = std.EnumArray(Opcode, bool).initFill(false);
             for (instrs) |i| arr.set(i, true);
