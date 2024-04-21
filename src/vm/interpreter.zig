@@ -259,9 +259,9 @@ pub fn run(ctxt: *VMContext) !i64 {
             .cmp_le,
             .cmp_ge,
             => |op| {
-                var b = try pop(ctxt);
+                const b = try pop(ctxt);
                 defer drop(ctxt, b);
-                var a = try pop(ctxt);
+                const a = try pop(ctxt);
                 defer drop(ctxt, a);
 
                 const r = take(ctxt, try doBinaryOp(a, op, b));
@@ -282,9 +282,9 @@ pub fn run(ctxt: *VMContext) !i64 {
             .cmp_eq,
             .cmp_ne,
             => |op| {
-                var b = try pop(ctxt);
+                const b = try pop(ctxt);
                 defer drop(ctxt, b);
-                var a = try pop(ctxt);
+                const a = try pop(ctxt);
                 defer drop(ctxt, a);
 
                 const r = take(ctxt, Type.from(@intFromBool(switch (op) {
@@ -440,27 +440,27 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try push(ctxt, Type.from(mem.alloc_struct()));
             },
             .struct_store => {
-                var v = try pop(ctxt);
+                const v = try pop(ctxt);
                 defer drop(ctxt, v);
 
-                var f = i.operand.field_id;
-                var s = try pop(ctxt);
+                const f = i.operand.field_id;
+                const s = try pop(ctxt);
                 defer drop(ctxt, s);
 
                 try assert(s.is(.object));
 
-                var obj = s.asUnChecked(.object);
+                const obj = s.asUnChecked(.object);
                 try obj.set(f, v);
             },
             .struct_load => {
-                var f = i.operand.field_id;
+                const f = i.operand.field_id;
 
-                var s = try pop(ctxt);
+                const s = try pop(ctxt);
                 defer drop(ctxt, s);
 
                 try assert(s.is(.object));
 
-                var obj = s.asUnChecked(.object);
+                const obj = s.asUnChecked(.object);
 
                 var v = obj.get(f) orelse Type.from(Mem.APITypes.UnitType.init());
                 try push(ctxt, v);
