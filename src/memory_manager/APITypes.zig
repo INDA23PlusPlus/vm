@@ -86,8 +86,17 @@ const StringRef = struct {
 
 pub const UnitType = struct {
     const Self = @This();
+
     pub fn init() Self {
         return .{};
+    }
+
+    pub fn incr(self: *const Self) void {
+        _ = self;
+    }
+
+    pub fn decr(self: *const Self) void {
+        _ = self;
     }
 };
 
