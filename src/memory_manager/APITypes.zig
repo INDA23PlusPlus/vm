@@ -182,9 +182,12 @@ pub const Type = union(enum) {
         return @as(Tag, self.*);
     }
 
-    pub fn from(x: anytype) Self {
+    fn from_(x: anytype) Self {
         const T = @TypeOf(x);
 
+        if (T == Type) {
+            return x.clone();
+        }
         if (T == StringLit or T == StringRef) {
             var res = .{ .string = String.from(x) };
             res.string.incr();
@@ -203,6 +206,9 @@ pub const Type = union(enum) {
         if (T == UnitType) {
             return .{ .unit = x };
         }
+        if (T == void) {
+            return .{ .unit = .{} };
+        }
 
         return switch (@typeInfo(T)) {
             .Int, .ComptimeInt => .{ .int = @intCast(x) },
@@ -210,10 +216,25 @@ pub const Type = union(enum) {
             .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
 
             else => @compileError(std.fmt.comptimePrint(
-                "'{s}' not an int, float, Object, or List\n",
+                "'{s}' not convertible to Type\n",
                 .{@typeName(T)},
             )),
         };
+    }
+
+    pub fn from(x: anytype) Self {
+        switch (@typeInfo(@TypeOf(x))) {
+            .Optional => {
+                if (x == null) {
+                    return from_(void{});
+                } else {
+                    return from_(x.?);
+                }
+            },
+            else => {
+                return from_(x);
+            },
+        }
     }
 
     /// returns whether the active member of `self` is of type `T`
