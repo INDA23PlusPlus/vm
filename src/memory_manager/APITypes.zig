@@ -19,19 +19,19 @@ pub const ListRef = struct {
         _ = self.ref.refcount.decrement();
     }
 
-    pub fn length(self: *Self) usize {
+    pub fn length(self: *const Self) usize {
         return self.ref.items.items.len;
     }
 
-    pub fn get(self: *Self, index: usize) ?Type {
+    pub fn get(self: *const Self, index: usize) ?Type {
         return Type.fromInternal(&self.ref.items.items[index]);
     }
 
-    pub fn set(self: *Self, key: usize, value: Type) void {
+    pub fn set(self: *const Self, key: usize, value: Type) void {
         self.ref.items.items[key] = value.toInternal();
     }
 
-    pub fn push(self: *Self, value: Type) !void {
+    pub fn push(self: *const Self, value: Type) !void {
         try self.ref.items.append(value.toInternal());
     }
 };
@@ -48,7 +48,7 @@ pub const ObjectRef = struct {
         _ = self.ref.decr();
     }
 
-    pub fn get(self: *Self, key: usize) ?Type {
+    pub fn get(self: *const Self, key: usize) ?Type {
         var val = self.ref.map.get(key);
         if (val == null) {
             return null;
@@ -56,11 +56,11 @@ pub const ObjectRef = struct {
         return Type.fromInternal(&val.?);
     }
 
-    pub fn set(self: *Self, key: usize, value: Type) !void {
+    pub fn set(self: *const Self, key: usize, value: Type) !void {
         try self.ref.map.put(key, value.toInternal());
     }
 
-    pub fn keys(self: *Self) @TypeOf(self.ref.map.keyIterator()) {
+    pub fn keys(self: *const Self) @TypeOf(self.ref.map.keyIterator()) {
         return self.ref.map.keyIterator();
     }
 };
