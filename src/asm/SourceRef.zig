@@ -10,8 +10,14 @@ string: []const u8,
 line_num: usize,
 /// The line where the substring appears as a substring
 line: []const u8,
-/// The offset within the line where the substring appears
-offset: usize,
+/// The number of tabs preceding substring in line
+tabs: usize,
+/// The number of non-tab characters preceding substring in line
+non_tabs: usize,
+
+pub fn offset(self: Self) usize {
+    return self.tabs + self.non_tabs;
+}
 
 pub fn init(source: []const u8, substr: []const u8) !Self {
     var line_num: usize = 1;
@@ -30,24 +36,39 @@ pub fn init(source: []const u8, substr: []const u8) !Self {
         location += 1;
     }
 
-    const offset = location - line_begin;
+    const offset_ = location - line_begin;
 
     while (location < source.len and source[location] != '\n') {
         location += 1;
     }
 
     const line = source[line_begin..location];
+
+    var tabs: usize = 0;
+    var non_tabs: usize = 0;
+    for (line[0..offset_]) |c| {
+        if (c == '\t') {
+            tabs += 1;
+        } else {
+            non_tabs += 1;
+        }
+    }
+
     return .{
         .string = substr,
         .line_num = line_num,
         .line = line,
-        .offset = offset,
+        .tabs = tabs,
+        .non_tabs = non_tabs,
     };
 }
 
 pub fn print(self: Self, writer: anytype) !void {
     try writer.print("{s}\n", .{self.line});
-    for (0..self.offset) |_| {
+    for (0..self.tabs) |_| {
+        try writer.writeByte('\t');
+    }
+    for (0..self.non_tabs) |_| {
         try writer.writeByte(' ');
     }
     for (0..self.string.len) |_| {
