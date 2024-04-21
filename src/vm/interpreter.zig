@@ -436,6 +436,17 @@ pub fn run(ctxt: *VMContext) !i64 {
                     }
                 }
             },
+            .stack_alloc => {
+                const v = take(ctxt, Type.from(void{}));
+                defer drop(ctxt, v);
+
+                const n = i.operand.int;
+                try assert(n >= 0);
+
+                for (0..@as(usize, @intCast(n))) |_| {
+                    try push(ctxt, v);
+                }
+            },
             .struct_alloc => {
                 const s = mem.alloc_struct();
                 defer s.decr();
