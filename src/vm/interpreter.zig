@@ -437,7 +437,13 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
             },
             .struct_alloc => {
-                try push(ctxt, Type.from(mem.alloc_struct()));
+                const s = mem.alloc_struct();
+                defer s.decr();
+
+                const v = take(ctxt, Type.from(s));
+                defer drop(ctxt, v);
+
+                try push(ctxt, v);
             },
             .struct_store => {
                 const v = try pop(ctxt);
@@ -461,8 +467,9 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(s.is(.object));
 
                 const obj = s.asUnChecked(.object);
+                const v = take(ctxt, Type.from(obj.get(f)));
+                defer drop(ctxt, v);
 
-                var v = obj.get(f) orelse Type.from(Mem.APITypes.UnitType.init());
                 try push(ctxt, v);
             },
             else => std.debug.panic("unimplemented instruction {}\n", .{i}),
