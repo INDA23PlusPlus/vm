@@ -59,11 +59,11 @@ pub fn getHoverInfo(
             .range = .{
                 .start = .{
                     .line = @intCast(ref.line_num - 1),
-                    .character = @intCast(ref.offset()),
+                    .character = @intCast(ref.offset),
                 },
                 .end = .{
                     .line = @intCast(ref.line_num - 1),
-                    .character = @intCast(ref.offset() + ref.string.len),
+                    .character = @intCast(ref.offset + ref.string.len),
                 },
             },
         };

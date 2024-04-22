@@ -14,7 +14,7 @@ const put_related_in_separate_diagnostic = true;
 fn lspRangeFromSourceLocation(source: []const u8, where: []const u8) !lsp.Range {
     const ref = try asm_.SourceRef.init(source, where);
     const line = @as(i32, @intCast(ref.line_num - 1));
-    const character = @as(i32, @intCast(ref.offset()));
+    const character = @as(i32, @intCast(ref.offset));
     const length = @as(i32, @intCast(ref.string.len));
     return .{
         .start = .{ .line = line, .character = character },
