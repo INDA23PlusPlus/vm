@@ -10,7 +10,7 @@ pub const List = struct {
     // TODO Maybe use ArrayList
     items: std.ArrayList(Type),
 
-    refcount: RefCount = RefCount.init(), // stack references
+    refcount: RefCount = RefCount.init(), // all reference count
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{ .items = std.ArrayList(Type).init(allocator) };
@@ -58,7 +58,7 @@ pub const Object = struct {
     // TODO Maybe use AutoHashMapUnmanaged
     map: std.AutoHashMap(usize, Type),
 
-    refcount: RefCount = RefCount.init(), // stack references
+    refcount: RefCount = RefCount.init(), // all reference count
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{ .map = std.AutoHashMap(usize, Type).init(allocator) };
@@ -106,6 +106,6 @@ pub const Type = union(enum) {
     unit: @TypeOf(.{}),
     int: i64,
     float: f64,
-    list: List,
-    object: Object,
+    list: *List,
+    object: *Object,
 };

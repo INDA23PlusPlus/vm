@@ -119,8 +119,6 @@ pub fn get_object_count(self: *Self) usize {
     return self.allObjects.items.len + self.allLists.items.len;
 }
 
-// TODO: create test for this
-
 test "get and set to struct" {
     const Type = APITypes.Type;
     var memoryManager = try Self.init(std.testing.allocator);
@@ -197,4 +195,16 @@ test "gc pass keeps one object still in use and discards one unused" {
 
     try std.testing.expect(1 == memoryManager.get_object_count());
     try std.testing.expect(456 == objectRef1.get(123).?.int);
+}
+
+test "assign object to object" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectRef1 = memoryManager.alloc_struct();
+    var objectRef2 = memoryManager.alloc_struct();
+    try objectRef1.set(123, Type{ .int = 456 });
+    try objectRef2.set(123, Type{ .object = objectRef1 });
+    try std.testing.expect(2 == memoryManager.get_object_count());
 }

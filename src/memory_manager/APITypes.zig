@@ -12,11 +12,11 @@ pub const ListRef = struct {
     ref: *List,
 
     pub fn incr(self: *const Self) void {
-        _ = self.ref.refcount.increment();
+        _ = self.ref.incr();
     }
 
     pub fn decr(self: *const Self) void {
-        _ = self.ref.refcount.decrement();
+        _ = self.ref.decr();
     }
 
     pub fn length(self: *const Self) usize {
@@ -28,6 +28,25 @@ pub const ListRef = struct {
     }
 
     pub fn set(self: *const Self, key: usize, value: Type) void {
+        var old = self.ref.items.items[key];
+        // Decrement old count
+        switch (old) {
+            .object => |obj| {
+                obj.decr();
+            },
+            .list => |obj| {
+                obj.decr();
+            },
+        }
+        // Increment new count
+        switch (value) {
+            .object => |obj| {
+                obj.incr();
+            },
+            .list => |obj| {
+                obj.incr();
+            },
+        }
         self.ref.items.items[key] = value.toInternal();
     }
 
@@ -271,8 +290,8 @@ pub const Type = union(enum) {
     pub fn fromInternal(internal: *InternalType) Type {
         return switch (internal.*) {
             .unit => Type{ .unit = .{} },
-            .list => |*val| Type{ .list = ListRef{ .ref = val } },
-            .object => |*val| Type{ .object = ObjectRef{ .ref = val } },
+            .list => |val| Type{ .list = ListRef{ .ref = val } },
+            .object => |val| Type{ .object = ObjectRef{ .ref = val } },
             .int => Type{ .int = internal.int },
             .float => Type{ .float = internal.float },
         };
@@ -281,8 +300,8 @@ pub const Type = union(enum) {
     pub fn toInternal(self: Self) InternalType {
         return switch (self) {
             .unit => InternalType{ .unit = .{} },
-            .list => |*val| InternalType{ .list = val.ref.* },
-            .object => |*val| InternalType{ .object = val.ref.* },
+            .list => |*val| InternalType{ .list = val.ref },
+            .object => |*val| InternalType{ .object = val.ref },
             .int => InternalType{ .int = self.int },
             .float => InternalType{ .float = self.float },
             .string => @panic("unimplemented"),
