@@ -193,7 +193,7 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
             _ = try writer.write("[");
             for (0..len) |i| {
                 if (i > 0) _ = try writer.write(", ");
-                var tmp: Type = l.get(i).?;
+                var tmp: Type = l.get(i);
                 try printImpl(&tmp, ctxt);
             }
             _ = try writer.write("]");

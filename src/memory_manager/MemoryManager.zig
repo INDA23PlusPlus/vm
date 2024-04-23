@@ -145,7 +145,7 @@ test "get and set to list" {
     try listRef.push(Type{ .int = 123 });
 
     try std.testing.expect(1 == listRef.length());
-    try std.testing.expect(123 == listRef.get(0).?.int);
+    try std.testing.expect(123 == listRef.get(0).int);
 }
 
 test "run gc pass with empty memory manager" {
