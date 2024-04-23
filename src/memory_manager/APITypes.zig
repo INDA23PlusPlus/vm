@@ -5,7 +5,6 @@ const std = @import("std");
 const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
-const InternalType = types.Type;
 
 pub const ListRef = struct {
     const Self = @This();
@@ -23,8 +22,8 @@ pub const ListRef = struct {
         return self.ref.items.items.len;
     }
 
-    pub fn get(self: *const Self, index: usize) ?Type {
-        return Type.fromInternal(&self.ref.items.items[index]);
+    pub fn get(self: *const Self, index: usize) Type {
+        return self.ref.items.items[index];
     }
 
     pub fn set(self: *const Self, key: usize, value: Type) void {
@@ -51,7 +50,7 @@ pub const ListRef = struct {
     }
 
     pub fn push(self: *const Self, value: Type) !void {
-        try self.ref.items.append(value.toInternal());
+        try self.ref.items.append(value);
     }
 };
 
@@ -72,11 +71,11 @@ pub const ObjectRef = struct {
         if (val == null) {
             return null;
         }
-        return Type.fromInternal(&val.?);
+        return val;
     }
 
     pub fn set(self: *const Self, key: usize, value: Type) !void {
-        try self.ref.map.put(key, value.toInternal());
+        try self.ref.map.put(key, value);
     }
 
     pub fn keys(self: *const Self) @TypeOf(self.ref.map.keyIterator()) {
@@ -286,27 +285,6 @@ pub const Type = union(enum) {
             .object => |c| if (T == .object) c else unreachable,
         };
     }
-
-    pub fn fromInternal(internal: *InternalType) Type {
-        return switch (internal.*) {
-            .unit => Type{ .unit = .{} },
-            .list => |val| Type{ .list = ListRef{ .ref = val } },
-            .object => |val| Type{ .object = ObjectRef{ .ref = val } },
-            .int => Type{ .int = internal.int },
-            .float => Type{ .float = internal.float },
-        };
-    }
-
-    pub fn toInternal(self: Self) InternalType {
-        return switch (self) {
-            .unit => InternalType{ .unit = .{} },
-            .list => |*val| InternalType{ .list = val.ref },
-            .object => |*val| InternalType{ .object = val.ref },
-            .int => InternalType{ .int = self.int },
-            .float => InternalType{ .float = self.float },
-            .string => @panic("unimplemented"),
-        };
-    }
 };
 
 test "casting" {
@@ -326,10 +304,4 @@ test "casting" {
         UnitType.init(),
         Type.from(UnitType.init()).as(.unit),
     );
-
-    {
-        var t = Type.from(0);
-        var internal = Type.toInternal(t);
-        try std.testing.expectEqual(t.as(.int), Type.fromInternal(&internal).as(.int));
-    }
 }

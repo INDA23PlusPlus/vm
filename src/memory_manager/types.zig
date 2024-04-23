@@ -3,24 +3,25 @@
 //!
 
 const RefCount = @import("RefCount.zig");
+const APITypes = @import("APITypes.zig");
 const std = @import("std");
 
 pub const List = struct {
     const Self = @This();
     // TODO Maybe use ArrayList
-    items: std.ArrayList(Type),
+    items: std.ArrayList(APITypes.Type),
 
     refcount: RefCount = RefCount.init(), // all reference count
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        return .{ .items = std.ArrayList(Type).init(allocator) };
+        return .{ .items = std.ArrayList(APITypes.Type).init(allocator) };
     }
 
     pub fn deinit_data(self: *Self) void {
         for (self.items.items) |*item| {
             switch (item.*) {
-                Type.list => item.list.decr(),
-                Type.object => item.object.decr(),
+                APITypes.Type.list => item.list.decr(),
+                APITypes.Type.object => item.object.decr(),
                 else => {},
             }
         }
@@ -56,20 +57,20 @@ pub const List = struct {
 pub const Object = struct {
     const Self = @This();
     // TODO Maybe use AutoHashMapUnmanaged
-    map: std.AutoHashMap(usize, Type),
+    map: std.AutoHashMap(usize, APITypes.Type),
 
     refcount: RefCount = RefCount.init(), // all reference count
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        return .{ .map = std.AutoHashMap(usize, Type).init(allocator) };
+        return .{ .map = std.AutoHashMap(usize, APITypes.Type).init(allocator) };
     }
 
     pub fn deinit_data(self: *Self) void {
         var it = self.map.valueIterator();
         while (it.next()) |val| {
             switch (val.*) {
-                Type.list => val.list.decr(),
-                Type.object => val.object.decr(),
+                APITypes.Type.list => val.list.decr(),
+                APITypes.Type.object => val.object.decr(),
                 else => {},
             }
         }
@@ -100,12 +101,4 @@ pub const Object = struct {
             self.deinit_data();
         }
     }
-};
-
-pub const Type = union(enum) {
-    unit: @TypeOf(.{}),
-    int: i64,
-    float: f64,
-    list: *List,
-    object: *Object,
 };
