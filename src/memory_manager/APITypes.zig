@@ -8,14 +8,47 @@ const List = types.List;
 
 pub const ListRef = struct {
     const Self = @This();
-    ref: *List,
+    ref: *List = null,
+
+    // Initialize the list, refcount is 1
+    pub fn init(allocator: std.mem.Allocator) Self {
+        var list = try allocator.create(List);
+        list.init(allocator);
+        return .{ .ref = list };
+    }
+
+    // Copy the reference to the list, incrementing the reference count
+    pub fn copy(self: *const Self) Self {
+        self.incr();
+        return .{ .ref = self.ref };
+    }
+
+    // Assign a new reference to the list, decrementing the reference count of the old list
+    // and incrementing the reference count of the new list
+    pub fn assign(self: *const Self, other: Self) void {
+        // It is important to increment the reference count of the new list before decrementing the old list
+        // Otherwise the refcount could reach 0 and the object could be deallocated if other is the same as self
+        other.incr();
+        self.decr();
+        self.ref = other.ref;
+    }
+
+    // Deinitialize the list, decrementing the reference count
+    pub fn deinit(self: *const Self) void {
+        self.decr();
+        self.ref = null;
+    }
 
     pub fn incr(self: *const Self) void {
-        _ = self.ref.incr();
+        if (self.ref != null) {
+            _ = self.ref.incr();
+        }
     }
 
     pub fn decr(self: *const Self) void {
-        _ = self.ref.decr();
+        if (self.ref != null) {
+            _ = self.ref.decr();
+        }
     }
 
     pub fn length(self: *const Self) usize {
@@ -56,14 +89,48 @@ pub const ListRef = struct {
 
 pub const ObjectRef = struct {
     const Self = @This();
-    ref: *Object,
+    ref: *Object = null,
+
+    // Initialize the list, refcount is 1
+    pub fn init(allocator: std.mem.Allocator) Self {
+        var obj = try allocator.create(Object);
+        obj.init(allocator);
+        return .{ .ref = obj };
+    }
+
+    // Copy the reference to the list, incrementing the reference count
+    pub fn copy(self: *const Self) Self {
+        self.incr();
+        return .{ .ref = self.ref };
+    }
+
+    // Assign a new reference to the list, decrementing the reference count of the old list
+    // and incrementing the reference count of the new list
+    pub fn assign(self: *const Self, other: Self) void {
+
+        // It is important to increment the reference count of the new list before decrementing the old list
+        // Otherwise the refcount could reach 0 and the object could be deallocated if other is the same as self
+        other.incr();
+        self.decr();
+        self.ref = other.ref;
+    }
+
+    // Deinitialize list, decrementing the reference count
+    pub fn deinit(self: *const Self) void {
+        self.decr();
+        self.ref = null;
+    }
 
     pub fn incr(self: *const Self) void {
-        _ = self.ref.incr();
+        if (self.ref != null) {
+            _ = self.ref.incr();
+        }
     }
 
     pub fn decr(self: *const Self) void {
-        _ = self.ref.decr();
+        if (self.ref != null) {
+            _ = self.ref.decr();
+        }
     }
 
     pub fn get(self: *const Self, key: usize) ?Type {
