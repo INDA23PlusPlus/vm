@@ -227,20 +227,82 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
 }
 
 test {
-    const program = Program{
-        .code = &.{},
-        .entry = 0,
-        .strings = &.{},
-        .field_names = &.{},
-        .deinit_data = .{
-            .allocator = std.testing.allocator,
-            .strings = &.{},
-            .field_names = &.{},
-        },
-    };
+    const testing = std.testing;
+    const fs = std.fs;
+    const asm_ = @import("asm");
+    const AsmError = asm_.Error;
+    const Asm = asm_.Asm;
+    const vm = @import("vm");
+    const VMContext = vm.VMContext;
+    const interpreter = vm.interpreter;
 
-    var output = ArrayList(u8).init(std.testing.allocator);
-    defer output.deinit();
+    const source =
+        \\-string $hello "Hello"
+        \\-string $good-bye "Good bye"
+        \\
+        \\-function $main
+        \\-begin
+        \\    pushs $hello
+        \\    syscall %0
+        \\    struct_alloc
+        \\    dup
+        \\    push %1
+        \\    struct_store $x
+        \\    dup
+        \\    push %2
+        \\    struct_store $y
+        \\    syscall %0
+        \\    pushs $good-bye
+        \\    syscall %0
+        \\    push %0
+        \\    ret
+        \\-end
+    ;
 
-    try emit(output.writer(), program);
+    const expected_output =
+        \\Hello
+        \\{x: 1, y: 2}
+        \\Good bye
+        \\
+    ;
+
+    var errors = ArrayList(AsmError).init(testing.allocator);
+    defer errors.deinit();
+
+    var assembler = Asm.init(source, testing.allocator, &errors);
+    defer assembler.deinit();
+
+    try assembler.assemble();
+    try testing.expectEqual(@as(usize, 0), errors.items.len);
+
+    {
+        var program = try assembler.getProgram(testing.allocator);
+        defer program.deinit();
+
+        var output = try fs.cwd().createFile(".binary.test.vbf", .{});
+        defer output.close();
+
+        try emit(output.writer(), program);
+    }
+
+    var input = try fs.cwd().openFile(".binary.test.vbf", .{});
+    defer {
+        input.close();
+        fs.cwd().deleteFile(".binary.test.vbf") catch unreachable;
+    }
+
+    var program = try load(input.reader(), testing.allocator);
+    defer program.deinit();
+
+    var output_buffer = ArrayList(u8).init(testing.allocator);
+    defer output_buffer.deinit();
+
+    const output_writer = output_buffer.writer();
+
+    var context = VMContext.init(program, testing.allocator, &output_writer, false);
+    defer context.deinit();
+
+    try testing.expectEqual(@as(i64, 0), try interpreter.run(&context));
+
+    try testing.expectEqualSlices(u8, expected_output, output_buffer.items);
 }
