@@ -49,8 +49,14 @@ pub const List = struct {
 
         // If this was the last reference, deinit the data
         if (old_count == 1) {
-            self.deinit_data();
+            self.deinit();
         }
+    }
+
+    // Deinitialize the object, this is called when the reference count reaches 0
+    fn deinit(self: *Self) void {
+        self.deinit_data();
+        self.deinit_refcount();
     }
 };
 
@@ -98,7 +104,13 @@ pub const Object = struct {
 
         // If this was the last reference, deinit the data
         if (old_count == 1) {
-            self.deinit_data();
+            self.deinit();
         }
+    }
+
+    // Deinitialize the object, this is called when the reference count reaches 0
+    fn deinit(self: *Self) void {
+        self.deinit_data();
+        self.deinit_refcount();
     }
 };
