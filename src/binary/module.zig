@@ -9,7 +9,7 @@ const meta = std.meta;
 const leb = std.leb;
 const arch = @import("arch");
 const Program = arch.Program;
-const Opcode = arch.opcode.Opcode;
+const Opcode = arch.Opcode;
 const Instruction = arch.Instruction;
 
 const Error = error{
@@ -49,13 +49,13 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
     );
 
     var code = try allocator.alloc(Instruction, header.code_size);
-    for (code) |instruction| {
+    for (code) |*instruction| {
         instruction.* = try loadInstruction(reader);
     }
 
     return .{
         .code = code,
-        .entry = header.entry,
+        .entry = header.entry_point,
         .strings = string_table.entries,
         .field_names = field_table.entries,
         .deinit_data = .{
@@ -69,7 +69,6 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
 pub fn emit(writer: anytype, program: Program) !void {
     const deinit_data = program.deinit_data orelse return Error.NonContigousDataSegments;
 
-    try writer.writeAll("VeMd");
     const header = Header{
         .string_table_size = program.strings.len,
         .string_data_size = deinit_data.strings.len,
@@ -100,7 +99,7 @@ pub fn emit(writer: anytype, program: Program) !void {
 }
 
 fn loadHeader(reader: anytype) !Header {
-    if (try !reader.isBytes("VeMd")) return Error.InvalidFileID;
+    if (!(try reader.isBytes("VeMd"))) return Error.InvalidFileID;
     return .{
         .string_table_size = try reader.readIntLittle(u64),
         .string_data_size = try reader.readIntLittle(u64),
@@ -161,7 +160,7 @@ fn emitTable(
 }
 
 fn loadInstruction(reader: anytype) !Instruction {
-    const opcode = meta.intToEnum(Opcode, try reader.readByte());
+    const opcode = try meta.intToEnum(Opcode, try reader.readByte());
 
     const Operand = @TypeOf(@as(Instruction, undefined).operand);
     const operand: Operand = switch (opcode) {
