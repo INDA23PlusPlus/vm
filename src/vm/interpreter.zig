@@ -240,8 +240,9 @@ pub fn run(ctxt: *VMContext) !i64 {
     var mem = try Mem.MemoryManager.init(ctxt.alloc);
     defer mem.deinit();
     while (true) {
-        if (ctxt.pc >= ctxt.prog.code.len)
+        if (ctxt.pc >= ctxt.prog.code.len) {
             return error.InvalidProgramCounter;
+        }
         const i = ctxt.prog.code[ctxt.pc];
         if (ctxt.debug_output) {
             std.debug.print("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(i.op), ctxt.stack.items.len, ctxt.bp });
@@ -532,8 +533,9 @@ fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) 
     const b = try replaceWhiteSpace(output_stream.getWritten(), std.testing.allocator);
     defer std.testing.allocator.free(b);
 
-    if (!std.mem.eql(u8, a, b))
+    if (!std.mem.eql(u8, a, b)) {
         std.debug.print("{s} {s} {s} {s}\n", .{ a, b, expected_output, output_stream.getWritten() });
+    }
     try std.testing.expect(std.mem.eql(u8, a, b));
 }
 
@@ -571,7 +573,6 @@ test "structs" {
         Instruction.ret(),
     }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
 
-    // TODO: fix alignement issue
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
         Instruction.dup(),
