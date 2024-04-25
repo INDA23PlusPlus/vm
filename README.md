@@ -37,9 +37,8 @@ To view all options, run
 vemod -h
 ```
 
-Syntax and instruction reference for VeMod assembly can be found in the [docs]
-(docs/) directory. Code samples can be found in the [examples](examples/)
-directory.
+Syntax and instruction reference for VeMod assembly can be found in the [docs](docs/)
+directory. Code samples can be found in the [examples](examples/) directory.
 
 ## Language server
 The VeMod language server (vmdls) can be installed with the command
