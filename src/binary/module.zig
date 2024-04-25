@@ -170,7 +170,6 @@ fn loadInstruction(reader: anytype) !Instruction {
         .jmp,
         .jmpnz,
         .call,
-        .stack_alloc,
         .list_load,
         .list_store,
         => .{ .location = try leb.readULEB128(u64, reader) },
@@ -183,6 +182,7 @@ fn loadInstruction(reader: anytype) !Instruction {
         .load,
         .store,
         .syscall,
+        .stack_alloc,
         => .{ .int = try leb.readILEB128(i64, reader) },
 
         else => .{ .none = void{} },
@@ -207,7 +207,6 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
         .jmp,
         .jmpnz,
         .call,
-        .stack_alloc,
         .list_load,
         .list_store,
         => try leb.writeULEB128(writer, operand.location),
@@ -220,6 +219,7 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
         .load,
         .store,
         .syscall,
+        .stack_alloc,
         => try leb.writeILEB128(writer, operand.int),
 
         else => {},
