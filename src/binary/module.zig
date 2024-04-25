@@ -164,7 +164,7 @@ fn loadInstruction(reader: anytype) !Instruction {
 
     const Operand = @TypeOf(@as(Instruction, undefined).operand);
     const operand: Operand = switch (opcode) {
-        .pushf => std.debug.panic("Haven't figured out floats yet...", .{}),
+        .pushf => .{ .float = try loadFloat(reader) },
 
         .pushs,
         .jmp,
@@ -201,7 +201,7 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
     const operand = instruction.operand;
 
     switch (instruction.op) {
-        .pushf => std.debug.panic("Haven't figured out floats yet...", .{}),
+        .pushf => try emitFloat(writer, operand.float),
 
         .pushs,
         .jmp,
@@ -224,6 +224,16 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
 
         else => {},
     }
+}
+
+fn loadFloat(reader: anytype) !f64 {
+    const int = try reader.readIntLittle(u64);
+    return @bitCast(int);
+}
+
+fn emitFloat(writer: anytype, f: f64) !void {
+    const int: u64 = @bitCast(f);
+    try writer.writeIntLittle(u64, int);
 }
 
 test {
@@ -249,7 +259,7 @@ test {
         \\    push %1
         \\    struct_store $x
         \\    dup
-        \\    push %2
+        \\    pushf @3.14
         \\    struct_store $y
         \\    syscall %0
         \\    pushs $good-bye
@@ -261,7 +271,7 @@ test {
 
     const expected_output =
         \\Hello
-        \\{x: 1, y: 2}
+        \\{x: 1, y: 3.14}
         \\Good bye
         \\
     ;
