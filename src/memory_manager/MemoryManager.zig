@@ -27,14 +27,18 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 pub fn deinit(self: *Self) void {
     for (self.allObjects.items) |value| {
         if (value.refs.get_refcount() > 0) {
-            value.deinit_data();
+            // Deinit map directly, because all children will
+            // eventually be deinit'ed by this loop.
+            value.map.deinit();
         }
         value.refs.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
     for (self.allLists.items) |value| {
         if (value.refs.get_refcount() > 0) {
-            value.deinit_data();
+            // Deinit list directly, because all children will
+            // eventually be deinit'ed by this loop.
+            value.items.deinit();
         }
         value.refs.deinit_refcount_unchecked();
         self.allocator.destroy(value);
@@ -226,4 +230,21 @@ test "object in object, drop parent, keep child" {
     try std.testing.expect(1 == memoryManager.get_object_count());
 
     try std.testing.expect(456 == objectA.get(123).?.int);
+}
+
+test "object in object, drop child from stack, gc, both stay" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectA = memoryManager.alloc_struct(); // A
+    var objectB = memoryManager.alloc_struct(); // B
+    try objectA.set(123, Type{ .int = 456 }); // A[123] = 456
+    try objectB.set(123, Type{ .object = objectA }); // B[123] = A
+    try std.testing.expect(2 == memoryManager.get_object_count());
+
+    // Drop object A from stack. It should still be kept since it is alive as a child of object B.
+    objectA.decr();
+    try memoryManager.gc_pass();
+    try std.testing.expect(2 == memoryManager.get_object_count());
 }
