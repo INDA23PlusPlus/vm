@@ -568,15 +568,14 @@ test "structs" {
     }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
 
     // TODO: fix alignement issue
-    // try testRun(Program.init(&.{
-    //     Instruction.structAlloc(),
-    //     Instruction.dup(),
-    //     Instruction.push(0),
-    //     Instruction.structAlloc(),
-    //     Instruction.structStore(),
-    //     Instruction.syscall(0),
-    //     Instruction.push(0),
-    // }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.dup(),
+        Instruction.structAlloc(),
+        Instruction.structStore(0),
+        Instruction.syscall(0),
+        Instruction.push(0),
+    }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
 }
 
 test "arithmetic" {

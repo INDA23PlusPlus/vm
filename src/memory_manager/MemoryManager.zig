@@ -26,12 +26,16 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 
 pub fn deinit(self: *Self) void {
     for (self.allObjects.items) |value| {
-        value.deinit_data();
+        if (value.get_refcount() > 0) {
+            value.deinit_data();
+        }
         value.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
     for (self.allLists.items) |value| {
-        value.deinit_data();
+        if (value.get_refcount() > 0) {
+            value.deinit_data();
+        }
         value.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
