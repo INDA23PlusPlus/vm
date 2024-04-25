@@ -104,28 +104,28 @@ pub fn build(b: *std.Build) void {
     //
     // Language server
     //
-    const langserver_mod = b.addModule(
-        "langserver",
-        .{ .source_file = .{ .path = "src/langserver/module.zig" } },
+    const vmdls_mod = b.addModule(
+        "vmdls",
+        .{ .source_file = .{ .path = "src/vmdls/module.zig" } },
     );
 
-    const langserver = b.addExecutable(.{
+    const vmdls = b.addExecutable(.{
         .name = "mclls",
-        .root_source_file = .{ .path = "src/langserver/main.zig" },
+        .root_source_file = .{ .path = "src/vmdls/main.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    const langserver_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/langserver/module.zig" },
+    const vmdls_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/vmdls/module.zig" },
         .target = target,
         .optimize = optimize,
     });
-    const langserver_run_tests = b.addRunArtifact(langserver_tests);
+    const vmdls_run_tests = b.addRunArtifact(vmdls_tests);
 
-    const build_langserver = b.step("langserver", "Build the language server");
-    const install_langserver = b.addInstallArtifact(langserver, .{});
-    build_langserver.dependOn(&install_langserver.step);
+    const build_vmdls = b.step("vmdls", "Build the VeMod language server");
+    const install_vmdls = b.addInstallArtifact(vmdls, .{});
+    build_vmdls.dependOn(&install_vmdls.step);
 
     //
     // Binary format deserializer & serializer.
@@ -162,9 +162,9 @@ pub fn build(b: *std.Build) void {
     assembler.addModule("vm", vm_mod);
     vm.addModule("memory_manager", memory_manager_mod);
     vm.addModule("arch", arch_mod);
-    langserver.addModule("compiler", compiler_mod);
-    langserver.addModule("asm", assembler_mod);
-    langserver.addModule("arch", arch_mod);
+    vmdls.addModule("compiler", compiler_mod);
+    vmdls.addModule("asm", assembler_mod);
+    vmdls.addModule("arch", arch_mod);
     vemod.addModule("arch", arch_mod);
     vemod.addModule("vm", vm_mod);
     vemod.addModule("asm", assembler_mod);
@@ -194,14 +194,14 @@ pub fn build(b: *std.Build) void {
     //
     // Unused modules
     //
-    _ = .{ compiler_mod, langserver_mod, binary_mod };
+    _ = .{ compiler_mod, vmdls_mod, binary_mod };
 
     //
     // Default build step
     //
     b.installArtifact(assembler);
     b.installArtifact(vm);
-    b.installArtifact(langserver);
+    b.installArtifact(vmdls);
     b.installArtifact(vemod);
 
     //
@@ -213,7 +213,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&compiler_run_tests.step);
     test_step.dependOn(&memory_manager_run_tests.step);
     test_step.dependOn(&vm_run_tests.step);
-    test_step.dependOn(&langserver_run_tests.step);
+    test_step.dependOn(&vmdls_run_tests.step);
     test_step.dependOn(&binary_run_tests.step);
 
     //

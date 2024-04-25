@@ -1,6 +1,5 @@
-[language-server.mclls]
-# Calls wrapper script to redirect log
-command = "./mclls.sh"
+[language-server.vmdls]
+command = "vmdls"
 
 [[language]]
 name = "Melancolang"
@@ -8,7 +7,7 @@ scope = "source.mcl"
 roots = []
 language-id = "mcl"
 file-types = ["mcl"]
-language-servers = ["mclls"]
+language-servers = ["vmdls"]
 
 [[language]]
 name = "VeMod"
@@ -17,4 +16,4 @@ roots = []
 comment-token = "#"
 language-id = "vmd"
 file-types = ["vmd"]
-language-servers = ["mclls"]
+language-servers = ["vmdls"]

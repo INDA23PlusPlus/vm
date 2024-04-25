@@ -10,7 +10,7 @@ const utils = @import("utils.zig");
 const json_rpc = @import("json_rpc.zig");
 const json = std.json;
 
-const server_name = "mclls";
+const server_name = "vmdls";
 
 pub const Method = enum {
     initialize,
