@@ -163,7 +163,7 @@ test "gc pass removes one unused object" {
 
     try std.testing.expect(1 == memoryManager.get_object_count());
 
-    objectRef.decr();
+    objectRef.deinit();
     try memoryManager.gc_pass();
 
     try std.testing.expect(0 == memoryManager.get_object_count());
@@ -194,7 +194,7 @@ test "gc pass keeps one object still in use and discards one unused" {
 
     try std.testing.expect(2 == memoryManager.get_object_count());
 
-    objectRef2.decr();
+    objectRef2.deinit();
     try memoryManager.gc_pass();
 
     try std.testing.expect(1 == memoryManager.get_object_count());

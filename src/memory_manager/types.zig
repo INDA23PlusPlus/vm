@@ -20,8 +20,8 @@ pub const List = struct {
     pub fn deinit_data(self: *Self) void {
         for (self.items.items) |*item| {
             switch (item.*) {
-                APITypes.Type.list => item.list.decr(),
-                APITypes.Type.object => item.object.decr(),
+                APITypes.Type.list => item.list.deinit(),
+                APITypes.Type.object => item.object.deinit(),
                 else => {},
             }
         }
@@ -75,8 +75,8 @@ pub const Object = struct {
         var it = self.map.valueIterator();
         while (it.next()) |val| {
             switch (val.*) {
-                APITypes.Type.list => val.list.decr(),
-                APITypes.Type.object => val.object.decr(),
+                APITypes.Type.list => val.list.deinit(),
+                APITypes.Type.object => val.object.deinit(),
                 else => {},
             }
         }
