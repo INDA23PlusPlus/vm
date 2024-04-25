@@ -110,7 +110,7 @@ pub fn build(b: *std.Build) void {
     );
 
     const vmdls = b.addExecutable(.{
-        .name = "mclls",
+        .name = "vmdls",
         .root_source_file = .{ .path = "src/vmdls/main.zig" },
         .target = target,
         .optimize = optimize,
