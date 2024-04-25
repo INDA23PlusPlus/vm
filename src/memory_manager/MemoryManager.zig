@@ -44,39 +44,32 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn alloc_struct(self: *Self) ObjectRef {
-    var obj = self.allocator.create(Object) catch |e| {
+    var objRef = ObjectRef.init(self.allocator) catch |e| {
         // TODO handle error, try gc then try again
         std.debug.panic("out of memory {}", .{e});
     };
-    obj.* = Object.init(self.allocator);
 
-    self.allObjects.append(self.allocator, obj) catch |e| {
+    self.allObjects.append(self.allocator, objRef.ref) catch |e| {
         // TODO handle error, try gc then try again
-        obj.deinit_data();
-        obj.deinit_refcount();
-        self.allocator.destroy(obj);
+        objRef.deinit();
         std.debug.panic("out of memory {}", .{e});
     };
 
-    return ObjectRef{ .ref = obj };
+    return objRef;
 }
 
 pub fn alloc_list(self: *Self) ListRef {
-    var list = self.allocator.create(List) catch |e| {
+    var listRef = ListRef.init(self.allocator) catch |e| {
         // TODO handle error, try gc then try again
         std.debug.panic("out of memory {}", .{e});
     };
 
-    list.* = List.init(self.allocator);
-
-    self.allLists.append(self.allocator, list) catch |e| {
+    self.allLists.append(self.allocator, listRef.ref) catch |e| {
         // TODO handle error, try gc then try again
-        list.deinit_data();
-        list.deinit_refcount();
-        self.allocator.destroy(list);
+        listRef.deinit();
         std.debug.panic("out of memory {}", .{e});
     };
-    return ListRef{ .ref = list };
+    return listRef;
 }
 
 pub fn gc_pass(self: *Self) !void {

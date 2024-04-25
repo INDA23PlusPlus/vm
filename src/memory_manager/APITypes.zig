@@ -11,9 +11,9 @@ pub const ListRef = struct {
     ref: *List,
 
     // Initialize the list, refcount is 1
-    pub fn init(allocator: std.mem.Allocator) Self {
-        var list = try allocator.create(List);
-        list.init(allocator);
+    pub fn init(allocator: std.mem.Allocator) !Self {
+        const list = try allocator.create(List);
+        list.* = List.init(allocator);
         return .{ .ref = list };
     }
 
@@ -89,9 +89,9 @@ pub const ObjectRef = struct {
     ref: *Object,
 
     // Initialize the list, refcount is 1
-    pub fn init(allocator: std.mem.Allocator) Self {
-        var obj = try allocator.create(Object);
-        obj.init(allocator);
+    pub fn init(allocator: std.mem.Allocator) !Self {
+        const obj = try allocator.create(Object);
+        obj.* = Object.init(allocator);
         return .{ .ref = obj };
     }
 
