@@ -13,7 +13,7 @@ help: bool = false,
 pub fn usage(writer: anytype) !void {
     try writer.print(
         \\Usage:
-        \\    mclls <options>
+        \\    vmdls <options>
         \\
         \\Options:
         \\    --quiet                 Suppress log output.
