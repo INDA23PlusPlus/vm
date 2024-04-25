@@ -142,6 +142,20 @@ pub fn build(b: *std.Build) void {
     const binary_run_tests = b.addRunArtifact(binary_tests);
 
     //
+    // Main executable
+    //
+    const vemod = b.addExecutable(.{
+        .name = "vemod",
+        .root_source_file = .{ .path = "src/vemod/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const build_vemod = b.step("vemod", "Build the main VeMod executable");
+    const install_vemod = b.addInstallArtifact(vemod, .{});
+    build_vemod.dependOn(&install_vemod.step);
+
+    //
     // Executable dependencies
     //
     assembler.addModule("arch", arch_mod);
@@ -151,6 +165,10 @@ pub fn build(b: *std.Build) void {
     langserver.addModule("compiler", compiler_mod);
     langserver.addModule("asm", assembler_mod);
     langserver.addModule("arch", arch_mod);
+    vemod.addModule("arch", arch_mod);
+    vemod.addModule("vm", vm_mod);
+    vemod.addModule("asm", assembler_mod);
+    vemod.addModule("binary", binary_mod);
 
     //
     // Module-module dependencies
@@ -184,6 +202,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(assembler);
     b.installArtifact(vm);
     b.installArtifact(langserver);
+    b.installArtifact(vemod);
 
     //
     // Test step
