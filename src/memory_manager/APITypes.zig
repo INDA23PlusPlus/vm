@@ -39,13 +39,15 @@ pub const ListRef = struct {
         self.ref = null;
     }
 
-    pub fn incr(self: *const Self) void {
+    // Increment the reference count, called when a new reference is created (e.g. copy)
+    fn incr(self: *const Self) void {
         if (self.ref != null) {
             _ = self.ref.incr();
         }
     }
 
-    pub fn decr(self: *const Self) void {
+    // Decrement the reference count, called when a reference is destroyed (e.g. deinit)
+    fn decr(self: *const Self) void {
         if (self.ref != null) {
             _ = self.ref.decr();
         }
@@ -121,13 +123,15 @@ pub const ObjectRef = struct {
         self.ref = null;
     }
 
-    pub fn incr(self: *const Self) void {
+    // Increment the reference count, called when a new reference is created (e.g. copy)
+    fn incr(self: *const Self) void {
         if (self.ref != null) {
             _ = self.ref.incr();
         }
     }
 
-    pub fn decr(self: *const Self) void {
+    // Decrement the reference count, called when a reference is destroyed (e.g. deinit)
+    fn decr(self: *const Self) void {
         if (self.ref != null) {
             _ = self.ref.decr();
         }
