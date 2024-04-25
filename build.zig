@@ -215,4 +215,16 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&vm_run_tests.step);
     test_step.dependOn(&langserver_run_tests.step);
     test_step.dependOn(&binary_run_tests.step);
+
+    //
+    // Run step for compiler driver
+    //
+    const run_cmd = b.addRunArtifact(vemod);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+
+    const run_step = b.step("run", "run compiler driver");
+    run_step.dependOn(&run_cmd.step);
 }
