@@ -239,9 +239,10 @@ fn print(x: *Type, ctxt: *VMContext) !void {
 pub fn run(ctxt: *VMContext) !i64 {
     var mem = try Mem.MemoryManager.init(ctxt.alloc);
     defer mem.deinit();
-    while (ctxt.pc < ctxt.prog.code.len) {
+    while (true) {
+        if (ctxt.pc >= ctxt.prog.code.len)
+            return error.InvalidProgramCounter;
         const i = ctxt.prog.code[ctxt.pc];
-
         if (ctxt.debug_output) {
             std.debug.print("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(i.op), ctxt.stack.items.len, ctxt.bp });
         }
@@ -544,6 +545,7 @@ test "structs" {
         Instruction.push(42),
         Instruction.structStore(0),
         Instruction.structLoad(0),
+        Instruction.ret(),
     }, 0, &.{}, &.{}), "", 42);
 
     try testRun(Program.init(&.{
@@ -553,6 +555,7 @@ test "structs" {
         Instruction.structStore(0),
         Instruction.syscall(0),
         Instruction.push(0),
+        Instruction.ret(),
     }, 0, &.{}, &.{"a"}), "{a: 42}", 0);
 
     try testRun(Program.init(&.{
@@ -565,6 +568,7 @@ test "structs" {
         Instruction.structStore(1),
         Instruction.syscall(0),
         Instruction.push(0),
+        Instruction.ret(),
     }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
 
     // TODO: fix alignement issue
@@ -575,6 +579,7 @@ test "structs" {
         Instruction.structStore(0),
         Instruction.syscall(0),
         Instruction.push(0),
+        Instruction.ret(),
     }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
 }
 
@@ -608,6 +613,7 @@ test "arithmetic" {
                             Instruction.push(lhs),
                             Instruction.push(rhs),
                             Instruction{ .op = op },
+                            Instruction.ret(),
                         }, 0, &.{}, &.{}),
                         "",
                         res,
@@ -635,6 +641,7 @@ test "arithmetic" {
             Instruction.push(0),
             Instruction.dup(),
             Instruction.pop(),
+            Instruction.ret(),
         }, 0, &.{}, &.{}),
         "",
         0,
@@ -648,6 +655,7 @@ test "arithmetic" {
             Instruction.sub(),
             Instruction.dup(),
             Instruction.jmpnz(1),
+            Instruction.ret(),
         }, 0, &.{}, &.{}),
         "",
         0,
@@ -710,6 +718,7 @@ test "fibonacci" {
         Instruction.pop(),
         Instruction.pop(),
         Instruction.push(0),
+        Instruction.ret(),
     }, 0, &.{}, &.{}),
         \\0
         \\1
@@ -783,6 +792,7 @@ test "hello world" {
         Instruction.pushs(0),
         Instruction.syscall(0),
         Instruction.push(0),
+        Instruction.ret(),
     }, 0, &.{"Hello World!"}, &.{}), "Hello World!", 0);
 }
 
@@ -791,11 +801,13 @@ test "string compare" {
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.equal(),
+        Instruction.ret(),
     }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.equal(),
+        Instruction.ret(),
     }, 0, &.{ "bar", "baz" }, &.{}), "", 0);
 }
