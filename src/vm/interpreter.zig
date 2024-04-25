@@ -610,7 +610,7 @@ test "structs" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a" }), "", 1);
+    }, 0, &.{}, &.{"a"}), "", 1);
 }
 
 test "arithmetic" {
