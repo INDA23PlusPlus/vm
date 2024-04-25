@@ -70,6 +70,9 @@ fn compareEq(a: Type, b: Type) bool {
         .object => {
             const l = a.object;
             const r = b.object;
+            if (l.ref == r.ref) {
+                return true;
+            }
 
             var lkeys = l.keys();
             while (lkeys.next()) |key| {
@@ -611,6 +614,32 @@ test "structs" {
         Instruction.equal(),
         Instruction.ret(),
     }, 0, &.{}, &.{"a"}), "", 1);
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.load(0),
+        Instruction.load(0),
+        Instruction.structStore(0),
+        Instruction.load(0),
+        Instruction.load(0),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{"a"}), "", 1);
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.structAlloc(),
+
+        Instruction.load(0),
+        Instruction.load(1),
+        Instruction.structStore(1), // a[b] = b
+        Instruction.load(1),
+        Instruction.load(0),
+        Instruction.structStore(0), // b[a] = a
+
+        Instruction.load(0),
+        Instruction.dup(),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{ "a", "b" }), "", 1);
 }
 
 test "arithmetic" {
