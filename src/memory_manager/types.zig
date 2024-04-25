@@ -51,8 +51,8 @@ pub const List = struct {
     pub fn deinit_data(self: *Self) void {
         for (self.items.items) |*item| {
             switch (item.*) {
-                APITypes.Type.list => item.list.deinit(),
-                APITypes.Type.object => item.object.deinit(),
+                .list => item.list.decr(),
+                .object => item.object.decr(),
                 else => {},
             }
         }
@@ -68,14 +68,8 @@ pub const List = struct {
 
         // If this was the last reference, deinit the data
         if (old_count == 1) {
-            self.deinit();
+            self.deinit_data();
         }
-    }
-
-    // Deinitialize the object, this is called when the reference count reaches 0
-    fn deinit(self: *Self) void {
-        self.deinit_data();
-        self.refs.deinit_refcount();
     }
 };
 
@@ -96,8 +90,8 @@ pub const Object = struct {
         var it = self.map.valueIterator();
         while (it.next()) |val| {
             switch (val.*) {
-                APITypes.Type.list => val.list.deinit(),
-                APITypes.Type.object => val.object.deinit(),
+                .list => val.list.decr(),
+                .object => val.object.decr(),
                 else => {},
             }
         }
@@ -113,13 +107,7 @@ pub const Object = struct {
 
         // If this was the last reference, deinit the data
         if (old_count == 1) {
-            self.deinit();
+            self.deinit_data();
         }
-    }
-
-    // Deinitialize the object, this is called when the reference count reaches 0
-    fn deinit(self: *Self) void {
-        self.deinit_data();
-        self.refs.deinit_refcount();
     }
 };

@@ -205,3 +205,25 @@ test "assign object to object" {
     try objectRef2.set(123, Type{ .object = objectRef1 });
     try std.testing.expect(2 == memoryManager.get_object_count());
 }
+
+test "object in object, drop parent, keep child" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectA = memoryManager.alloc_struct(); // A
+    var objectB = memoryManager.alloc_struct(); // B
+    try objectA.set(123, Type{ .int = 456 }); // A[123] = 456
+    try objectB.set(123, Type{ .object = objectA }); // B[123] = A
+    try std.testing.expect(2 == memoryManager.get_object_count());
+
+    // Drop object B from stack. The child A should still be kept since it
+    // is referenced on the stack.
+    objectB.decr();
+    // Object B should be dropped
+    try memoryManager.gc_pass();
+    // Only Object A should be alive.
+    try std.testing.expect(1 == memoryManager.get_object_count());
+
+    try std.testing.expect(456 == objectA.get(123).?.int);
+}
