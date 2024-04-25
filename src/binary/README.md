@@ -7,6 +7,7 @@
 * FourCC - Four byte ASCII character code.
 * u8 - 1 byte.
 * []u8 - An array of bytes.
+* f64 - Little endian IEEE-754-2008 binary64 floating point numer.
 
 ## File structure
 | Item | Type | Description |
