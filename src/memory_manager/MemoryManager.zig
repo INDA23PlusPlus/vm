@@ -26,17 +26,17 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 
 pub fn deinit(self: *Self) void {
     for (self.allObjects.items) |value| {
-        if (value.get_refcount() > 0) {
+        if (value.refs.get_refcount() > 0) {
             value.deinit_data();
         }
-        value.deinit_refcount_unchecked();
+        value.refs.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
     for (self.allLists.items) |value| {
-        if (value.get_refcount() > 0) {
+        if (value.refs.get_refcount() > 0) {
             value.deinit_data();
         }
-        value.deinit_refcount_unchecked();
+        value.refs.deinit_refcount_unchecked();
         self.allocator.destroy(value);
     }
     self.allObjects.deinit(self.allocator);
@@ -92,13 +92,13 @@ fn remove_unreachable_references(self: *Self, comptime T: type, list: *Unmanaged
 
     while (read < list.items.len) {
         const obj = list.items[read];
-        if (obj.get_refcount() > 0) {
+        if (obj.refs.get_refcount() > 0) {
             list.items[write] = obj;
             write += 1;
         } else {
             // The data should already be deinitialized since the refcount == 0,
             // so we only need to deinit the refcount
-            obj.deinit_refcount();
+            obj.refs.deinit_refcount();
             self.allocator.destroy(obj);
         }
         read += 1;
