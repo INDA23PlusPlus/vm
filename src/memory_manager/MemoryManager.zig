@@ -83,6 +83,105 @@ pub fn gc_pass(self: *Self) !void {
     try self.remove_unreachable_references(List, &self.allLists);
 }
 
+const Direction = enum(i8) {
+    decrement = -1,
+    increment = 1,
+};
+
+fn should_recurse(comptime T: type, val: *T, root: *void, direction: Direction) bool {
+    if (root == val) {
+        return false;
+    }
+    switch (val.ref.refcount) {
+        0 => return direction == Direction.decrement,
+        1 => return direction == Direction.increment,
+        else => return false,
+    }
+}
+
+fn tracing_cycle_detection_object(obj: *Object, root: *void, direction: Direction) void {
+    var it = obj.map.valueIterator();
+
+    while (it.next()) |val| {
+        switch (val.*) {
+            ObjectRef => {
+                val.ref.refcount += direction;
+
+                if (should_recurse(Object, val.ref, root, direction)) {
+                    tracing_cycle_detection_object(val.ref, root, direction);
+                }
+            },
+            ListRef => {
+                val.refs.refcount += direction;
+
+                if (should_recurse(List, val.ref, root, direction)) {
+                    tracing_cycle_detection_list(val.ref, root, direction);
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+fn tracing_cycle_detection_list(list: *List, root: *void, direction: Direction) void {
+    for (list.items.items) |*val| {
+        switch (val.*) {
+            Object => {
+                val.refcount += direction;
+
+                if (should_recurse(Object, val, root, direction)) {
+                    tracing_cycle_detection_object(val, root, direction);
+                }
+            },
+            List => {
+                val.refcount += direction;
+
+                if (should_recurse(List, val, root, direction)) {
+                    tracing_cycle_detection_list(val, root, direction);
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+/// Detect cycles in the object graph and remove them.
+/// TODO: Mark visited objects to reduce time complexity from O(n^2) to O(n)
+fn cycle_detection(comptime T: type, cycle_candidates: *UnmanagedObjectList(T)) !void {
+    for (cycle_candidates.items) |value| {
+        const refcount = value.refs.get_refcount();
+        if (refcount > 0) {
+            switch (T) {
+                Object => {
+                    tracing_cycle_detection_object(value, value, Direction.decrement);
+                },
+                List => {
+                    tracing_cycle_detection_list(value, value, Direction.decrement);
+                },
+                else => unreachable,
+            }
+
+            // If the refcount is 0, then the object was only referenced by itself
+            // and should be removed, otherwise restore the refcount
+            if (value.ref.refcount == 0) {
+                value.deinit();
+            } else {
+                switch (T) {
+                    Object => {
+                        tracing_cycle_detection_object(value, value, Direction.increment);
+                    },
+                    List => {
+                        tracing_cycle_detection_list(value, value, Direction.increment);
+                    },
+                    else => unreachable,
+                }
+            }
+        }
+    }
+
+    cycle_candidates.shrinkAndFree(Self.allocator, 0);
+}
+
 /// Remove all objects that have a refcount of 0, but do not deinit them.
 /// Objects with a refcount of 0 are assumed to already have been deinitialized.
 /// This function simply removes them from the internal array storing objects.
