@@ -14,7 +14,7 @@ zig build vemod --prefix <installation path>
 
 ## Usage
 VeMod can run programs from source directly, or compile it to a vbf-file (VeMod
-Binary Format) with the -c flag.
+Binary Format) with the -c flag. 
 
 ## Examples
 Run a program written in VeMod assembly:
@@ -36,6 +36,10 @@ To view all options, run
 ```bash
 vemod -h
 ```
+
+Syntax and instruction reference for VeMod assembly can be found in the [docs]
+(docs/) directory. Code samples can be found in the [examples](examples/)
+directory.
 
 ## Language server
 The VeMod language server (vmdls) can be installed with the command
