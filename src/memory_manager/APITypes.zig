@@ -76,7 +76,7 @@ pub const ListRef = struct {
                 obj.incr();
             },
         }
-        self.ref.items.items[key] = value.toInternal();
+        self.ref.items.items[key] = value;
     }
 
     pub fn push(self: *const Self, value: Type) !void {
