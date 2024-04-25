@@ -66,9 +66,21 @@ fn compareEq(a: Type, b: Type) bool {
         .float => a.as(.float).? == b.as(.float).?,
         .string => std.mem.eql(u8, a.as(.string).?.get(), b.as(.string).?.get()),
 
-        .list,
-        .object,
-        => std.debug.panic("TODO", .{}),
+        .list => std.debug.panic("TODO", .{}),
+        .object => {
+            const l = a.object;
+            const r = b.object;
+
+            var lkeys = l.keys();
+            while (lkeys.next()) |key| {
+                if (!compareEq(r.get(key.*).?, l.get(key.*).?)) return false;
+            }
+            var rkeys = r.keys();
+            while (rkeys.next()) |key| {
+                if (!compareEq(l.get(key.*).?, r.get(key.*).?)) return false;
+            }
+            return true;
+        },
     };
 }
 
@@ -582,6 +594,23 @@ test "structs" {
         Instruction.push(0),
         Instruction.ret(),
     }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.structAlloc(),
+        Instruction.load(0),
+        Instruction.push(1),
+        Instruction.structStore(0),
+
+        Instruction.load(1),
+        Instruction.push(1),
+        Instruction.structStore(0),
+
+        Instruction.load(0),
+        Instruction.load(1),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{ "a" }), "", 1);
 }
 
 test "arithmetic" {
