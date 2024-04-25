@@ -59,9 +59,7 @@ zig-out/
 *.log
 *.log.*
 
-# Source files
-*.vmd
-*.mcl
+# Vemod binary files
 *.vbf
 
 # Make

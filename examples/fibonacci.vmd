@@ -1,0 +1,55 @@
+-function $main
+-begin
+	stack_alloc %1
+	push %0
+	store %0
+	
+	.loop
+	load %0
+	push %10
+	cmp_gt
+	jmpnz .end
+	
+	load %0
+	push %1
+	call $fib
+	syscall %0
+	
+	load %0
+	push %1
+	add
+	store %0
+	
+	jmp .loop
+	
+	.end
+	push %0
+	ret
+-end
+
+-function $fib
+-begin
+	load %-4
+	push %2
+	cmp_lt
+	jmpnz .lt_2
+	
+	load %-4
+	push %1
+	sub
+	push %1
+	call $fib
+	
+	load %-4
+	push %2
+	sub
+	push %1
+	call $fib
+	
+	add
+	ret
+	
+	.lt_2
+	push %1
+	ret
+-end
