@@ -64,7 +64,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
             } else if (char == '\\') {
                 is_esc = true;
             } else if (char == '"') {
-                var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl);
+                const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl);
                 try self.tokens.append(token);
                 content_index = 0;
                 parsing_type = Parsing_Type.NONE;
@@ -96,7 +96,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
 
         if (is_whitespace(char)) {
             if (parsing_type != Parsing_Type.NONE) {
-                var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+                const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                 try self.tokens.append(token);
                 content_index = 0;
                 parsing_type = Parsing_Type.NONE;
@@ -114,7 +114,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
 
         if (is_alphabetic(char) and parsing_type != Parsing_Type.IDENTIFIER) {
             if (parsing_type != Parsing_Type.NONE) {
-                var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+                const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                 try self.tokens.append(token);
                 content_index = 0;
             }
@@ -123,7 +123,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
             parsing_type = Parsing_Type.IDENTIFIER;
         } else if (is_numeric(char) and parsing_type != Parsing_Type.IDENTIFIER and parsing_type != Parsing_Type.NUMBER) {
             if (parsing_type != Parsing_Type.NONE) {
-                var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+                const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                 try self.tokens.append(token);
                 content_index = 0;
             }
@@ -133,7 +133,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
         } else if (is_symbol(char) and !(parsing_type == Parsing_Type.NUMBER and char == '.')) {
             if (parsing_type != Parsing_Type.SYMBOL) {
                 if (parsing_type != Parsing_Type.NONE) {
-                    var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+                    const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                     try self.tokens.append(token);
                     content_index = 0;
                 }
@@ -142,7 +142,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
                 parsing_type = Parsing_Type.SYMBOL;
             } else {
                 if (!can_be_more_symbols(content[0..content_index])) {
-                    var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+                    const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
                     try self.tokens.append(token);
                     content_index = 0;
                     ln_start = ln;
@@ -162,7 +162,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
 
         if (parsing_type == Parsing_Type.SYMBOL) {
             if (get_symbol(content[0..content_index]) == error.UnknownSymbol and content_index > 1) {
-                var token = try parse_token(self.allocator, content[0..(content_index - 1)], parsing_type, ln_start, ln, cl_start, cl - 1);
+                const token = try parse_token(self.allocator, content[0..(content_index - 1)], parsing_type, ln_start, ln, cl_start, cl - 1);
                 try self.tokens.append(token);
                 content[0] = char;
                 content_index = 1;
@@ -179,7 +179,7 @@ pub fn tokenize(self: *Self, text: []const u8) !void {
     }
 
     if (parsing_type != Parsing_Type.NONE) {
-        var token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
+        const token = try parse_token(self.allocator, content[0..content_index], parsing_type, ln_start, ln, cl_start, cl - 1);
         try self.tokens.append(token);
     }
 }
@@ -200,7 +200,7 @@ fn parse_token(
     cl_start: u32,
     cl_end: u32,
 ) !Token {
-    var cloned_content: []u8 = try allocator.alloc(u8, content.len);
+    const cloned_content: []u8 = try allocator.alloc(u8, content.len);
     @memcpy(cloned_content, content);
 
     var kind = Node_Symbol.IDENTIFIER;

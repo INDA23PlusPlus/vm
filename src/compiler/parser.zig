@@ -10,11 +10,11 @@ const Token_Reader = struct { tokens: std.ArrayList(Node), token_index: u32 };
 
 // returns true if a sequence of tokens (e.g { IDENTIFIER, COLON_EQUALS }) can be found at the current token_index
 pub fn peak(tokens: []Node_Symbol, token_reader: *Token_Reader) bool {
-    var start_index: u32 = token_reader.*.token_index;
+    const  start_index: u32 = token_reader.*.token_index;
     var i: u32 = 0;
 
     while (i < tokens.len) : (i += 1) {
-        var token_index = start_index + i;
+        const token_index = start_index + i;
 
         if (token_index >= token_reader.*.tokens.items.len) {
             return false;
@@ -29,7 +29,7 @@ pub fn peak(tokens: []Node_Symbol, token_reader: *Token_Reader) bool {
 }
 
 pub fn get_token(token_reader: *Token_Reader) Node {
-    var token = token_reader.*.tokens.items[token_reader.*.token_index];
+    const  token = token_reader.*.tokens.items[token_reader.*.token_index];
 
     token_reader.*.token_index += 1;
 
@@ -156,7 +156,7 @@ pub fn parse_expression(node_branch: *Parse_Tree, token_reader: *Token_Reader) b
 }
 
 pub fn parse_symbol(node_branch: *Parse_Tree, token_reader: *Token_Reader) bool {
-    var symbol = node_branch.*.node.symbol;
+    const symbol = node_branch.*.node.symbol;
     var symbols = [_]Node_Symbol{symbol};
 
     switch (symbol) {
@@ -214,7 +214,7 @@ pub fn parse_symbols(symbols: []Node_Symbol, node_branch: *Parse_Tree, token_rea
     var i: u32 = 0;
 
     while (i < symbols.len) : (i += 1) {
-        var symbol = symbols[i];
+        const symbol = symbols[i];
         var branch = Parse_Tree{ .node = Node{ .symbol = symbol, .content = "" }, .branches = std.ArrayList(Parse_Tree).init(allocator) };
 
         if (parse_symbol(&branch, token_reader)) {
@@ -240,9 +240,9 @@ pub fn print_indentation(indentation: u32) void {
 
 // prints the parse tree in a nice format so that we can more easily check that it's correct
 pub fn print_parse_tree(parse_tree: *Parse_Tree, recursion_depth: u32) void {
-    var node = parse_tree.*.node;
-    var symbol = node.symbol;
-    var content = node.content;
+    const node = parse_tree.*.node;
+    const symbol = node.symbol;
+    const content = node.content;
 
     print_indentation(recursion_depth);
     std.debug.print("symbol: {s}\n", .{@tagName(symbol)});
