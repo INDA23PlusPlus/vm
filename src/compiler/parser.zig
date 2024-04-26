@@ -15,10 +15,10 @@ const Token_Reader = struct { tokens: std.ArrayList(Token), token_index: u32 };
 // returns true if a sequence of tokens (e.g { IDENTIFIER, COLON_EQUALS }) can be found at the current token_index
 pub fn peek(tokens: anytype, token_reader: *Token_Reader) bool {
     const token_count = @typeInfo(@TypeOf(tokens)).Array.len;
-    var start_index: u32 = token_reader.*.token_index;
+    const start_index: u32 = token_reader.*.token_index;
 
     for (0..token_count) |i| {
-        var token_index = start_index + i;
+        const token_index = start_index + i;
 
         if (token_index >= token_reader.*.tokens.items.len) {
             return false;
@@ -33,7 +33,7 @@ pub fn peek(tokens: anytype, token_reader: *Token_Reader) bool {
 }
 
 pub fn get_token(token_reader: *Token_Reader) Token {
-    var token = token_reader.*.tokens.items[token_reader.*.token_index];
+    const token = token_reader.*.tokens.items[token_reader.*.token_index];
 
     token_reader.*.token_index += 1;
 
@@ -385,8 +385,8 @@ pub fn parse_list_continuation(node_branch: *Parse_Tree, token_reader: *Token_Re
 
 
 pub fn parse_symbol(node_branch: *Parse_Tree, token_reader: *Token_Reader) bool {
-    var symbol = node_branch.*.node.symbol;
-    var symbols = [_]Node_Symbol{ symbol };
+    const symbol = node_branch.*.node.symbol;
+    const symbols = [_]Node_Symbol{ symbol };
 
     switch(symbol) {
         .STATEMENTS => {
@@ -499,7 +499,7 @@ pub fn parse_symbol(node_branch: *Parse_Tree, token_reader: *Token_Reader) bool 
         },
         else => { // tokens
             if(peek(symbols, token_reader)) {
-                var token = get_token(token_reader);
+                const token = get_token(token_reader);
                 node_branch.*.node.symbol = token.kind;
                 node_branch.*.node.content = token.content;
                 return true;
@@ -520,7 +520,7 @@ pub fn parse_symbols(symbols: anytype, node_branch: *Parse_Tree, token_reader: *
     const symbol_count = @typeInfo(@TypeOf(symbols)).Array.len;
 
     for (0..symbol_count) |i| {
-        var symbol = symbols[i];
+        const symbol = symbols[i];
 		var branch = Parse_Tree{ .node = Node{ .symbol = symbol, .content = "" }, .branches = std.ArrayList(Parse_Tree).init(allocator) };
 
 		if (parse_symbol(&branch, token_reader)) {
@@ -547,9 +547,9 @@ pub fn print_indentation(indentation: u32) void {
 
 // prints the parse tree in a nice format so that we can more easily check that it's correct
 pub fn print_parse_tree(parse_tree: *Parse_Tree, recursion_depth: u32) void {
-    var node = parse_tree.*.node;
-    var symbol = node.symbol;
-    var content = node.content;
+    const node = parse_tree.*.node;
+    const symbol = node.symbol;
+    const content = node.content;
 
     print_indentation(recursion_depth);
     std.debug.print("symbol: {s}\n", .{@tagName(symbol)});
@@ -564,7 +564,7 @@ pub fn print_parse_tree(parse_tree: *Parse_Tree, recursion_depth: u32) void {
     }
 
 
-    var branches = parse_tree.*.branches;
+    const branches = parse_tree.*.branches;
 
     for (0..branches.items.len) |i| {
         print_indentation(recursion_depth);
