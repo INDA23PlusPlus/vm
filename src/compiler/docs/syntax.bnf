@@ -1,44 +1,48 @@
-<statements> ::= <end_of_statements> | <statement> <statements>
+<statements> ::= <statement> <statements> | <end_of_statements>
 <end_of_statements> ::= " "
-<statement> ::= <variable_declaration> | <variable_mutation> | <function_declaration> | <loop> | <if_statement> | <elif_statement> | <else_statement> | <chain_statement> | <scope> | <function_call> <semicolon> | <ret_statement> | <break> <semicolon> | <chain_case>
+<statement> ::= <variable_declaration> | <variable_mutation> | <function_declaration> | <while_loop> | <for_loop> | <if_statement> | <elif_statement> | <else_statement> | <chain> <scope> | <scope> | <function_call> <semicolon> | <ret_statement> | <break> <semicolon>
 
 <variable_declaration> ::= <identifier> <colon_equals> <expression> <semicolon>
-<variable_mutation> ::= <identifier> <mutation_operator> <expression> <semicolon>
-<function_declaration> ::= <def> <function_header> <scope>
-<loop> ::= <while_loop> | <for_loop>
+<variable_mutation> ::= <identifier> <mutation_operator> <expression> <semicolon> | <struct_access> <mutation_operator> <expression> <semicolon> | <list_access> <mutation_operator> <expression> <semicolon>
+<function_declaration> ::= <def> <identifier> <open_parenthesis> <function_parameters> <closed_parenthesis> <scope>
+<while_loop> ::= <while> <open_parenthesis> <expression> <closed_parenthesis> <scope>
+<for_loop> ::= <for> <for_header> <scope>
 <if_statement> ::= <if> <open_parenthesis> <expression> <closed_parenthesis> <scope>
 <elif_statement> ::= <else> <if> <open_parenthesis> <expression> <closed_parenthesis> <scope>
 <else_statement> ::= <else> <scope>
-<chain_statement> ::= <chain> <scope> | <chain> <open_parenthesis> <expression> <closed_parenthesis> <scope>
+<scope> ::= <open_curly> <statements> <closed_curly>
 <function_call> ::= <identifier> <open_parenthesis> <function_arguments> <closed_parenthesis>
 <ret_statement> ::= <ret> <expression> <semicolon> | <ret> <semicolon>
-<chain_case> ::= <expression> <colon> <scope>
 
-<expression> ::= <expression> <operator> <expression> | <open_parenthesis> <expression> <closed_parenthesis> | <not> <expression> | <literal> | <identifier> | <function_call> | <struct_access> | <list_access>
-<function_header> ::= <open_parenthesis> <function_parameters> <closed_parenthesis>
-<scope> ::= <open_curly> <statements> <closed_curly>
-<while_loop> ::= <while> <open_parenthesis> <expression> <closed_parenthesis> <scope>
-<for_loop> ::= <for> <for_header> <scope>
-<function_arguments> ::= <expression> <comma> <function_arguments> | <expression>
+<expression> ::= <term> <expression_continuation>
+<function_parameters> ::= <identifier> <comma> <function_parameters> | <identifier> | <no_parameters>
+<no_parameters> ::= " "
+<for_header> ::= <open_parenthesis> <identifier> <colon_equals> <expression> <semicolon> <expression> <semicolon> <identifier> <mutation_operator> <expression> <closed_parenthesis>
+<function_arguments> ::= <expression> <call_continuation> | <no_arguments>
+<call_continuation> ::= <comma> <function_arguments> | <no_arguments>
+<no_arguments> ::= " "
 
-<mutation_operator> ::= <assign> | <plus_equals> | <minus_equals> | <times_equals> | <divide_equals>
-<operator> ::= <plus> | <minus> | <times> | <divide> | <rem> | <mod> | <and> | <or> | <equals> | <not_equals>
-<literal> ::= <constant> | <string> | <struct_literal> | <list_literal>
+<term> ::= <open_parenthesis> <expression> <closed_parenthesis> | <minus> <expression> | <not> <expression> | <float> | <int> | <string> | <struct_literal> | <list_literal> | <function_call> | <struct_access> | <list_access> | <identifier>
+<expression_continuation> ::= <operator> <expression> | <end_of_expression>
+<end_of_expression> ::= " "
+<mutation_operator> ::= <assign> | <plus_assign> | <minus_assign> | <times_assign> | <divide_assign>
+<operator> ::= <plus> | <minus> | <times> | <divide> | <rem> | <mod> | <and> | <or> | <equals> | <not_equals> | <greater_than> | <less_than> | <greater_than_equals> | <less_than_equals>
 <struct_access> ::= <identifier> <dot> <identifier>
 <list_access> ::= <identifier> <open_square> <expression> <closed_square>
-<function_parameters> ::= <identifier> <comma> | <identifier>
-<for_header> ::= <open_parenthesis> <identifier> <colon_equals> <expression> <semicolon> <expression> <semicolon> <identifier> <mutation_operator> <expression> <closed_parenthesis>
 
 <struct_literal> ::= <open_curly> <struct_fields> <closed_curly>
-<list_literal> ::= <open_curly> <list_elements> <closed_curly> | <open_square> <expression> <closed_square>
+<list_literal> ::= <open_curly> <list_elements> <closed_curly>
 
-<struct_fields> ::= <struct_field> <comma> <struct_fields> | <struct_field>
-<list_elements> ::= <expression> <comma> <list_elements> | <expression>
-
-<struct_field> ::= <identifier> <colon> <expression>
+<struct_fields> ::= <identifier> <colon> <expression> <field_continuation>
+<field_continuation> ::= <comma> <struct_fields> | <no_fields>
+<no_fields> ::= " "
+<list_elements> ::= <expression> <list_continuation> | <no_elements>
+<list_continuation> ::= <comma> <list_elements> | <no_elements>
+<no_elements> ::= " "
 
 <identifier> ::= "<identifier> "
-<constant> ::= "<constant> "
+<float> ::= "<float> "
+<int> ::= "<int> "
 <string> ::= "<string> "
 <def> ::= "def "
 <ret> ::= "ret "
@@ -70,8 +74,12 @@
 <not> ::= "!"
 <equals> ::= "= "
 <not_equals> ::= "!= "
-<assign> ::= "<- "
-<plus_equals> ::= "+= "
-<minus_equals> ::= "-= "
-<times_equals> ::= "*= "
-<divide_equals> ::= "/= "
+<greater_than> ::= "> "
+<less_than> ::= "< "
+<greater_than_equals> ::= ">= "
+<less_than_equals> ::= "<= "
+<assign> ::= "<< "
+<plus_assign> ::= "+< "
+<minus_assign> ::= "-< "
+<times_assign> ::= "*< "
+<divide_assign> ::= "/< "
