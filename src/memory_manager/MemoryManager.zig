@@ -4,7 +4,7 @@ const APITypes = @import("APITypes.zig");
 const ObjectRef = APITypes.ObjectRef;
 const ListRef = APITypes.ListRef;
 const types = @import("types.zig");
-const RefCount = @import("RefCount.zig");
+const metadata = @import("metadata.zig");
 const Object = types.Object;
 const List = types.List;
 
@@ -26,21 +26,13 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 
 pub fn deinit(self: *Self) void {
     for (self.allObjects.items) |value| {
-        if (value.refs.get_refcount() > 0) {
-            // Deinit map directly, because all children will
-            // eventually be deinit'ed by this loop.
-            value.map.deinit();
-        }
-        value.refs.deinit_refcount_unchecked();
+        value.refs.metadata.count = 0;
+        value.deinit();
         self.allocator.destroy(value);
     }
     for (self.allLists.items) |value| {
-        if (value.refs.get_refcount() > 0) {
-            // Deinit list directly, because all children will
-            // eventually be deinit'ed by this loop.
-            value.items.deinit();
-        }
-        value.refs.deinit_refcount_unchecked();
+        value.refs.metadata.count = 0;
+        value.deinit();
         self.allocator.destroy(value);
     }
     self.allObjects.deinit(self.allocator);
@@ -83,10 +75,56 @@ pub fn gc_pass(self: *Self) !void {
     try self.remove_unreachable_references(List, &self.allLists);
 }
 
+fn mark_item(item: *APITypes.Type) void {
+    switch (item.*) {
+        .object => |*inner| {
+            if (inner.ref.refs.metadata.mark == 0) {
+                inner.ref.refs.metadata.mark = 1;
+                mark(Object, inner.ref);
+            }
+        },
+        .list => |*inner| {
+            if (inner.ref.refs.metadata.mark == 0) {
+                inner.ref.refs.metadata.mark = 1;
+                mark(List, inner.ref);
+            }
+        },
+        else => {},
+    }
+}
+
+fn mark(comptime T: type, obj: *T) void {
+    switch (T) {
+        List => {
+            for (obj.*.items.items) |*item| {
+                mark_item(item);
+            }
+        },
+        Object => {
+            var it = obj.map.valueIterator();
+            while (it.next()) |item| {
+                mark_item(item);
+            }
+        },
+        else => |t| @compileError("Cannot mark " ++ @typeName(t)),
+    }
+}
+
 /// Remove all objects that have a refcount of 0, but do not deinit them.
 /// Objects with a refcount of 0 are assumed to already have been deinitialized.
 /// This function simply removes them from the internal array storing objects.
 fn remove_unreachable_references(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) !void {
+    // Mark roots (objects on the stack)
+    for (list.items) |obj| {
+        obj.refs.metadata.mark = @intFromBool(obj.refs.get_stack_refcount() > 0);
+        if (obj.refs.metadata.mark > 0) {
+            mark(T, obj);
+        }
+    }
+
+    // Sweep
+    // Actually drop and remove garbage objects.
+    //
     // Init two pointers (read and write) to the start of the list
     // Iterate over the list, copying all objects that are still alive
     // to the write pointer, and incrementing the write pointer.
@@ -96,13 +134,13 @@ fn remove_unreachable_references(self: *Self, comptime T: type, list: *Unmanaged
 
     while (read < list.items.len) {
         const obj = list.items[read];
-        if (obj.refs.get_refcount() > 0) {
+        if (obj.refs.metadata.mark > 0) {
+            // Keep this object
             list.items[write] = obj;
             write += 1;
         } else {
-            // The data should already be deinitialized since the refcount == 0,
-            // so we only need to deinit the refcount
-            obj.refs.deinit_refcount();
+            // Drop this garbage since it was not marked
+            obj.deinit();
             self.allocator.destroy(obj);
         }
         read += 1;
@@ -247,4 +285,23 @@ test "object in object, drop child from stack, gc, both stay" {
     objectA.decr();
     try memoryManager.gc_pass();
     try std.testing.expect(2 == memoryManager.get_object_count());
+}
+
+test "cycles get dropped" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectA = memoryManager.alloc_struct(); // A
+    var objectB = memoryManager.alloc_struct(); // B
+    try objectA.set(124, Type{ .object = objectA }); // A[124] = B
+    try objectB.set(123, Type{ .object = objectA }); // B[123] = A
+    try std.testing.expect(2 == memoryManager.get_object_count());
+
+    // Drop both from stack.
+    // They should both
+    objectA.decr();
+    objectB.decr();
+    try memoryManager.gc_pass();
+    try std.testing.expect(0 == memoryManager.get_object_count());
 }

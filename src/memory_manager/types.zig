@@ -2,42 +2,50 @@
 //! Internal types for memory manager
 //!
 
-const RefCount = @import("RefCount.zig");
+const metadata = @import("metadata.zig");
 const APITypes = @import("APITypes.zig");
 const std = @import("std");
 
 pub const HeapType = struct {
+    const CountType = u15;
+    const MarkType = u1;
+    const Metadata = metadata.Metadata(CountType, MarkType);
     const Self = @This();
-    refcount: RefCount, // all reference count
+    metadata: Metadata, // reference count from stack only
 
     pub fn init() Self {
-        return .{ .refcount = RefCount.init() };
+        return .{ .metadata = Metadata.init() };
     }
 
-    pub fn deinit_refcount(self: *Self) void {
-        self.refcount.deinit();
+    pub fn deinit(self: *Self) void {
+        self.metadata.deinit();
     }
 
-    pub fn deinit_refcount_unchecked(self: *Self) void {
-        self.refcount.deinit_unchecked();
+    pub fn deinit_unchecked(self: *Self) void {
+        self.metadata.deinit_unchecked();
     }
 
-    pub fn get_refcount(self: *Self) u32 {
-        return self.refcount.get();
+    pub fn get_stack_refcount(self: *Self) u32 {
+        return self.metadata.get();
     }
 
     pub fn incr(self: *Self) void {
-        _ = self.refcount.increment();
+        self.metadata.increment();
     }
 
-    pub fn decr(self: *Self) u32 {
-        return self.refcount.decrement();
+    pub fn decr(self: *Self) void {
+        self.metadata.decrement();
     }
 };
 
+comptime {
+    if (@bitSizeOf(HeapType) != @bitSizeOf(HeapType.CountType) + @bitSizeOf(HeapType.MarkType)) {
+        @compileError("fixme");
+    }
+}
+
 pub const List = struct {
     const Self = @This();
-    // TODO Maybe use ArrayList
     items: std.ArrayList(APITypes.Type),
     refs: HeapType,
 
@@ -48,28 +56,17 @@ pub const List = struct {
         };
     }
 
-    pub fn deinit_data(self: *Self) void {
-        for (self.items.items) |*item| {
-            switch (item.*) {
-                .list => item.list.decr(),
-                .object => item.object.decr(),
-                else => {},
-            }
-        }
+    pub fn deinit(self: *Self) void {
         self.items.deinit();
+        self.refs.deinit();
     }
 
     pub fn incr(self: *Self) void {
-        _ = self.refs.incr();
+        self.refs.incr();
     }
 
     pub fn decr(self: *Self) void {
-        const old_count = self.refs.decr();
-
-        // If this was the last reference, deinit the data
-        if (old_count == 1) {
-            self.deinit_data();
-        }
+        self.refs.decr();
     }
 };
 
@@ -86,28 +83,16 @@ pub const Object = struct {
         };
     }
 
-    pub fn deinit_data(self: *Self) void {
-        var it = self.map.valueIterator();
-        while (it.next()) |val| {
-            switch (val.*) {
-                .list => val.list.decr(),
-                .object => val.object.decr(),
-                else => {},
-            }
-        }
+    pub fn deinit(self: *Self) void {
         self.map.deinit();
+        self.refs.deinit();
     }
 
     pub fn incr(self: *Self) void {
-        _ = self.refs.incr();
+        self.refs.incr();
     }
 
     pub fn decr(self: *Self) void {
-        const old_count = self.refs.decr();
-
-        // If this was the last reference, deinit the data
-        if (old_count == 1) {
-            self.deinit_data();
-        }
+        self.refs.decr();
     }
 };

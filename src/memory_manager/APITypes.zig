@@ -29,7 +29,7 @@ pub const ListRef = struct {
 
     // Decrement the reference count, called when a reference is destroyed (e.g. deinit)
     pub fn decr(self: *const Self) void {
-        _ = self.ref.decr();
+        self.ref.decr();
     }
 
     pub fn length(self: *const Self) usize {
@@ -41,27 +41,6 @@ pub const ListRef = struct {
     }
 
     pub fn set(self: *const Self, key: usize, value: Type) void {
-        const old = self.ref.items.items[key];
-        // Decrement old count
-        switch (old) {
-            .object => |obj| {
-                obj.decr();
-            },
-            .list => |obj| {
-                obj.decr();
-            },
-            else => {},
-        }
-        // Increment new count
-        switch (value) {
-            .object => |obj| {
-                obj.incr();
-            },
-            .list => |obj| {
-                obj.incr();
-            },
-            else => {},
-        }
         self.ref.items.items[key] = value;
     }
 
@@ -93,7 +72,7 @@ pub const ObjectRef = struct {
 
     // Decrement the reference count, called when a reference is destroyed (e.g. deinit)
     pub fn decr(self: *const Self) void {
-        _ = self.ref.decr();
+        self.ref.decr();
     }
 
     pub fn get(self: *const Self, key: usize) ?Type {
@@ -105,29 +84,6 @@ pub const ObjectRef = struct {
     }
 
     pub fn set(self: *const Self, key: usize, value: Type) !void {
-        const old = self.ref.map.get(key);
-        // Decrement old count
-        if (old) |o| {
-            switch (o) {
-                .object => |obj| {
-                    obj.decr();
-                },
-                .list => |obj| {
-                    obj.decr();
-                },
-                else => {},
-            }
-        }
-        // Increment new count
-        switch (value) {
-            .object => |obj| {
-                obj.incr();
-            },
-            .list => |obj| {
-                obj.incr();
-            },
-            else => {},
-        }
         try self.ref.map.put(key, value);
     }
 
