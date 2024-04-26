@@ -1,4 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
+const expected_zig_version_string = "0.12.0";
+
+comptime {
+    if (!std.mem.eql(u8, expected_zig_version_string, builtin.zig_version_string)) {
+        @compileError("Wrong zig version " ++ builtin.zig_version_string ++ ", use " ++ expected_zig_version_string);
+    }
+}
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
