@@ -124,7 +124,7 @@ All comparisons push 1 if the comparison is true, and 0 otherwise.
 | struct_store $field | [ ..., S, V ] -> [ ... ] | Inserts/updates $field in struct S with value V. |
 | list_alloc | Creates an empty list and pushes it to the stack |
 | list_store | [ ..., L, I, V ] -> [ ..., L ] Stores value V at index I in list L |
-| list_load | [ ..., L, I ] -> [ ..., L, V] Pushes value at index I of list L |
+| list_load | [ ..., L, I ] -> [ ..., L, V ] Pushes value at index I of list L |
 
 ### Misc.
 | Syntax | Description |
