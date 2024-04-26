@@ -44,7 +44,7 @@ pub fn Transport(comptime Writer: type, comptime Reader: type) type {
                 _ = try self.in.skipBytes("\n\r\n".len, .{});
 
                 self.content_buffer.clearRetainingCapacity();
-                var content = try self.content_buffer.addManyAsSlice(content_length);
+                const content = try self.content_buffer.addManyAsSlice(content_length);
                 _ = try self.in.readAtLeast(content, content_length);
 
                 std.log.debug("Received request/notification: {s}", .{content});
@@ -108,7 +108,7 @@ test "Transport.writeResponse" {
 
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
-    var writer = out.writer();
+    const writer = out.writer();
 
     var transport = Transport(Writer, Reader).init(
         std.testing.allocator,
@@ -191,7 +191,7 @@ test "Transport.writeServerNotification" {
 
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
-    var writer = out.writer();
+    const writer = out.writer();
 
     var transport = Transport(Writer, Reader).init(
         std.testing.allocator,

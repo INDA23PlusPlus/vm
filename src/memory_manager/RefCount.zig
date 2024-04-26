@@ -24,12 +24,12 @@ pub fn deinit_unchecked(self: *Self) void {
 
 // returns old value
 pub fn increment(self: *Self) u32 {
-    return @atomicRmw(u32, &self.count, .Add, 1, .Monotonic);
+    return @atomicRmw(u32, &self.count, .Add, 1, .monotonic);
 }
 
 // returns old value
 pub fn decrement(self: *Self) u32 {
-    const res = @atomicRmw(u32, &self.count, .Sub, 1, .Monotonic);
+    const res = @atomicRmw(u32, &self.count, .Sub, 1, .monotonic);
     if (std.debug.runtime_safety and res == 0) {
         std.debug.panic("decremented zero refcount", .{});
     }
@@ -37,7 +37,7 @@ pub fn decrement(self: *Self) u32 {
 }
 
 pub fn get(self: *const Self) u32 {
-    return @atomicLoad(u32, &self.count, .Monotonic);
+    return @atomicLoad(u32, &self.count, .monotonic);
 }
 
 test "increment/decrement" {

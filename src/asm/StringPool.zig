@@ -47,7 +47,7 @@ pub fn getOrIntern(self: *Self, string: []const u8) !ID {
     // TODO: add null termination if we decide to use that for strings
     const slice = try self.contiguous.addManyAsSlice(string.len);
     const index = self.entries.items.len;
-    std.mem.copy(u8, slice, string);
+    @memcpy(slice, string);
     try self.entries.append(entry);
     try self.map.put(string, index);
     return index;

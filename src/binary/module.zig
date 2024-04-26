@@ -48,7 +48,7 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
         allocator,
     );
 
-    var code = try allocator.alloc(Instruction, header.code_size);
+    const code = try allocator.alloc(Instruction, header.code_size);
     for (code) |*instruction| {
         instruction.* = try loadInstruction(reader);
     }
@@ -101,23 +101,23 @@ pub fn emit(writer: anytype, program: Program) !void {
 fn loadHeader(reader: anytype) !Header {
     if (!(try reader.isBytes("VeMd"))) return Error.InvalidFileID;
     return .{
-        .string_table_size = try reader.readIntLittle(u64),
-        .string_data_size = try reader.readIntLittle(u64),
-        .field_table_size = try reader.readIntLittle(u64),
-        .field_data_size = try reader.readIntLittle(u64),
-        .code_size = try reader.readIntLittle(u64),
-        .entry_point = try reader.readIntLittle(u64),
+        .string_table_size = try reader.readInt(u64, .little),
+        .string_data_size = try reader.readInt(u64, .little),
+        .field_table_size = try reader.readInt(u64, .little),
+        .field_data_size = try reader.readInt(u64, .little),
+        .code_size = try reader.readInt(u64, .little),
+        .entry_point = try reader.readInt(u64, .little),
     };
 }
 
 fn emitHeader(writer: anytype, header: Header) !void {
     try writer.writeAll("VeMd");
-    try writer.writeIntLittle(u64, header.string_table_size);
-    try writer.writeIntLittle(u64, header.string_data_size);
-    try writer.writeIntLittle(u64, header.field_table_size);
-    try writer.writeIntLittle(u64, header.field_data_size);
-    try writer.writeIntLittle(u64, header.code_size);
-    try writer.writeIntLittle(u64, header.entry_point);
+    try writer.writeInt(u64, header.string_table_size, .little);
+    try writer.writeInt(u64, header.string_data_size, .little);
+    try writer.writeInt(u64, header.field_table_size, .little);
+    try writer.writeInt(u64, header.field_data_size, .little);
+    try writer.writeInt(u64, header.code_size, .little);
+    try writer.writeInt(u64, header.entry_point, .little);
 }
 
 fn loadTable(
@@ -130,12 +130,12 @@ fn loadTable(
     errdefer allocator.free(data);
     try reader.readNoEof(data);
 
-    var entries = try allocator.alloc([]const u8, table_size);
+    const entries = try allocator.alloc([]const u8, table_size);
     errdefer allocator.free(entries);
 
     for (entries) |*entry| {
-        const begin = try reader.readIntLittle(u64);
-        const end = try reader.readIntLittle(u64);
+        const begin = try reader.readInt(u64, .little);
+        const end = try reader.readInt(u64, .little);
         entry.* = data[begin..end];
     }
 
@@ -154,8 +154,8 @@ fn emitTable(
     for (table.entries) |entry| {
         const begin: u64 = @intFromPtr(entry.ptr) - @intFromPtr(table.data.ptr);
         const end: u64 = begin + entry.len;
-        try writer.writeIntLittle(u64, begin);
-        try writer.writeIntLittle(u64, end);
+        try writer.writeInt(u64, begin, .little);
+        try writer.writeInt(u64, end, .little);
     }
 }
 
@@ -227,13 +227,13 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
 }
 
 fn loadFloat(reader: anytype) !f64 {
-    const int = try reader.readIntLittle(u64);
+    const int = try reader.readInt(u64, .little);
     return @bitCast(int);
 }
 
 fn emitFloat(writer: anytype, f: f64) !void {
     const int: u64 = @bitCast(f);
-    try writer.writeIntLittle(u64, int);
+    try writer.writeInt(u64, int, .little);
 }
 
 test {

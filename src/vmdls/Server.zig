@@ -205,7 +205,7 @@ fn handleRequest(self: *Server, request: *const json_rpc.Request) !void {
         .exit => self.handleExit(),
         else => {
             std.log.err("Unimplemented method: {s}", .{request.method});
-            std.os.exit(1);
+            std.process.exit(1);
         },
     }
 }

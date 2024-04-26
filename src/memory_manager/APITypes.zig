@@ -57,7 +57,7 @@ pub const ListRef = struct {
     }
 
     pub fn set(self: *const Self, key: usize, value: Type) void {
-        var old = self.ref.items.items[key];
+        const old = self.ref.items.items[key];
         // Decrement old count
         switch (old) {
             .object => |obj| {
@@ -130,7 +130,7 @@ pub const ObjectRef = struct {
     }
 
     pub fn get(self: *const Self, key: usize) ?Type {
-        var val = self.ref.map.get(key);
+        const val = self.ref.map.get(key);
         if (val == null) {
             return null;
         }

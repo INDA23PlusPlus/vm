@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) void {
     //
     const arch_mod = b.addModule(
         "arch",
-        .{ .source_file = .{ .path = "src/arch/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/arch/module.zig" } },
     );
 
     const arch_tests = b.addTest(.{
@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     //
     const assembler_mod = b.addModule(
         "assembler",
-        .{ .source_file = .{ .path = "src/asm/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/asm/module.zig" } },
     );
 
     const assembler = b.addExecutable(.{
@@ -50,7 +50,7 @@ pub fn build(b: *std.Build) void {
     //
     const memory_manager_mod = b.addModule(
         "memory_manager",
-        .{ .source_file = .{ .path = "src/memory_manager/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/memory_manager/module.zig" } },
     );
 
     const memory_manager_tests = b.addTest(.{
@@ -65,7 +65,7 @@ pub fn build(b: *std.Build) void {
     //
     const vm_mod = b.addModule(
         "vm",
-        .{ .source_file = .{ .path = "src/vm/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/vm/module.zig" } },
     );
 
     const vm = b.addExecutable(.{
@@ -91,7 +91,7 @@ pub fn build(b: *std.Build) void {
     //
     const compiler_mod = b.addModule(
         "compiler",
-        .{ .source_file = .{ .path = "src/compiler/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/compiler/module.zig" } },
     );
 
     const compiler_tests = b.addTest(.{
@@ -106,7 +106,7 @@ pub fn build(b: *std.Build) void {
     //
     const vmdls_mod = b.addModule(
         "vmdls",
-        .{ .source_file = .{ .path = "src/vmdls/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/vmdls/module.zig" } },
     );
 
     const vmdls = b.addExecutable(.{
@@ -132,7 +132,7 @@ pub fn build(b: *std.Build) void {
     //
     const binary_mod = b.addModule(
         "binary",
-        .{ .source_file = .{ .path = "src/binary/module.zig" } },
+        .{ .root_source_file = .{ .path = "src/binary/module.zig" } },
     );
     const binary_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/binary/module.zig" },
@@ -158,38 +158,38 @@ pub fn build(b: *std.Build) void {
     //
     // Executable dependencies
     //
-    assembler.addModule("arch", arch_mod);
-    assembler.addModule("vm", vm_mod);
-    vm.addModule("memory_manager", memory_manager_mod);
-    vm.addModule("arch", arch_mod);
-    vmdls.addModule("compiler", compiler_mod);
-    vmdls.addModule("asm", assembler_mod);
-    vmdls.addModule("arch", arch_mod);
-    vemod.addModule("arch", arch_mod);
-    vemod.addModule("vm", vm_mod);
-    vemod.addModule("asm", assembler_mod);
-    vemod.addModule("binary", binary_mod);
+    assembler.root_module.addImport("arch", arch_mod);
+    assembler.root_module.addImport("vm", vm_mod);
+    vm.root_module.addImport("memory_manager", memory_manager_mod);
+    vm.root_module.addImport("arch", arch_mod);
+    vmdls.root_module.addImport("compiler", compiler_mod);
+    vmdls.root_module.addImport("asm", assembler_mod);
+    vmdls.root_module.addImport("arch", arch_mod);
+    vemod.root_module.addImport("arch", arch_mod);
+    vemod.root_module.addImport("vm", vm_mod);
+    vemod.root_module.addImport("asm", assembler_mod);
+    vemod.root_module.addImport("binary", binary_mod);
 
     //
     // Module-module dependencies
     //
-    vm_mod.dependencies.put("arch", arch_mod) catch unreachable;
-    vm_mod.dependencies.put("memory_manager", memory_manager_mod) catch unreachable;
-    assembler_mod.dependencies.put("vm", vm_mod) catch unreachable;
-    assembler_mod.dependencies.put("arch", arch_mod) catch unreachable;
-    binary_mod.dependencies.put("arch", arch_mod) catch unreachable;
+    vm_mod.addImport("arch", arch_mod);
+    vm_mod.addImport("memory_manager", memory_manager_mod);
+    assembler_mod.addImport("vm", vm_mod);
+    assembler_mod.addImport("arch", arch_mod);
+    binary_mod.addImport("arch", arch_mod);
 
     //
     // Test dependencies
     //
-    assembler_tests.addModule("arch", arch_mod);
-    assembler_tests.addModule("vm", vm_mod);
-    vm_tests.addModule("arch", arch_mod);
-    vm_tests.addModule("memory_manager", memory_manager_mod);
-    vm_tests.addModule("asm", assembler_mod);
-    binary_tests.addModule("arch", arch_mod);
-    binary_tests.addModule("asm", assembler_mod);
-    binary_tests.addModule("vm", vm_mod);
+    assembler_tests.root_module.addImport("arch", arch_mod);
+    assembler_tests.root_module.addImport("vm", vm_mod);
+    vm_tests.root_module.addImport("arch", arch_mod);
+    vm_tests.root_module.addImport("memory_manager", memory_manager_mod);
+    vm_tests.root_module.addImport("asm", assembler_mod);
+    binary_tests.root_module.addImport("arch", arch_mod);
+    binary_tests.root_module.addImport("asm", assembler_mod);
+    binary_tests.root_module.addImport("vm", vm_mod);
 
     //
     // Unused modules

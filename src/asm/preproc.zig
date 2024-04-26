@@ -25,7 +25,7 @@ pub fn run(source: []const u8, allocator: Allocator) ![]const u8 {
 test {
     const testing = std.testing;
     const source = "Hello\tthere";
-    var preprocessed = try run(source, testing.allocator);
+    const preprocessed = try run(source, testing.allocator);
     defer testing.allocator.free(preprocessed);
     try testing.expectEqualSlices(u8, "Hello    there", preprocessed);
 }

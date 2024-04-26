@@ -9,10 +9,10 @@ const Options = @import("Options.zig");
 
 // Logging configuration.
 // From https://ziglang.org/documentation/0.11.0/std/#A;std:log
-pub const std_options = struct {
+pub const std_options = std.Options{
     // This is overriden by the global log_level
-    pub const log_level = .debug;
-    pub const logFn = logFnImpl;
+    .log_level = .debug,
+    .logFn = logFnImpl,
 };
 
 pub fn logFnImpl(
@@ -40,7 +40,7 @@ pub fn main() !void {
 
     if (Options.instance.help) {
         try Options.usage(std.io.getStdOut().writer());
-        std.os.exit(0);
+        std.process.exit(0);
     }
 
     var server = Server.init(
@@ -51,10 +51,10 @@ pub fn main() !void {
 
     server.run() catch |err| {
         std.log.err("Uncaught error: {s}", .{@errorName(err)});
-        std.os.exit(1);
+        std.process.exit(1);
     };
 
     server.deinit();
     _ = gpa.deinit();
-    std.os.exit(if (server.did_shutdown and server.did_exit) 0 else 1);
+    std.process.exit(if (server.did_shutdown and server.did_exit) 0 else 1);
 }

@@ -59,7 +59,7 @@ pub fn updateDocument(
 ) !void {
     if (self.hasDocument(uri)) {
         std.log.info("Update document {s} (version = {d})", .{ uri, version });
-        var doc = self.docs.getPtr(uri).?;
+        const doc = self.docs.getPtr(uri).?;
         const new_text = try self.alloc.dupe(u8, text);
         self.alloc.free(doc.*.text);
         doc.*.text = new_text;
@@ -73,7 +73,7 @@ pub fn removeDocument(self: *DocumentStore, uri: []const u8) void {
     std.log.info("Remove document {s}", .{uri});
     var entry = self.docs.getEntry(uri).?;
     entry.value_ptr.deinit(self.alloc);
-    var key = entry.key_ptr.*;
+    const key = entry.key_ptr.*;
     _ = self.docs.remove(uri);
     self.alloc.free(key);
 }
@@ -87,19 +87,19 @@ pub fn getDocument(self: *DocumentStore, uri: []const u8) ?*Document {
 }
 
 test DocumentStore {
-    var alloc = std.testing.allocator;
+    const alloc = std.testing.allocator;
     var store = DocumentStore.init(alloc);
     defer store.deinit();
 
-    var uri = "file:///foo/bar";
-    var text = "hello world";
-    var updated_text = "hello updated world";
+    const uri = "file:///foo/bar";
+    const text = "hello world";
+    const updated_text = "hello updated world";
 
     // Add
     try store.addDocument(uri, 1, "vmd", text);
     try std.testing.expect(store.hasDocument(uri));
 
-    var doc = store.getDocument(uri).?;
+    const doc = store.getDocument(uri).?;
     try std.testing.expectEqualStrings(text, doc.text);
     try std.testing.expectEqual(@as(i32, 1), doc.version);
 

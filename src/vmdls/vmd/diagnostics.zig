@@ -26,7 +26,7 @@ fn lspRangeFromSourceLocation(source: []const u8, where: []const u8) !lsp.Range 
 pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
     std.log.info("Producing diagnostics for document {s}", .{doc.uri});
 
-    var source = try asm_.preproc.run(doc.text, alloc);
+    const source = try asm_.preproc.run(doc.text, alloc);
     defer alloc.free(source);
 
     var errors = std.ArrayList(asm_.Error).init(alloc);

@@ -51,7 +51,7 @@ const Options = struct {
 fn usage(name: []const u8) !void {
     try io.getStdOut().writer().print(
         \\Usage:
-        \\    {s} [-c|-h] INPUT [-o OUTPUT]
+        \\    {s} [-c | -h] INPUT [-o OUTPUT]
         \\
         \\Options:
         \\    -c          Only compile.
@@ -188,6 +188,7 @@ pub fn main() !u8 {
         },
         .run => {
             var context = Context.init(program, allocator, &stdout, false);
+            defer context.deinit();
             const ret = interpreter.run(&context) catch |err| {
                 try stderr.print(
                     "runtime error: {s}\n",

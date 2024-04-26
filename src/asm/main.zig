@@ -12,7 +12,7 @@ pub fn usage() !void {
     try stderr.print("  -h, --help         Print this help and exit\n", .{});
     try stderr.print("  -o, --output FILE  Write output to FILE (defaults to stdout)\n", .{});
     try stderr.print("  -i, --input FILE   Read input from FILE (defaults to stdin)\n", .{});
-    std.os.exit(1);
+    std.process.exit(1);
 }
 
 pub fn main() !void {
@@ -36,7 +36,7 @@ pub fn main() !void {
             if (args.next()) |input_file_name| {
                 input = std.fs.cwd().openFile(input_file_name, .{}) catch |err| {
                     try stderr.print("Failed to open input file: {}\n", .{err});
-                    std.os.exit(1);
+                    std.process.exit(1);
                 };
             } else {
                 try stderr.print("Expected argument after \"{s}\"\n", .{arg});
@@ -49,7 +49,7 @@ pub fn main() !void {
             if (args.next()) |output_file_name| {
                 output = std.fs.cwd().createFile(output_file_name, .{}) catch |err| {
                     try stderr.print("Failed to create output file: {}\n", .{err});
-                    std.os.exit(1);
+                    std.process.exit(1);
                 };
             } else {
                 try stderr.print("Expected argument after \"{s}\"\n", .{arg});
@@ -62,9 +62,9 @@ pub fn main() !void {
         try usage();
     }
 
-    var source = input.reader().readAllAlloc(gpa.allocator(), std.math.maxInt(usize)) catch |err| {
+    const source = input.reader().readAllAlloc(gpa.allocator(), std.math.maxInt(usize)) catch |err| {
         try stderr.print("Failed to read input: {}\n", .{err});
-        std.os.exit(1);
+        std.process.exit(1);
     };
     defer gpa.allocator().free(source);
 
@@ -80,7 +80,7 @@ pub fn main() !void {
         for (errors.items) |err| {
             try err.print(source, stderr);
         }
-        std.os.exit(1);
+        std.process.exit(1);
     }
 
     //try asm_.emit(output.writer());
