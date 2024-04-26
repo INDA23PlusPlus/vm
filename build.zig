@@ -27,23 +27,12 @@ pub fn build(b: *std.Build) void {
         .{ .root_source_file = .{ .path = "src/asm/module.zig" } },
     );
 
-    const assembler = b.addExecutable(.{
-        .name = "asm",
-        .root_source_file = .{ .path = "src/asm/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
     const assembler_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/asm/module.zig" },
         .target = target,
         .optimize = optimize,
     });
     const assembler_run_tests = b.addRunArtifact(assembler_tests);
-
-    const build_assembler = b.step("asm", "Build the assembler");
-    const install_assembler = b.addInstallArtifact(assembler, .{});
-    build_assembler.dependOn(&install_assembler.step);
 
     //
     // Memory manager
@@ -68,23 +57,12 @@ pub fn build(b: *std.Build) void {
         .{ .root_source_file = .{ .path = "src/vm/module.zig" } },
     );
 
-    const vm = b.addExecutable(.{
-        .name = "vm",
-        .root_source_file = .{ .path = "src/vm/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
     const vm_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/vm/module.zig" },
         .target = target,
         .optimize = optimize,
     });
     const vm_run_tests = b.addRunArtifact(vm_tests);
-
-    const build_vm = b.step("vm", "Build the VM");
-    const install_vm = b.addInstallArtifact(vm, .{});
-    build_vm.dependOn(&install_vm.step);
 
     //
     // Compiler
@@ -158,10 +136,6 @@ pub fn build(b: *std.Build) void {
     //
     // Executable dependencies
     //
-    assembler.root_module.addImport("arch", arch_mod);
-    assembler.root_module.addImport("vm", vm_mod);
-    vm.root_module.addImport("memory_manager", memory_manager_mod);
-    vm.root_module.addImport("arch", arch_mod);
     vmdls.root_module.addImport("compiler", compiler_mod);
     vmdls.root_module.addImport("asm", assembler_mod);
     vmdls.root_module.addImport("arch", arch_mod);
@@ -199,8 +173,6 @@ pub fn build(b: *std.Build) void {
     //
     // Default build step
     //
-    b.installArtifact(assembler);
-    b.installArtifact(vm);
     b.installArtifact(vmdls);
     b.installArtifact(vemod);
 
