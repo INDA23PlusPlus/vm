@@ -64,3 +64,6 @@ zig-out/
 
 # Make
 Makefile
+
+# VS Code
+.vscode

@@ -17,22 +17,6 @@ pub const ListRef = struct {
         return .{ .ref = list };
     }
 
-    // Copy the reference to the list, incrementing the reference count
-    pub fn copy(self: *const Self) Self {
-        self.incr();
-        return .{ .ref = self.ref };
-    }
-
-    // Assign a new reference to the list, decrementing the reference count of the old list
-    // and incrementing the reference count of the new list
-    pub fn assign(self: *const Self, other: Self) void {
-        // It is important to increment the reference count of the new list before decrementing the old list
-        // Otherwise the refcount could reach 0 and the object could be deallocated if other is the same as self
-        other.incr();
-        self.decr();
-        self.ref = other.ref;
-    }
-
     // Deinitialize the list, decrementing the reference count
     pub fn deinit(self: *const Self) void {
         self.decr();
@@ -95,23 +79,6 @@ pub const ObjectRef = struct {
         const obj = try allocator.create(Object);
         obj.* = Object.init(allocator);
         return .{ .ref = obj };
-    }
-
-    // Copy the reference to the list, incrementing the reference count
-    pub fn copy(self: *const Self) Self {
-        self.incr();
-        return .{ .ref = self.ref };
-    }
-
-    // Assign a new reference to the list, decrementing the reference count of the old list
-    // and incrementing the reference count of the new list
-    pub fn assign(self: *const Self, other: Self) void {
-
-        // It is important to increment the reference count of the new list before decrementing the old list
-        // Otherwise the refcount could reach 0 and the object could be deallocated if other is the same as self
-        other.incr();
-        self.decr();
-        self.ref = other.ref;
     }
 
     // Deinitialize list, decrementing the reference count
