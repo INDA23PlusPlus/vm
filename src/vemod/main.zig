@@ -25,27 +25,21 @@ const vm = @import("vm");
 const Context = vm.VMContext;
 const interpreter = vm.interpreter;
 
-const InputType = enum { vmd, mcl, vbf };
+const Extension = enum { vmd, mcl, vbf };
 
-fn getInputType(filename: []const u8) ?InputType {
-    var dot_id = filename.len - 1;
-    if (filename[dot_id] == '.') return null;
-
-    while (true) {
-        if (filename[dot_id] == '.') break;
-        if (dot_id == 0) return null;
-        dot_id -= 1;
-    }
-
-    const ext = filename[dot_id + 1 ..];
-    return meta.stringToEnum(InputType, ext);
+fn getExtension(filename: []const u8) ?Extension {
+    if (filename.len == 0) return null;
+    var iter = mem.tokenizeScalar(u8, filename, '.');
+    var ext: []const u8 = undefined;
+    while (iter.next()) |tok| ext = tok;
+    return meta.stringToEnum(Extension, ext);
 }
 
 const Options = struct {
     action: enum { compile, run } = .run,
-    output: ?[]const u8 = null,
-    input: ?[]const u8 = null,
-    input_type: ?InputType = null,
+    output_filename: ?[]const u8 = null,
+    input_filename: ?[]const u8 = null,
+    extension: ?Extension = null,
 };
 
 fn usage(name: []const u8) !void {
@@ -76,7 +70,7 @@ pub fn main() !u8 {
         if (mem.eql(u8, arg, "-c")) {
             options.action = .compile;
         } else if (mem.eql(u8, arg, "-o")) {
-            options.output = args.next() orelse {
+            options.output_filename = args.next() orelse {
                 try stderr.print("error: missing output file name\n", .{});
                 try usage(name);
                 return 1;
@@ -85,47 +79,44 @@ pub fn main() !u8 {
             try usage(name);
             return 0;
         } else {
-            options.input = arg;
+            options.input_filename = arg;
         }
     }
 
-    if (options.input == null) {
+    const input_filename = options.input_filename orelse {
         try stderr.print("error: missing input file name\n", .{});
         try usage(name);
         return 1;
-    }
+    };
 
-    options.input_type = getInputType(options.input.?) orelse {
-        try stderr.print("error: unrecognized file extension: {s}\n", .{options.input.?});
+    options.extension = getExtension(input_filename) orelse {
+        try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
         try usage(name);
         return 1;
     };
 
-    var file = fs.cwd().openFile(options.input.?, .{}) catch |err| {
+    var infile = fs.cwd().openFile(options.input_filename.?, .{}) catch |err| {
         try stderr.print(
             "error: unable to open input file {s}: {s}\n",
-            .{ options.input.?, @errorName(err) },
+            .{ options.input_filename.?, @errorName(err) },
         );
         return 1;
     };
-    defer file.close();
+    defer infile.close();
 
-    var reader = file.reader();
+    var reader = infile.reader();
     var gpa = heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     var allocator = gpa.allocator();
 
     var program: Program = undefined;
-    // make sure we don't free unitialized program
-    program.deinit_data = null;
-    defer program.deinit();
 
-    switch (options.input_type.?) {
+    switch (options.extension.?) {
         .vbf => {
             program = binary.load(reader, allocator) catch |err| {
                 try stderr.print(
                     "error: failed to read file {s}: {s}\n",
-                    .{ options.input.?, @errorName(err) },
+                    .{ input_filename, @errorName(err) },
                 );
                 return 1;
             };
@@ -134,7 +125,7 @@ pub fn main() !u8 {
             const source = reader.readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
                 try stderr.print(
                     "error: unable to read file {s}: {s}\n",
-                    .{ options.input.?, @errorName(err) },
+                    .{ input_filename, @errorName(err) },
                 );
                 return 1;
             };
@@ -166,13 +157,15 @@ pub fn main() !u8 {
         },
     }
 
+    defer program.deinit();
+
     switch (options.action) {
         .compile => {
-            const filename = options.output orelse "output.vbf";
-            var outfile = fs.cwd().createFile(filename, .{}) catch |err| {
+            const output_filename = options.output_filename orelse "output.vbf";
+            var outfile = fs.cwd().createFile(output_filename, .{}) catch |err| {
                 try stderr.print(
                     "error: unable to create file {s}: {s}\n",
-                    .{ filename, @errorName(err) },
+                    .{ output_filename, @errorName(err) },
                 );
                 return 1;
             };
