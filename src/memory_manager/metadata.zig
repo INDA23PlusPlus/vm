@@ -19,7 +19,7 @@ pub fn Metadata(comptime CountType: type, comptime MarkType: type) type {
 
         pub fn deinit(self: *Self) void {
             const refcount = self.get();
-            if (refcount != 0) {
+            if (refcount != 0 and std.debug.runtime_safety) {
                 std.debug.panic("deinit with non-zero refcount: {}", .{refcount});
             }
             self.deinit_unchecked();
@@ -30,18 +30,36 @@ pub fn Metadata(comptime CountType: type, comptime MarkType: type) type {
         }
 
         pub fn increment(self: *Self) void {
+            // @atomic* builtins only take pointers to ints such as `u8` `u16` `i32` etc
+            // therefore cast Self pointer to a pointer compatible with the builtins
             const ptr: *SelfIntType = @ptrCast(self);
-            const self_before: Self = @bitCast(@atomicRmw(SelfIntType, ptr, .Add, 1, .monotonic));
+
+            // modify count
+            const res = @atomicRmw(SelfIntType, ptr, .Add, 1, .monotonic);
+
+            // cast result back to `Self`
+            const self_before: Self = @bitCast(res);
+
+            // count cant go above `maxInt`, so when we added one it overflowed into the bits for `MarkType` and invalidated `self.mark`
             if (self_before.count == std.math.maxInt(CountType) and std.debug.runtime_safety) {
-                std.debug.panic("overflowed refcount", .{});
+                std.debug.panic("incremented maximal refcount, overflowed self.mark", .{});
             }
         }
 
         pub fn decrement(self: *Self) void {
+            // @atomic* builtins only take pointers to ints such as `u8` `u16` `i32` etc
+            // therefore cast Self pointer to a pointer compatible with the builtins
             const ptr: *SelfIntType = @ptrCast(self);
-            const self_before: Self = @bitCast(@atomicRmw(SelfIntType, ptr, .Sub, 1, .monotonic));
-            if (std.debug.runtime_safety and self_before.count == 0) {
-                std.debug.panic("decremented zero refcount", .{});
+
+            // modify count
+            const res = @atomicRmw(SelfIntType, ptr, .Sub, 1, .monotonic);
+
+            // cast result back to `Self`
+            const self_before: Self = @bitCast(res);
+
+            // count can't go below zero, so when we subtracted one it overflowed into the bits for `MarkType` and invalidated `self.mark`
+            if (self_before.count == 0 and std.debug.runtime_safety) {
+                std.debug.panic("decremented zero refcount, overflowed self.mark ", .{});
             }
         }
 
