@@ -8,6 +8,10 @@ pub fn Metadata(comptime CountType: type, comptime MarkType: type) type {
         const Self = @This();
         count: CountType,
         mark: MarkType,
+        const CountBits = @bitSizeOf(CountType);
+        const MarkBits = @bitSizeOf(MarkType);
+
+        const SelfIntType = std.meta.Int(.unsigned, CountBits + MarkBits);
 
         pub fn init() Self {
             return .{ .count = 1, .mark = 0 };
@@ -26,31 +30,25 @@ pub fn Metadata(comptime CountType: type, comptime MarkType: type) type {
         }
 
         pub fn increment(self: *Self) void {
-            // Since we cannot create a pointer to a u15, we need to
-            // perform the addition on the entire metadata packed struct.
-            // Therefore, reinterpret cast to u16 and perform the addition
-            // there and hope we don't overflow to the mark bit.
-            const ptr: *const u16 = @ptrCast(self);
-            _ = @atomicRmw(u16, @constCast(ptr), .Add, 1, .monotonic);
+            const ptr: *SelfIntType = @ptrCast(self);
+            const self_before: Self = @bitCast(@atomicRmw(SelfIntType, ptr, .Add, 1, .monotonic));
+            if (self_before.count == std.math.maxInt(CountType) and std.debug.runtime_safety) {
+                std.debug.panic("overflowed refcount", .{});
+            }
         }
 
         pub fn decrement(self: *Self) void {
-            // See comment above.
-            const ptr: *const u16 = @ptrCast(self);
-            const res = @atomicRmw(u16, @constCast(ptr), .Sub, 1, .monotonic);
-            if (std.debug.runtime_safety and res == 0) {
+            const ptr: *SelfIntType = @ptrCast(self);
+            const self_before: Self = @bitCast(@atomicRmw(SelfIntType, ptr, .Sub, 1, .monotonic));
+            if (std.debug.runtime_safety and self_before.count == 0) {
                 std.debug.panic("decremented zero refcount", .{});
             }
         }
 
         pub fn get(self: *const Self) CountType {
-            // Interpret self as u16 and read.
-            // Then interpret back to u15 (which disgards mark bit)
-            // very cursed.... VERY.
-            const ptr: *const u16 = @ptrCast(self);
-            const bits = @atomicLoad(u16, @constCast(ptr), .monotonic);
-            const bits_ptr: *const CountType = @ptrCast(&bits);
-            return bits_ptr.*;
+            const ptr: *const SelfIntType = @ptrCast(self);
+            const self_deref: Self = @bitCast(@atomicLoad(SelfIntType, ptr, .monotonic));
+            return self_deref.count;
         }
 
         test "increment/decrement" {
