@@ -468,10 +468,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const s = mem.alloc_struct();
                 defer s.deinit();
 
-                const v = take(ctxt, Type.from(s));
-                defer drop(ctxt, v);
-
-                try push(ctxt, v);
+                try push(ctxt, Type.from(s));
             },
             .struct_store => {
                 const v = try pop(ctxt);

@@ -212,40 +212,21 @@ pub const Type = union(enum) {
     fn from_(x: anytype) Self {
         const T = @TypeOf(x);
 
-        if (T == Type) {
-            return x.clone();
-        }
-        if (T == StringLit or T == StringRef) {
-            var res = .{ .string = String.from(x) };
-            res.string.incr();
-            return res;
-        }
-        if (T == ListRef) {
-            var res = .{ .list = x };
-            res.list.incr();
-            return res;
-        }
-        if (T == ObjectRef) {
-            var res = .{ .object = x };
-            res.object.incr();
-            return res;
-        }
-        if (T == UnitType) {
-            return .{ .unit = x };
-        }
-        if (T == void) {
-            return .{ .unit = .{} };
-        }
-
-        return switch (@typeInfo(T)) {
-            .Int, .ComptimeInt => .{ .int = @intCast(x) },
-
-            .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
-
-            else => @compileError(std.fmt.comptimePrint(
-                "'{s}' not convertible to Type\n",
-                .{@typeName(T)},
-            )),
+        return switch (T) {
+            Type => x,
+            StringLit, StringRef => .{ .string = String.from(x) },
+            ListRef => .{ .list = x },
+            ObjectRef => .{ .object = x },
+            UnitType => .{ .unit = x },
+            void => .{ .unit = .{} },
+            else => switch (@typeInfo(T)) {
+                .Int, .ComptimeInt => .{ .int = @intCast(x) },
+                .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
+                else => @compileError(std.fmt.comptimePrint(
+                    "'{s}' not convertible to Type\n",
+                    .{@typeName(T)},
+                )),
+            },
         };
     }
 
