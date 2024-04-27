@@ -19,7 +19,6 @@ const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
 const StringPool = @import("StringPool.zig");
 const StringParser = @import("StringParser.zig");
-const emit_ = @import("emit.zig");
 
 const entry_name = "main";
 
