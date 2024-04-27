@@ -306,6 +306,42 @@ test "cycles get dropped" {
     try std.testing.expect(0 == memoryManager.get_object_count());
 }
 
+test "one object refers to same object twice" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectA = memoryManager.alloc_struct(); // A
+    var objectB = memoryManager.alloc_struct(); // B
+    try objectA.set(0, Type.from(objectB)); // A[0] = B
+    try objectA.set(1, Type.from(objectB)); // A[1] = B
+    objectB.decr(); // all references to B are from A
+
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
+
+    objectA.decr();
+    try memoryManager.gc_pass();
+    try std.testing.expectEqual(0, memoryManager.get_object_count());
+}
+
+test "object key set twice with same value" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objectA = memoryManager.alloc_struct(); // A
+    var objectB = memoryManager.alloc_struct(); // B
+    try objectA.set(0, Type.from(objectB)); // A[0] = B
+    try objectA.set(0, Type.from(objectB)); // A[0] = B
+    objectB.decr(); // all references to B are from A
+
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
+
+    objectA.decr(); // drop A
+    try memoryManager.gc_pass();
+    try std.testing.expectEqual(0, memoryManager.get_object_count());
+}
+
 test "big cycle" {
     const Type = APITypes.Type;
     var memoryManager = try Self.init(std.testing.allocator);
