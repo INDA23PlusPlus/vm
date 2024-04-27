@@ -137,7 +137,7 @@ fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
         return e;
     };
 
-    return take(ctxt, ctxt.stack.items[idx]);
+    return ctxt.stack.items[idx];
 }
 
 fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
@@ -264,7 +264,31 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
 
         ctxt.pc += 1;
-
+        // fastpath for integer math
+        if (@intFromEnum(i.op) < 11) {
+            const stack_items = ctxt.stack.items;
+            const stack_len = stack_items.len;
+            if (stack_len >= 2 and stack_items[stack_len - 1].tag() == .int and stack_items[stack_len - 2].tag() == .int) {
+                const a = stack_items[stack_len - 2].int;
+                const b = stack_items[stack_len - 1].int;
+                stack_items[stack_len - 2].int = switch (i.op) {
+                    .add => a + b,
+                    .sub => a - b,
+                    .mul => a * b,
+                    .div => if (b == 0 or (a == std.math.minInt(Type.GetRepr(.int)) and b == -1)) return error.InvalidOperation else @divTrunc(a, b),
+                    .mod => if (b == 0) return error.InvalidOperation else if (b == -1) 0 else a - b * @divTrunc(a, b),
+                    .cmp_lt => @intFromBool(a < b),
+                    .cmp_gt => @intFromBool(a > b),
+                    .cmp_le => @intFromBool(a <= b),
+                    .cmp_ge => @intFromBool(a >= b),
+                    .cmp_eq => @intFromBool(a == b),
+                    .cmp_ne => @intFromBool(a != b),
+                    else => unreachable,
+                };
+                drop(ctxt, try pop(ctxt));
+                continue;
+            }
+        }
         switch (i.op) {
             .add,
             .sub,
@@ -281,8 +305,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const a = try pop(ctxt);
                 defer drop(ctxt, a);
 
-                const r = take(ctxt, try doBinaryOp(a, op, b));
-                defer drop(ctxt, r);
+                const r = try doBinaryOp(a, op, b);
 
                 if (ctxt.debug_output) {
                     if (op.isArithmetic()) {
@@ -304,27 +327,15 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const a = try pop(ctxt);
                 defer drop(ctxt, a);
 
-                const r = take(ctxt, Type.from(@intFromBool(switch (op) {
+                const r = Type.from(@intFromBool(switch (op) {
                     .cmp_eq => compareEq(a, b),
                     .cmp_ne => !compareEq(a, b),
                     else => unreachable,
-                })));
-                defer drop(ctxt, r);
-
+                }));
                 try push(ctxt, r);
             },
-            .push => {
-                const v = take(ctxt, Type.from(i.operand.int));
-                defer drop(ctxt, v);
-
-                try push(ctxt, v);
-            },
-            .pushf => {
-                const v = take(ctxt, Type.from(i.operand.float));
-                defer drop(ctxt, v);
-
-                try push(ctxt, v);
-            },
+            .push => try push(ctxt, Type.from(i.operand.int)),
+            .pushf => try push(ctxt, Type.from(i.operand.float)),
             .pushs => {
                 const p = i.operand.location;
                 try assert(p < ctxt.prog.strings.len);
@@ -339,7 +350,6 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
             .dup => {
                 const v = try get(ctxt, false, -1);
-                defer drop(ctxt, v);
 
                 if (ctxt.debug_output) {
                     std.debug.print("duplicated: {}\n", .{v});
@@ -349,8 +359,6 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
             .load => {
                 const v = try get(ctxt, true, i.operand.int);
-                defer drop(ctxt, v);
-
                 try push(ctxt, v);
             },
             .store => {
@@ -372,12 +380,8 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
             .call => {
                 const loc = i.operand.location;
-
-                const ra = take(ctxt, Type.from(ctxt.pc));
-                defer drop(ctxt, ra);
-
-                const bp = take(ctxt, Type.from(ctxt.bp));
-                defer drop(ctxt, bp);
+                const ra = Type.from(ctxt.pc);
+                const bp = Type.from(ctxt.bp);
 
                 try push(ctxt, bp);
                 try push(ctxt, ra);
@@ -389,9 +393,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const r = try pop(ctxt);
                 defer drop(ctxt, r);
 
-                while (ctxt.stack.items.len != ctxt.bp) {
-                    drop(ctxt, try pop(ctxt));
+                for (ctxt.bp..ctxt.stack.items.len) |idx| {
+                    drop(ctxt, ctxt.stack.items[idx]);
                 }
+                try ctxt.stack.resize(ctxt.bp);
 
                 if (ctxt.bp == 0) {
                     try push(ctxt, r);
@@ -415,6 +420,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                         std.debug.print("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
                     }
 
+                    // ctxt.stack.shrinkRetainingCapacity(ctxt.stack.items.len - @as(usize, @intCast(N.int)));
                     for (0..@intCast(N.int)) |_| {
                         drop(ctxt, try pop(ctxt));
                     }
@@ -440,7 +446,6 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, v);
 
                 try assert(v.tag() == .int);
-
                 if (v.int != 0) {
                     if (ctxt.debug_output) {
                         std.debug.print("took branch to: {}\n", .{loc});
@@ -454,19 +459,18 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
             },
             .stack_alloc => {
-                const v = take(ctxt, Type.from(void{}));
-                defer drop(ctxt, v);
+                const v = Type.from(void{});
 
-                const n = i.operand.int;
+                const n: usize = @intCast(i.operand.int);
                 try assert(n >= 0);
 
+                try ctxt.stack.ensureTotalCapacity(ctxt.stack.items.len + n);
                 for (0..@as(usize, @intCast(n))) |_| {
-                    try push(ctxt, v);
+                    push(ctxt, v) catch unreachable;
                 }
             },
             .struct_alloc => {
                 const s = mem.alloc_struct();
-                defer s.deinit();
 
                 try push(ctxt, Type.from(s));
             },
@@ -492,8 +496,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(s.is(.object));
 
                 const obj = s.asUnChecked(.object);
-                const v = take(ctxt, Type.from(obj.get(f)));
-                defer drop(ctxt, v);
+                const v = Type.from(obj.get(f));
 
                 try push(ctxt, v);
             },

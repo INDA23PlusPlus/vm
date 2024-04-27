@@ -4,18 +4,18 @@ pub const Opcode = enum(u8) {
     // TODO: explicit opcodes (actually a unified instruction interface towards assembler/vm makes this unecessary)
 
     // see descr.zig for descriptions
-    add,
-    sub,
-    mul,
-    div,
-    mod,
+    add = 0,
+    sub = 1,
+    mul = 2,
+    div = 3,
+    mod = 4,
 
-    cmp_lt,
-    cmp_gt,
-    cmp_le,
-    cmp_ge,
-    cmp_eq,
-    cmp_ne,
+    cmp_lt = 5,
+    cmp_gt = 6,
+    cmp_le = 7,
+    cmp_ge = 8,
+    cmp_eq = 9,
+    cmp_ne = 10,
 
     jmp,
     jmpnz,
