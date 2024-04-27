@@ -165,9 +165,9 @@ test "get and set to struct" {
 
     var objectRef = memoryManager.alloc_struct();
 
-    try objectRef.set(123, Type{ .int = 456 });
+    try objectRef.set(123, Type.from(456));
 
-    try std.testing.expect(456 == objectRef.get(123).?.int);
+    try std.testing.expectEqual(456, objectRef.get(123).?.int);
 }
 
 test "get and set to list" {
@@ -177,10 +177,10 @@ test "get and set to list" {
 
     var listRef = memoryManager.alloc_list();
 
-    try listRef.push(Type{ .int = 123 });
+    try listRef.push(Type.from(123));
 
-    try std.testing.expect(1 == listRef.length());
-    try std.testing.expect(123 == listRef.get(0).int);
+    try std.testing.expectEqual(1, listRef.length());
+    try std.testing.expectEqual(123, listRef.get(0).int);
 }
 
 test "run gc pass with empty memory manager" {
@@ -196,12 +196,12 @@ test "gc pass removes one unused object" {
 
     var objectRef = memoryManager.alloc_struct();
 
-    try std.testing.expect(1 == memoryManager.get_object_count());
+    try std.testing.expectEqual(1, memoryManager.get_object_count());
 
     objectRef.deinit();
     try memoryManager.gc_pass();
 
-    try std.testing.expect(0 == memoryManager.get_object_count());
+    try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "gc pass keeps one object still in use" {
@@ -210,11 +210,11 @@ test "gc pass keeps one object still in use" {
 
     _ = memoryManager.alloc_struct();
 
-    try std.testing.expect(1 == memoryManager.get_object_count());
+    try std.testing.expectEqual(1, memoryManager.get_object_count());
 
     try memoryManager.gc_pass();
 
-    try std.testing.expect(1 == memoryManager.get_object_count());
+    try std.testing.expectEqual(1, memoryManager.get_object_count());
 }
 
 test "gc pass keeps one object still in use and discards one unused" {
@@ -225,15 +225,15 @@ test "gc pass keeps one object still in use and discards one unused" {
     var objectRef1 = memoryManager.alloc_struct();
     var objectRef2 = memoryManager.alloc_struct();
 
-    try objectRef1.set(123, Type{ .int = 456 });
+    try objectRef1.set(123, Type.from(456));
 
-    try std.testing.expect(2 == memoryManager.get_object_count());
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     objectRef2.deinit();
     try memoryManager.gc_pass();
 
-    try std.testing.expect(1 == memoryManager.get_object_count());
-    try std.testing.expect(456 == objectRef1.get(123).?.int);
+    try std.testing.expectEqual(1, memoryManager.get_object_count());
+    try std.testing.expectEqual(456, objectRef1.get(123).?.int);
 }
 
 test "assign object to object" {
@@ -243,9 +243,9 @@ test "assign object to object" {
 
     var objectRef1 = memoryManager.alloc_struct();
     var objectRef2 = memoryManager.alloc_struct();
-    try objectRef1.set(123, Type{ .int = 456 });
-    try objectRef2.set(123, Type{ .object = objectRef1 });
-    try std.testing.expect(2 == memoryManager.get_object_count());
+    try objectRef1.set(123, Type.from(456));
+    try objectRef2.set(123, Type.from(objectRef1));
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
 }
 
 test "object in object, drop parent, keep child" {
@@ -255,9 +255,9 @@ test "object in object, drop parent, keep child" {
 
     var objectA = memoryManager.alloc_struct(); // A
     var objectB = memoryManager.alloc_struct(); // B
-    try objectA.set(123, Type{ .int = 456 }); // A[123] = 456
-    try objectB.set(123, Type{ .object = objectA }); // B[123] = A
-    try std.testing.expect(2 == memoryManager.get_object_count());
+    try objectA.set(123, Type.from(456)); // A[123] = 456
+    try objectB.set(123, Type.from(objectA)); // B[123] = A
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object B from stack. The child A should still be kept since it
     // is referenced on the stack.
@@ -265,9 +265,9 @@ test "object in object, drop parent, keep child" {
     // Object B should be dropped
     try memoryManager.gc_pass();
     // Only Object A should be alive.
-    try std.testing.expect(1 == memoryManager.get_object_count());
+    try std.testing.expectEqual(1, memoryManager.get_object_count());
 
-    try std.testing.expect(456 == objectA.get(123).?.int);
+    try std.testing.expectEqual(456, objectA.get(123).?.int);
 }
 
 test "object in object, drop child from stack, gc, both stay" {
@@ -277,14 +277,14 @@ test "object in object, drop child from stack, gc, both stay" {
 
     var objectA = memoryManager.alloc_struct(); // A
     var objectB = memoryManager.alloc_struct(); // B
-    try objectA.set(123, Type{ .int = 456 }); // A[123] = 456
-    try objectB.set(123, Type{ .object = objectA }); // B[123] = A
-    try std.testing.expect(2 == memoryManager.get_object_count());
+    try objectA.set(123, Type.from(456)); // A[123] = 456
+    try objectB.set(123, Type.from(objectA)); // B[123] = A
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object A from stack. It should still be kept since it is alive as a child of object B.
     objectA.decr();
     try memoryManager.gc_pass();
-    try std.testing.expect(2 == memoryManager.get_object_count());
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
 }
 
 test "cycles get dropped" {
@@ -294,16 +294,16 @@ test "cycles get dropped" {
 
     var objectA = memoryManager.alloc_struct(); // A
     var objectB = memoryManager.alloc_struct(); // B
-    try objectA.set(124, Type{ .object = objectA }); // A[124] = B
-    try objectB.set(123, Type{ .object = objectA }); // B[123] = A
-    try std.testing.expect(2 == memoryManager.get_object_count());
+    try objectA.set(124, Type.from(objectA)); // A[124] = B
+    try objectB.set(123, Type.from(objectA)); // B[123] = A
+    try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop both from stack.
     // They should both
     objectA.decr();
     objectB.decr();
     try memoryManager.gc_pass();
-    try std.testing.expect(0 == memoryManager.get_object_count());
+    try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "one object refers to same object twice" {
