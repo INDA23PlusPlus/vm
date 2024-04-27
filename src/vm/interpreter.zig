@@ -469,6 +469,47 @@ pub fn run(ctxt: *VMContext) !i64 {
                     push(ctxt, v) catch unreachable;
                 }
             },
+            .list_alloc => {
+                const s = mem.alloc_list();
+                defer s.deinit();
+
+                const v = take(ctxt, Type.from(s));
+                defer drop(ctxt, v);
+
+                try push(ctxt, v);
+            },
+            .list_store => {
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
+
+                const idx = try pop(ctxt);
+                defer drop(ctxt, idx);
+                try assert(idx.is(.int));
+                const index = @as(usize, @intCast(idx.asUnChecked(.int)));
+
+                const s = try pop(ctxt);
+                defer drop(ctxt, s);
+                try assert(s.is(.list));
+                const list = s.asUnChecked(.list);
+
+                list.set(index, v);
+            },
+            .list_load => {
+                const idx = try pop(ctxt);
+                defer drop(ctxt, idx);
+                try assert(idx.is(.int));
+                const index = @as(usize, @intCast(idx.asUnChecked(.int)));
+
+                const s = try pop(ctxt);
+                defer drop(ctxt, s);
+                try assert(s.is(.list));
+                const list = s.asUnChecked(.list);
+
+                const v = take(ctxt, Type.from(list.get(index)));
+                defer drop(ctxt, v);
+
+                try push(ctxt, v);
+            },
             .struct_alloc => {
                 const s = mem.alloc_struct();
 
@@ -500,7 +541,7 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
-            else => std.debug.panic("unimplemented instruction {}\n", .{i}),
+            // else => std.debug.panic("unimplemented instruction {}\n", .{i}),
         }
     }
 
@@ -640,6 +681,112 @@ test "structs" {
         Instruction.equal(),
         Instruction.ret(),
     }, 0, &.{}, &.{ "a", "b" }), "", 1);
+}
+
+test "lists" {
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.listStore(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.listLoad(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 42);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.listStore(),
+        Instruction.syscall(0),
+        Instruction.push(0),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "[42]", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.listStore(),
+
+        Instruction.dup(),
+        Instruction.push(1),
+        Instruction.push(43),
+        Instruction.listStore(),
+
+        Instruction.syscall(0),
+        Instruction.push(0),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "[42, 43]", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.dup(),
+        Instruction.push(0),
+        Instruction.listAlloc(),
+        Instruction.listStore(),
+        Instruction.syscall(0),
+        Instruction.push(0),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "[[]]", 0);
+
+    // TODO: list equality checking
+    // try testRun(Program.init(&.{
+    //     Instruction.listAlloc(),
+    //     Instruction.listAlloc(),
+
+    //     Instruction.load(0),
+    //     Instruction.push(0),
+    //     Instruction.push(1),
+    //     Instruction.listStore(),
+
+    //     Instruction.load(1),
+    //     Instruction.push(0),
+    //     Instruction.push(1),
+    //     Instruction.listStore(),
+
+    //     Instruction.load(0),
+    //     Instruction.load(1),
+    //     Instruction.equal(),
+    //     Instruction.ret(),
+    // }, 0, &.{}, &.{}), "", 1);
+
+    // try testRun(Program.init(&.{
+    //     Instruction.listAlloc(),
+    //     Instruction.load(0),
+    //     Instruction.push(0),
+    //     Instruction.load(0),
+    //     Instruction.listStore(),
+    //     Instruction.load(0),
+    //     Instruction.load(0),
+    //     Instruction.equal(),
+    //     Instruction.ret(),
+    // }, 0, &.{}, &.{}), "", 1);
+
+    // try testRun(Program.init(&.{
+    //     Instruction.listAlloc(),
+    //     Instruction.listAlloc(),
+
+    //     Instruction.load(0),
+    //     Instruction.push(0),
+    //     Instruction.load(1),
+    //     Instruction.listStore(), // list0[0] = list1
+    //     Instruction.load(1),
+    //     Instruction.push(0),
+    //     Instruction.load(0),
+    //     Instruction.listStore(), // list1[0] = list2
+
+    //     Instruction.load(0),
+    //     Instruction.dup(),
+    //     Instruction.equal(),
+    //     Instruction.ret(),
+    // }, 0, &.{}, &.{}), "", 1);
 }
 
 test "arithmetic" {

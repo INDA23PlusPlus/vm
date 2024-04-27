@@ -37,11 +37,28 @@ pub const ListRef = struct {
     }
 
     pub fn get(self: *const Self, index: usize) Type {
-        return self.ref.items.items[index];
+        if (index >= self.length()) {
+            return Type.from(UnitType.init());
+        } else {
+            return self.ref.items.items[index];
+        }
     }
 
-    pub fn set(self: *const Self, key: usize, value: Type) void {
-        self.ref.items.items[key] = value;
+    pub fn set(self: *const Self, index: usize, value: Type) void {
+        if (index >= self.ref.items.items.len) {
+            for (0..self.ref.items.items.len - index) |_| {
+                self.ref.items.append(Type.from(UnitType.init())) catch |err| {
+                    std.debug.print("Error on list set: {}\n", .{err});
+                    return;
+                };
+            }
+            self.ref.items.append(value) catch |err| {
+                std.debug.print("Error on list set: {}\n", .{err});
+                return;
+            };
+            return;
+        }
+        self.ref.items.items[index] = value;
     }
 
     pub fn push(self: *const Self, value: Type) !void {
