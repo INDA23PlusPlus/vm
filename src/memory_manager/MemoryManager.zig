@@ -305,3 +305,80 @@ test "cycles get dropped" {
     try memoryManager.gc_pass();
     try std.testing.expect(0 == memoryManager.get_object_count());
 }
+
+test "big cycle" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    var objects = std.ArrayList(ObjectRef).init(std.testing.allocator);
+    defer objects.deinit();
+
+    const cycle_len = 128;
+
+    for (0..cycle_len) |_| {
+        try objects.append(memoryManager.alloc_struct());
+    }
+
+    for (0..cycle_len) |i| {
+        try objects.items[(i + 1) % cycle_len].set(0, Type.from(objects.items[i]));
+    }
+
+    try std.testing.expectEqual(cycle_len, memoryManager.get_object_count());
+
+    for (0..cycle_len) |i| {
+        objects.items[i].decr();
+    }
+
+    try memoryManager.gc_pass();
+    try std.testing.expectEqual(0, memoryManager.get_object_count());
+}
+
+test "tree of objects with references to root" {
+    const Type = APITypes.Type;
+    var memoryManager = try Self.init(std.testing.allocator);
+    defer memoryManager.deinit();
+
+    const utils = struct {
+        fn buildTree(cur: ObjectRef, root: ObjectRef, mem: *Self, depth: usize, nodes_per_layer: usize) !void {
+            try cur.set(0, Type.from(root));
+            if (depth == 0) return; // no more layers to add
+            for (0..nodes_per_layer) |i| {
+                const child = mem.alloc_struct();
+                try cur.set(i + 1, Type.from(child));
+
+                // make sure only reference to child is from `cur`
+                child.decr();
+
+                try buildTree(child, root, mem, depth - 1, nodes_per_layer);
+            }
+        }
+    };
+
+    const layers = 6;
+    const nodes_per_layer = 5;
+
+    // geometric series
+    // around 19K nodes with layers=6 and nodes_per_layer=5
+    const expected_node_count = (try std.math.powi(usize, nodes_per_layer, layers + 1) - 1) / (nodes_per_layer - 1);
+
+    const root = memoryManager.alloc_struct();
+    try utils.buildTree(root, root, &memoryManager, layers, nodes_per_layer);
+
+    // add some random references throughout the tree
+    var rand = std.rand.DefaultPrng.init(0);
+    for (0..expected_node_count) |i| {
+        const j = rand.random().intRangeLessThan(usize, 0, expected_node_count);
+        const ref1 = ObjectRef{ .ref = memoryManager.allObjects.items[i] };
+        const ref2 = ObjectRef{ .ref = memoryManager.allObjects.items[j] };
+        try ref1.set(nodes_per_layer + 1, Type.from(ref2));
+    }
+
+    try std.testing.expectEqual(expected_node_count, memoryManager.get_object_count());
+
+    // drop the entire tree
+    root.decr();
+    try memoryManager.gc_pass();
+
+    try std.testing.expectEqual(0, memoryManager.get_object_count());
+}
