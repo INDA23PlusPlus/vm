@@ -194,6 +194,8 @@ fn doBinaryOpSameType(a: Type, op: Opcode, b: Type) !Type {
 
 fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     if (@intFromEnum(a) ^ @intFromEnum(b) == 0) return doBinaryOpSameType(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+
+    // if a and b are different type and theyre not `int` and `float` or `string_lit` and `string_ref` it's invalid and should end up triggering this
     if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
         return handleInvalidOperation(a, op, b, ctxt);
     }
@@ -405,6 +407,8 @@ pub fn run(ctxt: *VMContext) !i64 {
             if ((!std.debug.runtime_safety or stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Type.int))) {
                 const lhs = stack_items[stack_len - 2];
                 const rhs = stack_items[stack_len - 1];
+                try assert(lhs.is(.int));
+                try assert(rhs.is(.int));
                 const a = lhs.int;
                 const b = rhs.int;
                 stack_items[stack_len - 2].int = doArithmetic(Type.GetRepr(.int), a, i.op, b) catch return handleInvalidOperation(lhs, i.op, rhs, ctxt);
@@ -422,6 +426,8 @@ pub fn run(ctxt: *VMContext) !i64 {
             .cmp_gt,
             .cmp_le,
             .cmp_ge,
+            .cmp_eq,
+            .cmp_ne,
             => |op| {
                 const b = try pop(ctxt);
                 defer drop(ctxt, b);
@@ -439,22 +445,6 @@ pub fn run(ctxt: *VMContext) !i64 {
                     }
                 }
 
-                try push(ctxt, r);
-            },
-            // these have to be handled separately because they are valid for all types
-            .cmp_eq,
-            .cmp_ne,
-            => |op| {
-                const b = try pop(ctxt);
-                defer drop(ctxt, b);
-                const a = try pop(ctxt);
-                defer drop(ctxt, a);
-
-                const r = Type.from(@intFromBool(switch (op) {
-                    .cmp_eq => compareEq(a, b),
-                    .cmp_ne => !compareEq(a, b),
-                    else => unreachable,
-                }));
                 try push(ctxt, r);
             },
             .push => try push(ctxt, Type.from(i.operand.int)),
