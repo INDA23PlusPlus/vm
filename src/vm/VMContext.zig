@@ -42,7 +42,7 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
 
     const stderr_write_fn = struct {
         fn write(write_ctxt: *const anyopaque, data: []const u8) anyerror!usize {
-            return @as(@TypeOf(output_writer), @ptrCast(@alignCast(write_ctxt))).write(data);
+            return @as(@TypeOf(error_writer), @ptrCast(@alignCast(write_ctxt))).write(data);
         }
     }.write;
 
@@ -55,7 +55,7 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .refc = 0,
         .write_ctxt = output_writer,
         .write_fn = write_fn,
-        .stderr_write_ctxt = output_writer,
+        .stderr_write_ctxt = error_writer,
         .stderr_write_fn = stderr_write_fn,
         .debug_output = debug_output,
     };
@@ -76,7 +76,7 @@ pub fn write(self: *const Self, bytes: []const u8) anyerror!usize {
 }
 
 pub fn writeStderr(self: *const Self, bytes: []const u8) anyerror!usize {
-    return self.stderr_write_fn(self.write_ctxt, bytes);
+    return self.stderr_write_fn(self.stderr_write_ctxt, bytes);
 }
 
 pub fn writer(self: *const Self) std.io.Writer(*const Self, anyerror, write) {
