@@ -17,12 +17,16 @@
 | String data size | u64 | The size of the string data section in bytes |
 | Field table size | u64 | The size of the field table in number of entries |
 | Field data size | u64 | The size of the field data section in bytes |
+| Source table size | u64 | The size of the source table in number of entries |
+| Source data size | u64 | The size of the source data section in bytes |
 | Code size | u64 | The size of the code section in number of instructions |
 | Entry point | u64 | The address of the first instruction of the main function |
 | String data | []u8 ||
 | String table | See [Table format](#Table-format) ||
 | Field data | []u8 ||
 | Field table | See [Table format](#Table-format) ||
+| Source data | []u8 ||
+| Source table (tokens) | See [Table format](#Table-format) ||
 | Code section | See [Code format](#Code-format) ||
 
 ## Table format

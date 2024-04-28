@@ -22,6 +22,8 @@ const Header = struct {
     string_data_size: u64,
     field_table_size: u64,
     field_data_size: u64,
+    source_table_size: u64,
+    source_data_size: u64,
     code_size: u64,
     entry_point: u64,
 };
@@ -48,6 +50,13 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
         allocator,
     );
 
+    const source_table = try loadTable(
+        reader,
+        header.source_table_size,
+        header.source_data_size,
+        allocator,
+    );
+
     const code = try allocator.alloc(Instruction, header.code_size);
     for (code) |*instruction| {
         instruction.* = try loadInstruction(reader);
@@ -58,10 +67,12 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
         .entry = header.entry_point,
         .strings = string_table.entries,
         .field_names = field_table.entries,
+        .tokens = source_table.entries,
         .deinit_data = .{
             .allocator = allocator,
             .strings = string_table.data,
             .field_names = field_table.data,
+            .source = source_table.data,
         },
     };
 }
@@ -74,6 +85,8 @@ pub fn emit(writer: anytype, program: Program) !void {
         .string_data_size = deinit_data.strings.len,
         .field_table_size = program.field_names.len,
         .field_data_size = deinit_data.field_names.len,
+        .source_table_size = program.tokens.len,
+        .source_data_size = deinit_data.source.len,
         .code_size = program.code.len,
         .entry_point = program.entry,
     };
@@ -90,8 +103,14 @@ pub fn emit(writer: anytype, program: Program) !void {
         .data = deinit_data.field_names,
     };
 
+    const source_table = Table{
+        .entries = program.tokens,
+        .data = deinit_data.source,
+    };
+
     try emitTable(writer, string_table);
     try emitTable(writer, field_table);
+    try emitTable(writer, source_table);
 
     for (program.code) |instruction| {
         try emitInstruction(writer, instruction);
@@ -105,6 +124,8 @@ fn loadHeader(reader: anytype) !Header {
         .string_data_size = try reader.readInt(u64, .little),
         .field_table_size = try reader.readInt(u64, .little),
         .field_data_size = try reader.readInt(u64, .little),
+        .source_table_size = try reader.readInt(u64, .little),
+        .source_data_size = try reader.readInt(u64, .little),
         .code_size = try reader.readInt(u64, .little),
         .entry_point = try reader.readInt(u64, .little),
     };
@@ -116,6 +137,8 @@ fn emitHeader(writer: anytype, header: Header) !void {
     try writer.writeInt(u64, header.string_data_size, .little);
     try writer.writeInt(u64, header.field_table_size, .little);
     try writer.writeInt(u64, header.field_data_size, .little);
+    try writer.writeInt(u64, header.source_table_size, .little);
+    try writer.writeInt(u64, header.source_data_size, .little);
     try writer.writeInt(u64, header.code_size, .little);
     try writer.writeInt(u64, header.entry_point, .little);
 }
@@ -286,7 +309,7 @@ test {
     try testing.expectEqual(@as(usize, 0), errors.items.len);
 
     {
-        var program = try assembler.getProgram(testing.allocator);
+        var program = try assembler.getProgram(testing.allocator, .none);
         defer program.deinit();
 
         var output = try fs.cwd().createFile(".binary.test.vbf", .{});

@@ -40,6 +40,7 @@ const Options = struct {
     output_filename: ?[]const u8 = null,
     input_filename: ?[]const u8 = null,
     extension: ?Extension = null,
+    strip: bool = false,
 };
 
 fn usage(name: []const u8) !void {
@@ -50,6 +51,7 @@ fn usage(name: []const u8) !void {
         \\Options:
         \\    -c          Only compile.
         \\    -o OUTPUT   Write output to file OUTPUT
+        \\    -s          Don't include source information in compiled program.
         \\    -h          Show this help message and exit.
         \\
     , .{name});
@@ -78,6 +80,8 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-h")) {
             try usage(name);
             return 0;
+        } else if (mem.eql(u8, arg, "-s")) {
+            options.strip = true;
         } else {
             options.input_filename = arg;
         }
@@ -149,7 +153,8 @@ pub fn main() !u8 {
                 return 1;
             }
 
-            program = try assembler.getProgram(allocator);
+            const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .vemod;
+            program = try assembler.getProgram(allocator, src_opts);
         },
         .mcl => {
             try stderr.print("error: can't compile Melancolang yet\n", .{});

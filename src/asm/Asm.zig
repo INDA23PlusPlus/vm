@@ -33,6 +33,7 @@ field_name_pool: StringPool,
 errors: *std.ArrayList(Error),
 str_build: std.ArrayList(u8),
 str_parser: StringParser,
+instr_toks: std.ArrayList([]const u8),
 
 pub fn init(
     source: []const u8,
@@ -51,6 +52,7 @@ pub fn init(
         .entry = null,
         .str_build = std.ArrayList(u8).init(allocator),
         .str_parser = StringParser.init(allocator, errors),
+        .instr_toks = std.ArrayList([]const u8).init(allocator),
     };
 }
 
@@ -63,6 +65,7 @@ pub fn deinit(self: *Asm) void {
     self.field_name_pool.deinit();
     self.str_build.deinit();
     self.str_parser.deinit();
+    self.instr_toks.deinit();
 }
 
 pub fn assemble(self: *Asm) !void {
@@ -110,8 +113,58 @@ pub fn assemble(self: *Asm) !void {
     }
 }
 
+/// Options for embedding source code in final program.
+pub const EmbeddedSourceOptions = union(enum) {
+    /// Don't include source in final program.
+    none,
+    /// Embedd assembly source and instruction tokens.
+    vemod,
+    /// Provide source and tokens from Melancolang source.
+    /// Tokens and instructions are associated by having the same
+    /// index in `tokens` and `code` respectively.
+    melancolang: struct {
+        tokens: []const []const u8,
+        source: []const u8,
+    },
+};
+
+fn remapTokens(
+    org_src: []const u8,
+    new_src: []const u8,
+    tokens: []const []const u8,
+    allocator: std.mem.Allocator,
+) ![]const []const u8 {
+    const new_toks = try allocator.dupe([]const u8, tokens);
+    const org_addr: usize = @intFromPtr(org_src.ptr);
+    const new_addr: usize = @intFromPtr(new_src.ptr);
+
+    if (org_addr > new_addr) {
+        const diff = org_addr - new_addr;
+        for (new_toks) |*tok| {
+            const tok_addr: usize = @intFromPtr(tok.ptr);
+            tok.ptr = @ptrFromInt(tok_addr - diff);
+        }
+    } else {
+        const diff = new_addr - org_addr;
+        for (new_toks) |*tok| {
+            const tok_addr: usize = @intFromPtr(tok.ptr);
+            tok.ptr = @ptrFromInt(tok_addr + diff);
+        }
+    }
+
+    for (tokens) |tok| {
+        std.debug.print("{s}\n", .{tok});
+    }
+
+    return new_toks;
+}
+
 /// Copies relevant data and constructs a VM program.
-pub fn getProgram(self: *Asm, allocator: std.mem.Allocator) !Program {
+pub fn getProgram(
+    self: *Asm,
+    allocator: std.mem.Allocator,
+    src_opts: EmbeddedSourceOptions,
+) !Program {
     const code = try allocator.dupe(Instruction, self.code.items);
 
     // This assumes there were no assembler errors,
@@ -134,15 +187,40 @@ pub fn getProgram(self: *Asm, allocator: std.mem.Allocator) !Program {
         field_names[i] = field_name_buffer[e.begin..e.end];
     }
 
+    var tokens: []const []const u8 = undefined;
+    var source: []const u8 = undefined;
+
+    switch (src_opts) {
+        .none => {
+            tokens = try allocator.alloc([]const u8, 0);
+            source = try allocator.alloc(u8, 0);
+        },
+        .vemod => {
+            source = try allocator.dupe(u8, self.scan.source);
+            tokens = try remapTokens(
+                self.scan.source,
+                source,
+                self.instr_toks.items,
+                allocator,
+            );
+        },
+        .melancolang => |mlc| {
+            source = try allocator.dupe(u8, mlc.source);
+            tokens = try remapTokens(mlc.source, source, mlc.tokens, allocator);
+        },
+    }
+
     return .{
         .code = code,
         .entry = entry,
         .strings = strings,
         .field_names = field_names,
+        .tokens = tokens,
         .deinit_data = .{
             .allocator = allocator,
             .strings = string_buffer,
             .field_names = field_name_buffer,
+            .source = source,
         },
     };
 }
@@ -212,6 +290,7 @@ fn asmFunc(self: *Asm) !void {
 
 fn asmInstr(self: *Asm) !void {
     const instr = try self.expect(.instr, null);
+    try self.instr_toks.append(instr.where);
     const offset = self.code.items.len;
     try self.code.append(.{
         .op = instr.tag.instr,
