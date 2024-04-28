@@ -24,6 +24,7 @@ fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !vo
 
     if (ctxt.prog.tokens.len == 0) {
         try writer.print("Runtime error: " ++ fmt, args);
+        return;
     }
 
     const instr_addr = ctxt.pc - 1;
