@@ -1,5 +1,5 @@
 
-# Prints the first 10000 prime numbers
+# Prints all prime numbers less than 100000
 -function $main
 -begin
 	# We have three local variables:
@@ -13,7 +13,7 @@
 	store %0
 
 .loop
-	# Check the first 10000 numbers for primeness
+	# Check the first 10000 numbers for primality
 	load %0
 	push %10000
 	cmp_eq
@@ -26,13 +26,13 @@
 	store %2
 
 .div_loop
-	# Loop through all d < n / 2
+	# Loop through all d <= sqrt(n)
 	load %0
-	push %2
-	div
 	load %1
-	cmp_le
-	jmpnz .div_end
+	dup
+	mul
+	cmp_lt         
+	jmpnz .div_end # if d * d > n we're done checking for divisors
 
 	# Check if d divides n
 	load %0
