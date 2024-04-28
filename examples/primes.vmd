@@ -26,10 +26,12 @@
 	store %2
 
 .div_loop
-	# Loop through all d < n
+	# Loop through all d < n / 2
 	load %0
+	push %2
+	div
 	load %1
-	cmp_eq
+	cmp_le
 	jmpnz .div_end
 
 	# Check if d divides n
