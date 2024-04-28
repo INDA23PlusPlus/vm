@@ -1,0 +1,79 @@
+
+# Prints the first 10000 prime numbers
+-function $main
+-begin
+	# We have three local variables:
+	# n (%0): The number to be checked for primeness.
+	# d (%1): Divisor.
+	# p (%2): Flag indicating whether a number is prime.
+	stack_alloc %3
+
+	# Initialize n = 2
+	push %2
+	store %0
+
+.loop
+	# Check the first 10000 numbers for primeness
+	load %0
+	push %10000
+	cmp_eq
+	jmpnz .end
+
+	# Initialize d = 2, p = 1
+	push %2
+	store %1
+	push %1
+	store %2
+
+.div_loop
+	# Loop through all d < n
+	load %0
+	load %1
+	cmp_eq
+	jmpnz .div_end
+
+	# Check if d divides n
+	load %0
+	load %1
+	mod
+	push %0
+	cmp_ne
+	jmpnz .not_divisible
+
+	# Set p = 0 and break
+	push %0
+	store %2
+	jmp .div_end
+
+.not_divisible
+	# Increment d and continue
+	load %1
+	push %1
+	add
+	store %1
+	jmp .div_loop
+
+.div_end
+
+	# Check if p == 1
+	load %2
+	push %1
+	cmp_ne
+	jmpnz .not_prime
+
+	# If n is prime, print it
+	load %0
+	syscall %0
+
+.not_prime
+	# Increment n and continue
+	load %0
+	push %1
+	add
+	store %0
+	jmp .loop
+	
+.end
+	push %0
+	ret
+-end
