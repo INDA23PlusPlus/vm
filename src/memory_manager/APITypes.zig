@@ -144,9 +144,56 @@ pub const UnitType = struct {
     }
 };
 
-pub const Type = union(enum) {
+pub const TypeEnum = enum(u8) {
+    // zig fmt: off
+    unit       = 0b0010,
+
+    int        = 0b0000,
+    float      = 0b0001,
+
+    string_lit = 0b10000,
+    string_ref = 0b10001,
+
+    list       = 0b1010,
+    object     = 0b1100,
+    // zig fmt: on
+};
+
+// assert that @intFromEnum(e1) ^ @intFromEnum(e2) is equivalent to checking if comparisons are equivalent
+comptime {
+    for ([_]TypeEnum{
+        .int,
+        .float,
+        .unit,
+        .string_lit,
+        .string_ref,
+        .list,
+        .object,
+    }) |e1| {
+        for ([_]TypeEnum{
+            .int,
+            .float,
+            .unit,
+            .string_lit,
+            .string_ref,
+            .list,
+            .object,
+        }) |e2| {
+            // should only happen on valid comparisons
+            if (@intFromEnum(e1) ^ @intFromEnum(e2) < 2) {
+                // should only be valid if one is int and one is float
+                if (e1 != e2) {
+                    std.debug.assert((e1 == .int and e2 == .float) or (e1 == .float and e2 == .int) or (e1 == .string_lit and e2 == .string_ref) or (e1 == .string_ref and e2 == .string_lit));
+                }
+            }
+        }
+    }
+}
+
+pub const Type = union(TypeEnum) {
     const Self = @This();
     const Tag = std.meta.Tag(Self);
+
     unit: UnitType,
     int: i64,
     float: f64,
@@ -203,6 +250,7 @@ pub const Type = union(enum) {
             UnitType => .{ .unit = x },
             void => .{ .unit = .{} },
             else => switch (@typeInfo(T)) {
+                .Bool => .{ .int = @intFromBool(x) },
                 .Int, .ComptimeInt => .{ .int = @intCast(x) },
                 .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
                 else => @compileError(std.fmt.comptimePrint(
@@ -213,6 +261,10 @@ pub const Type = union(enum) {
         };
     }
 
+    pub fn tryFrom(x: anytype) !Self {
+        return from(try x);
+    }
+    
     pub fn from(x: anytype) Self {
         switch (@typeInfo(@TypeOf(x))) {
             .Optional => {

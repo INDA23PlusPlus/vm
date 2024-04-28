@@ -38,25 +38,26 @@ fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !vo
 }
 
 fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {
-    if (T == Type.GetRepr(.int)) {
-        return switch (op) {
-            .add => a +% b,
-            .sub => a -% b,
-            .mul => a *% b,
-            .div => if (b == 0 or (a == std.math.minInt(T) and b == -1)) error.InvalidOperation else @divTrunc(a, b),
-            .mod => if (b == 0) error.InvalidOperation else if (b == -1) 0 else a - b * @divTrunc(a, b),
-            else => unreachable,
-        };
-    } else {
-        return switch (op) {
-            .add => a + b,
-            .sub => a - b,
-            .mul => a * b,
-            .div => a / b,
-            .mod => if (b < 0) @rem(-a, -b) else @rem(a, b),
-            else => unreachable,
-        };
-    }
+    return switch (op) {
+        .add => if (T == Type.GetRepr(.int)) a +% b else a + b,
+        .sub => if (T == Type.GetRepr(.int)) a -% b else a - b,
+        .mul => if (T == Type.GetRepr(.int)) a *% b else a * b,
+        .div => blk: {
+            if (T == Type.GetRepr(.int)) {
+                if (b == 0 or (a == std.math.minInt(T) and b == -1)) return error.InvalidOperation;
+
+                break :blk @divTrunc(a, b);
+            } else {
+                break :blk a / b;
+            }
+        },
+        .mod => blk: {
+            if (b == 0) return error.InvalidOperation;
+            if (b == -1) break :blk 0;
+            break :blk if (b < 0) @rem(-a, -b) else @rem(a, b);
+        },
+        else => unreachable,
+    };
 }
 
 fn doComparison(comptime T: type, a: T, op: Opcode, b: T) i64 {
@@ -71,6 +72,69 @@ fn doComparison(comptime T: type, a: T, op: Opcode, b: T) i64 {
     });
 }
 
+fn listEq(a: Type, b: Type) bool {
+    const l = a.list;
+    const r = b.list;
+    if (l.ref == r.ref) {
+        return true;
+    }
+
+    const len = l.length();
+    if (r.length() != len) return false;
+
+    for (0..len) |i| {
+        if (!compareEq(l.get(i), r.get(i))) return false;
+    }
+
+    return true;
+}
+
+fn objectEq(a: Type, b: Type) bool {
+    const l = a.object;
+    const r = b.object;
+    if (l.ref == r.ref) {
+        return true;
+    }
+
+    var lentries = l.entries();
+    while (lentries.next()) |entry| {
+        const cmp = r.get(entry.key_ptr.*) orelse return false;
+        if (!compareEq(entry.value_ptr.*, cmp)) return false;
+    }
+    var rentries = l.entries();
+    while (rentries.next()) |entry| {
+        const cmp = l.get(entry.key_ptr.*) orelse return false;
+        if (!compareEq(entry.value_ptr.*, cmp)) return false;
+    }
+    return true;
+}
+
+fn getstr(a: Type) []const u8 {
+    assert(a.is(.string_lit) or a.is(.string_ref)) catch {
+        debug_log("internal error: called getstr on non string\n", .{});
+    };
+    return if (a.is(.string_lit)) a.string_lit.* else a.string_ref.get();
+}
+
+fn stringOperation(a: Type, op: Opcode, b: Type) !Type {
+    const lhs = getstr(a);
+    const rhs = getstr(b);
+
+    const order = std.mem.order(u8, lhs, rhs);
+    return Type.from(@intFromBool(switch (op) {
+        .cmp_eq => order == .eq,
+        .cmp_ne => order != .eq,
+
+        .cmp_ge => order != .lt,
+        .cmp_gt => order == .gt,
+
+        .cmp_le => order != .gt,
+        .cmp_lt => order == .lt,
+
+        else => return error.InvalidOperation,
+    }));
+}
+
 fn compareEq(a: Type, b: Type) bool {
     if (a.tag() != b.tag()) {
         const af = floatValue(a) catch return false;
@@ -80,70 +144,71 @@ fn compareEq(a: Type, b: Type) bool {
 
     return switch (a.tag()) {
         .unit => true,
-
         .int => a.as(.int).? == b.as(.int).?,
         .float => a.as(.float).? == b.as(.float).?,
-        .string_lit => std.mem.eql(u8, a.as(.string_lit).?.*, b.as(.string_lit).?.*),
-        .string_ref => std.mem.eql(u8, a.as(.string_ref).?.get(), b.as(.string_ref).?.get()),
+        .string_lit, .string_ref => std.mem.order(u8, getstr(a), getstr(b)) == .eq,
+        .list => listEq(a, b),
+        .object => objectEq(a, b),
+    };
+}
 
-        .list => {
-            const l = a.list;
-            const r = b.list;
-            if (l.ref == r.ref) {
-                return true;
-            }
+fn handleInvalidOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) anyerror {
+    @setCold(true);
+    _ = a;
+    _ = op;
+    _ = b;
+    _ = ctxt;
+    // TODO: error messages
 
-            const len = l.length();
-            if (r.length() != len) return false;
+    return error.InvalidOperation;
+}
 
-            for (0..len) |i| {
-                if (!compareEq(l.get(i), r.get(i))) return false;
-            }
-
-            return true;
+fn doBinaryOpSameType(a: Type, op: Opcode, b: Type) !Type {
+    try assert(a.tag() == b.tag());
+    return switch (a.tag()) {
+        .unit => Type.tryFrom(doArithmetic(Type.GetRepr(.int), 0, op, 0)),
+        .int => Type.tryFrom(doArithmetic(Type.GetRepr(.int), a.int, op, b.int)),
+        .float => Type.tryFrom(doArithmetic(Type.GetRepr(.float), a.float, op, b.float)),
+        .string_lit => stringOperation(a, op, b),
+        .string_ref => stringOperation(a, op, b),
+        .list => switch (op) {
+            .cmp_eq => Type.from(listEq(a, b)),
+            .cmp_ne => Type.from(!listEq(a, b)),
+            else => error.InvalidOperation,
         },
-        .object => {
-            const l = a.object;
-            const r = b.object;
-            if (l.ref == r.ref) {
-                return true;
-            }
-
-            var lentries = l.entries();
-            while (lentries.next()) |entry| {
-                const cmp = r.get(entry.key_ptr.*) orelse return false;
-                if (!compareEq(entry.value_ptr.*, cmp)) return false;
-            }
-            var rentries = l.entries();
-            while (rentries.next()) |entry| {
-                const cmp = l.get(entry.key_ptr.*) orelse return false;
-                if (!compareEq(entry.value_ptr.*, cmp)) return false;
-            }
-            return true;
+        .object => switch (op) {
+            .cmp_eq => Type.from(objectEq(a, b)),
+            .cmp_ne => Type.from(!objectEq(a, b)),
+            else => error.InvalidOperation,
         },
     };
 }
 
-fn doBinaryOp(a: Type, op: Opcode, b: Type) !Type {
-    if (a.as(.int)) |ai| {
-        if (b.as(.int)) |bi| {
-            if (op.isArithmetic()) {
-                return Type.from(try doArithmetic(Type.GetRepr(.int), ai, op, bi));
-            } else if (op.isComparison()) {
-                return Type.from(doComparison(Type.GetRepr(.int), ai, op, bi));
-            } else {
-                return error.InvalidOperation;
-            }
-        }
+fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
+    if (@intFromEnum(a) ^ @intFromEnum(b) == 0) return doBinaryOpSameType(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+    if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
+        return handleInvalidOperation(a, op, b, ctxt);
     }
 
-    if (op.isArithmetic()) {
-        return Type.from(try doArithmetic(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
-    } else if (op.isComparison()) {
-        return Type.from(doComparison(Type.GetRepr(.float), try floatValue(a), op, try floatValue(b)));
-    } else {
-        return error.InvalidOperation;
+    // only valid types from here on out, could still be invalid if you try to add lists for example
+    const float = Type.GetRepr(.float);
+    if (a.as(.int)) |ai| {
+        const af: float = @floatFromInt(ai);
+        const bf: float = b.float;
+        return Type.tryFrom(doArithmetic(float, af, op, bf)) catch handleInvalidOperation(a, op, b, ctxt);
     }
+
+    if (b.as(.int)) |bi| {
+        const af: float = a.float;
+        const bf: float = @floatFromInt(bi);
+        return Type.tryFrom(doArithmetic(float, af, op, bf)) catch handleInvalidOperation(a, op, b, ctxt);
+    }
+
+    if ((@intFromEnum(a) | @intFromEnum(b)) ^ 0b10000 < 2) {
+        return stringOperation(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+    }
+
+    return handleInvalidOperation(a, op, b, ctxt);
 }
 
 fn take(ctxt: *VMContext, v: Type) Type {
@@ -329,7 +394,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         if (@intFromEnum(i.op) < 11) {
             const stack_items = ctxt.stack.items;
             const stack_len = stack_items.len;
-            if (stack_len >= 2 and stack_items[stack_len - 1].tag() == .int and stack_items[stack_len - 2].tag() == .int) {
+            if ((!std.debug.runtime_safety or stack_items.len >= 2) and stack_items[stack_len - 1].tag() == .int and stack_items[stack_len - 2].tag() == .int) {
                 const a = stack_items[stack_len - 2].int;
                 const b = stack_items[stack_len - 1].int;
                 stack_items[stack_len - 2].int = switch (i.op) {
@@ -366,7 +431,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const a = try pop(ctxt);
                 defer drop(ctxt, a);
 
-                const r = try doBinaryOp(a, op, b);
+                const r = try doBinaryOp(a, op, b, ctxt);
 
                 if (ctxt.debug_output) {
                     if (op.isArithmetic()) {
@@ -1111,4 +1176,46 @@ test "string compare" {
         Instruction.equal(),
         Instruction.ret(),
     }, 0, &.{ "bar", "baz" }, &.{}), "", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.lessEqual(),
+        Instruction.ret(),
+    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.greaterEqual(),
+        Instruction.ret(),
+    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.less(),
+        Instruction.ret(),
+    }, 0, &.{ "foo", "foo" }, &.{}), "", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.greater(),
+        Instruction.ret(),
+    }, 0, &.{ "foo", "foo" }, &.{}), "", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.less(),
+        Instruction.ret(),
+    }, 0, &.{ "a", "b" }, &.{}), "", 1);
+
+    try testRun(Program.init(&.{
+        Instruction.pushs(0),
+        Instruction.pushs(1),
+        Instruction.greater(),
+        Instruction.ret(),
+    }, 0, &.{ "a", "ab" }, &.{}), "", 0);
 }
