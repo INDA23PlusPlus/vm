@@ -37,25 +37,33 @@ fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !vo
     try ref.print(writer);
 }
 
-fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {
+inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {
     return switch (op) {
         .add => if (T == Type.GetRepr(.int)) a +% b else a + b,
         .sub => if (T == Type.GetRepr(.int)) a -% b else a - b,
         .mul => if (T == Type.GetRepr(.int)) a *% b else a * b,
         .div => blk: {
             if (T == Type.GetRepr(.int)) {
-                if (b == 0 or (a == std.math.minInt(T) and b == -1)) return error.InvalidOperation;
-
-                break :blk @divTrunc(a, b);
-            } else {
-                break :blk a / b;
+                if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
+                    return error.InvalidOperation;
+                }
             }
+            break :blk std.math.divTrunc(T, a, b);
         },
         .mod => blk: {
-            if (b == 0) return error.InvalidOperation;
-            if (b == -1) break :blk 0;
-            break :blk if (b < 0) @rem(-a, -b) else @rem(a, b);
+            if (T == Type.GetRepr(.int)) {
+                if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
+                    return error.InvalidOperation;
+                }
+            }
+            break :blk a - b * try std.math.divTrunc(T, a, b);
         },
+        .cmp_eq => if (T == Type.GetRepr(.int)) @intFromBool(a == b) else @floatFromInt(@intFromBool(a == b)),
+        .cmp_ne => if (T == Type.GetRepr(.int)) @intFromBool(a != b) else @floatFromInt(@intFromBool(a != b)),
+        .cmp_lt => if (T == Type.GetRepr(.int)) @intFromBool(a < b) else @floatFromInt(@intFromBool(a < b)),
+        .cmp_le => if (T == Type.GetRepr(.int)) @intFromBool(a <= b) else @floatFromInt(@intFromBool(a <= b)),
+        .cmp_gt => if (T == Type.GetRepr(.int)) @intFromBool(a > b) else @floatFromInt(@intFromBool(a > b)),
+        .cmp_ge => if (T == Type.GetRepr(.int)) @intFromBool(a >= b) else @floatFromInt(@intFromBool(a >= b)),
         else => unreachable,
     };
 }
@@ -216,8 +224,8 @@ fn take(ctxt: *VMContext, v: Type) Type {
         ctxt.refc = ctxt.refc + 1;
     }
 
-    return v.clone();
-    // return v;
+    // return v.clone();
+    return v;
 }
 
 fn drop(ctxt: *VMContext, v: Type) void {
@@ -225,8 +233,8 @@ fn drop(ctxt: *VMContext, v: Type) void {
         ctxt.refc = ctxt.refc - 1;
     }
 
-    v.deinit();
-    // _ = v;
+    // v.deinit();
+    _ = v;
 }
 
 fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
@@ -394,23 +402,12 @@ pub fn run(ctxt: *VMContext) !i64 {
         if (@intFromEnum(i.op) < 11) {
             const stack_items = ctxt.stack.items;
             const stack_len = stack_items.len;
-            if ((!std.debug.runtime_safety or stack_items.len >= 2) and stack_items[stack_len - 1].tag() == .int and stack_items[stack_len - 2].tag() == .int) {
-                const a = stack_items[stack_len - 2].int;
-                const b = stack_items[stack_len - 1].int;
-                stack_items[stack_len - 2].int = switch (i.op) {
-                    .add => a + b,
-                    .sub => a - b,
-                    .mul => a * b,
-                    .div => if (b == 0 or (a == std.math.minInt(Type.GetRepr(.int)) and b == -1)) return error.InvalidOperation else @divTrunc(a, b),
-                    .mod => if (b == 0) return error.InvalidOperation else if (b == -1) 0 else a - b * @divTrunc(a, b),
-                    .cmp_lt => @intFromBool(a < b),
-                    .cmp_gt => @intFromBool(a > b),
-                    .cmp_le => @intFromBool(a <= b),
-                    .cmp_ge => @intFromBool(a >= b),
-                    .cmp_eq => @intFromBool(a == b),
-                    .cmp_ne => @intFromBool(a != b),
-                    else => unreachable,
-                };
+            if ((!std.debug.runtime_safety or stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Type.int))) {
+                const lhs = stack_items[stack_len - 2];
+                const rhs = stack_items[stack_len - 1];
+                const a = lhs.int;
+                const b = rhs.int;
+                stack_items[stack_len - 2].int = doArithmetic(Type.GetRepr(.int), a, i.op, b) catch return handleInvalidOperation(lhs, i.op, rhs, ctxt);
                 drop(ctxt, try pop(ctxt));
                 continue;
             }
@@ -983,6 +980,24 @@ test "arithmetic" {
                         }, 0, &.{}, &.{}),
                         "",
                         res,
+                    );
+
+                    const lhsf: f64 = @floatFromInt(lhs);
+                    const rhsf: f64 = @floatFromInt(rhs);
+
+                    const resf: f64 = @floatFromInt(res);
+
+                    try testRun(
+                        Program.init(&.{
+                            Instruction.pushf(lhsf),
+                            Instruction.pushf(rhsf),
+                            Instruction{ .op = op },
+                            Instruction.pushf(resf),
+                            Instruction.equal(),
+                            Instruction.ret(),
+                        }, 0, &.{}, &.{}),
+                        "",
+                        1,
                     );
                 }
             }
