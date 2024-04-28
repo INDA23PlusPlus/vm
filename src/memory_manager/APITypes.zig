@@ -107,6 +107,14 @@ pub const ObjectRef = struct {
     pub fn keys(self: *const Self) @TypeOf(self.ref.map.keyIterator()) {
         return self.ref.map.keyIterator();
     }
+
+    pub fn values(self: *const Self) @TypeOf(self.ref.map.valueIterator()) {
+        return self.ref.map.valueIterator();
+    }
+
+    pub fn entries(self: *const Self) @TypeOf(self.ref.map.iterator()) {
+        return self.ref.map.iterator();
+    }
 };
 
 const StringLit = []const u8;
