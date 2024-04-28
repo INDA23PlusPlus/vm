@@ -219,7 +219,7 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
         .unit => try writer.print("()", .{}),
         .int => |i| try writer.print("{}", .{i}),
         .float => |f| try writer.print("{d}", .{f}),
-        .string_lit => |s| try writer.print("{s}", .{s}),
+        .string_lit => |s| try writer.print("{s}", .{s.*}),
         .string_ref => |*s| try writer.print("{s}", .{s.get()}),
         .list => |*l| {
             const len = l.length();
