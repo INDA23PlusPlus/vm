@@ -264,7 +264,7 @@ pub const Type = union(TypeEnum) {
     pub fn tryFrom(x: anytype) !Self {
         return from(try x);
     }
-    
+
     pub fn from(x: anytype) Self {
         switch (@typeInfo(@TypeOf(x))) {
             .Optional => {
