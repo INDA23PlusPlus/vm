@@ -162,11 +162,40 @@ fn compareEq(a: Type, b: Type) bool {
 
 fn handleInvalidOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) anyerror {
     @setCold(true);
-    _ = a;
-    _ = op;
-    _ = b;
-    _ = ctxt;
-    // TODO: error messages
+
+    const is_division = op == .div or op == .mod;
+    const is_by_zero = switch (b) {
+        .int => |i| i == 0,
+        .float => |f| f == 0.0,
+        else => false,
+    };
+
+    if (is_division and is_by_zero) {
+        try printErr(ctxt, "division by zero\n", .{});
+        return error.InvalidOperation;
+    }
+
+    const opstr = switch (op) {
+        .add => "addition",
+        .sub => "subtraction",
+        .div => "division",
+        .mul => "multiplication",
+        .mod => "modulus",
+        .cmp_lt,
+        .cmp_le,
+        .cmp_eq,
+        .cmp_ne,
+        .cmp_ge,
+        .cmp_gt,
+        => "comparison",
+        else => @tagName(op),
+    };
+
+    try printErr(
+        ctxt,
+        "can't perform {s} on types {s} and {s}\n",
+        .{ opstr, @tagName(a), @tagName(b) },
+    );
 
     return error.InvalidOperation;
 }

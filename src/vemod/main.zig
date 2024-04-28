@@ -185,7 +185,7 @@ pub fn main() !u8 {
             defer context.deinit();
             const ret = interpreter.run(&context) catch |err| {
                 try stderr.print(
-                    "runtime error: {s}\n",
+                    "error: {s}\n",
                     .{@errorName(err)},
                 );
                 return 1;

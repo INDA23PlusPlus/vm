@@ -158,6 +158,7 @@ pub fn build(b: *std.Build) void {
     //
     vm_mod.addImport("arch", arch_mod);
     vm_mod.addImport("memory_manager", memory_manager_mod);
+    vm_mod.addImport("asm", assembler_mod);
     assembler_mod.addImport("vm", vm_mod);
     assembler_mod.addImport("arch", arch_mod);
     binary_mod.addImport("arch", arch_mod);
