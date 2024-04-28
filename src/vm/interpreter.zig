@@ -1040,7 +1040,7 @@ test "recursive fibonacci" {
     try asm_.assemble();
     try assert(errors.items.len == 0);
 
-    var program = try asm_.getProgram(std.testing.allocator);
+    var program = try asm_.getProgram(std.testing.allocator, .none);
     defer program.deinit();
 
     try testRun(program, "", 55);

@@ -50,12 +50,12 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
         allocator,
     );
 
-    const source_table = try loadTable(
+    const source_table: ?Table = if (header.source_table_size > 0) try loadTable(
         reader,
         header.source_table_size,
         header.source_data_size,
         allocator,
-    );
+    ) else null;
 
     const code = try allocator.alloc(Instruction, header.code_size);
     for (code) |*instruction| {
@@ -67,12 +67,12 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
         .entry = header.entry_point,
         .strings = string_table.entries,
         .field_names = field_table.entries,
-        .tokens = source_table.entries,
+        .tokens = if (source_table) |tbl| tbl.entries else null,
         .deinit_data = .{
             .allocator = allocator,
             .strings = string_table.data,
             .field_names = field_table.data,
-            .source = source_table.data,
+            .source = if (source_table) |tbl| tbl.data else null,
         },
     };
 }
@@ -85,8 +85,8 @@ pub fn emit(writer: anytype, program: Program) !void {
         .string_data_size = deinit_data.strings.len,
         .field_table_size = program.field_names.len,
         .field_data_size = deinit_data.field_names.len,
-        .source_table_size = program.tokens.len,
-        .source_data_size = deinit_data.source.len,
+        .source_table_size = if (program.tokens) |toks| toks.len else 0,
+        .source_data_size = if (deinit_data.source) |src| src.len else 0,
         .code_size = program.code.len,
         .entry_point = program.entry,
     };
@@ -103,14 +103,16 @@ pub fn emit(writer: anytype, program: Program) !void {
         .data = deinit_data.field_names,
     };
 
-    const source_table = Table{
-        .entries = program.tokens,
-        .data = deinit_data.source,
-    };
-
     try emitTable(writer, string_table);
     try emitTable(writer, field_table);
-    try emitTable(writer, source_table);
+
+    if (program.tokens) |_| {
+        const source_table = Table{
+            .entries = program.tokens.?,
+            .data = deinit_data.source.?,
+        };
+        try emitTable(writer, source_table);
+    }
 
     for (program.code) |instruction| {
         try emitInstruction(writer, instruction);
@@ -309,7 +311,7 @@ test {
     try testing.expectEqual(@as(usize, 0), errors.items.len);
 
     {
-        var program = try assembler.getProgram(testing.allocator, .none);
+        var program = try assembler.getProgram(testing.allocator, .vemod);
         defer program.deinit();
 
         var output = try fs.cwd().createFile(".binary.test.vbf", .{});
@@ -326,6 +328,8 @@ test {
 
     var program = try load(input.reader(), testing.allocator);
     defer program.deinit();
+
+    try testing.expectEqualSlices(u8, source, program.deinit_data.?.source.?);
 
     var output_buffer = ArrayList(u8).init(testing.allocator);
     defer output_buffer.deinit();

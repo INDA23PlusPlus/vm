@@ -183,26 +183,23 @@ pub fn getProgram(
         field_names[i] = field_name_buffer[e.begin..e.end];
     }
 
-    var tokens: []const []const u8 = undefined;
-    var source: []const u8 = undefined;
+    var tokens: ?[]const []const u8 = null;
+    var source: ?[]const u8 = null;
 
     switch (src_opts) {
-        .none => {
-            tokens = try allocator.alloc([]const u8, 0);
-            source = try allocator.alloc(u8, 0);
-        },
+        .none => {},
         .vemod => {
             source = try allocator.dupe(u8, self.scan.source);
             tokens = try remapTokens(
                 self.scan.source,
-                source,
+                source.?,
                 self.instr_toks.items,
                 allocator,
             );
         },
         .melancolang => |mlc| {
             source = try allocator.dupe(u8, mlc.source);
-            tokens = try remapTokens(mlc.source, source, mlc.tokens, allocator);
+            tokens = try remapTokens(mlc.source, source.?, mlc.tokens, allocator);
         },
     }
 
