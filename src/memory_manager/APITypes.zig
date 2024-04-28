@@ -46,7 +46,7 @@ pub const ListRef = struct {
 
     pub fn set(self: *const Self, index: usize, value: Type) void {
         if (index >= self.ref.items.items.len) {
-            for (0..self.ref.items.items.len - index) |_| {
+            for (0..index - self.ref.items.items.len) |_| {
                 self.ref.items.append(Type.from(UnitType.init())) catch |err| {
                     std.debug.print("Error on list set: {}\n", .{err});
                     return;
@@ -117,7 +117,7 @@ pub const ObjectRef = struct {
     }
 };
 
-const StringLit = []const u8;
+const StringLit = *const []const u8;
 const StringRef = struct {
     // TODO: memory_manager.APITypes.StringRef
     const Self = @This();
@@ -142,51 +142,6 @@ pub const UnitType = struct {
     pub fn init() Self {
         return .{};
     }
-
-    pub fn incr(self: *const Self) void {
-        _ = self;
-    }
-
-    pub fn decr(self: *const Self) void {
-        _ = self;
-    }
-};
-
-const String = union(enum) {
-    // Common string type, can be either a string slice or a reference to a dynamic string
-    const Self = @This();
-
-    lit: StringLit,
-    ref: StringRef,
-
-    pub fn incr(self: *const Self) void {
-        switch (self.*) {
-            .lit => {},
-            .ref => self.ref.incr(),
-        }
-    }
-
-    pub fn decr(self: *const Self) void {
-        switch (self.*) {
-            .lit => {},
-            .ref => self.ref.decr(),
-        }
-    }
-
-    pub fn get(self: *const Self) []const u8 {
-        switch (self.*) {
-            .lit => return self.lit,
-            .ref => return self.ref.get(),
-        }
-    }
-
-    pub fn from(x: anytype) Self {
-        switch (@TypeOf(x)) {
-            StringLit => return .{ .lit = x },
-            StringRef => return .{ .ref = x },
-            else => @compileError(std.fmt.comptimePrint("type {} is not convertible to String", .{x})),
-        }
-    }
 };
 
 pub const Type = union(enum) {
@@ -195,7 +150,8 @@ pub const Type = union(enum) {
     unit: UnitType,
     int: i64,
     float: f64,
-    string: String,
+    string_lit: StringLit,
+    string_ref: StringRef,
     list: ListRef,
     object: ObjectRef,
 
@@ -204,7 +160,8 @@ pub const Type = union(enum) {
             .unit => UnitType,
             .int => i64,
             .float => f64,
-            .string => String,
+            .string_lit => StringLit,
+            .string_ref => StringRef,
             .list => ListRef,
             .object => ObjectRef,
         };
@@ -213,7 +170,7 @@ pub const Type = union(enum) {
     pub fn clone(self: *const Self) Self {
         var res = self.*;
         switch (res) {
-            .string => |*m| m.incr(),
+            .string_ref => |*m| m.incr(),
             .list => |*m| m.incr(),
             .object => |*m| m.incr(),
             else => {},
@@ -223,7 +180,7 @@ pub const Type = union(enum) {
 
     pub fn deinit(self: *const Self) void {
         switch (self.tag()) {
-            .string => self.string.decr(),
+            .string_ref => self.string_ref.decr(),
             .list => self.list.decr(),
             .object => self.object.decr(),
             else => {},
@@ -239,7 +196,8 @@ pub const Type = union(enum) {
 
         return switch (T) {
             Type => x,
-            StringLit, StringRef => .{ .string = String.from(x) },
+            StringLit => return .{ .string_lit = x },
+            StringRef => return .{ .string_ref = x },
             ListRef => .{ .list = x },
             ObjectRef => .{ .object = x },
             UnitType => .{ .unit = x },
@@ -295,7 +253,8 @@ pub const Type = union(enum) {
             .unit => |c| if (T == .unit) c else unreachable,
             .int => |c| if (T == .int) c else unreachable,
             .float => |c| if (T == .float) c else unreachable,
-            .string => |c| if (T == .string) c else unreachable,
+            .string_lit => |c| if (T == .string_lit) c else unreachable,
+            .string_ref => |c| if (T == .string_ref) c else unreachable,
             .list => |c| if (T == .list) c else unreachable,
             .object => |c| if (T == .object) c else unreachable,
         };

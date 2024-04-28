@@ -64,9 +64,25 @@ fn compareEq(a: Type, b: Type) bool {
 
         .int => a.as(.int).? == b.as(.int).?,
         .float => a.as(.float).? == b.as(.float).?,
-        .string => std.mem.eql(u8, a.as(.string).?.get(), b.as(.string).?.get()),
+        .string_lit => std.mem.eql(u8, a.as(.string_lit).?.*, b.as(.string_lit).?.*),
+        .string_ref => std.mem.eql(u8, a.as(.string_ref).?.get(), b.as(.string_ref).?.get()),
 
-        .list => std.debug.panic("TODO", .{}),
+        .list => {
+            const l = a.list;
+            const r = b.list;
+            if (l.ref == r.ref) {
+                return true;
+            }
+
+            const len = l.length();
+            if (r.length() != len) return false;
+
+            for (0..len) |i| {
+                if (!compareEq(l.get(i), r.get(i))) return false;
+            }
+
+            return true;
+        },
         .object => {
             const l = a.object;
             const r = b.object;
@@ -74,13 +90,15 @@ fn compareEq(a: Type, b: Type) bool {
                 return true;
             }
 
-            var lkeys = l.keys();
-            while (lkeys.next()) |key| {
-                if (!compareEq(r.get(key.*).?, l.get(key.*).?)) return false;
+            var lentries = l.entries();
+            while (lentries.next()) |entry| {
+                const cmp = r.get(entry.key_ptr.*) orelse return false;
+                if (!compareEq(entry.value_ptr.*, cmp)) return false;
             }
-            var rkeys = r.keys();
-            while (rkeys.next()) |key| {
-                if (!compareEq(l.get(key.*).?, r.get(key.*).?)) return false;
+            var rentries = l.entries();
+            while (rentries.next()) |entry| {
+                const cmp = l.get(entry.key_ptr.*) orelse return false;
+                if (!compareEq(entry.value_ptr.*, cmp)) return false;
             }
             return true;
         },
@@ -201,7 +219,8 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
         .unit => try writer.print("()", .{}),
         .int => |i| try writer.print("{}", .{i}),
         .float => |f| try writer.print("{d}", .{f}),
-        .string => |*s| try writer.print("{s}", .{s.get()}),
+        .string_lit => |s| try writer.print("{s}", .{s}),
+        .string_ref => |*s| try writer.print("{s}", .{s.get()}),
         .list => |*l| {
             const len = l.length();
 
@@ -340,7 +359,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const p = i.operand.location;
                 try assert(p < ctxt.prog.strings.len);
 
-                const v = take(ctxt, Type.from(ctxt.prog.strings[p]));
+                const v = take(ctxt, Type.from(&ctxt.prog.strings[p]));
                 defer drop(ctxt, v);
 
                 try push(ctxt, v);
@@ -574,7 +593,7 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
 }
 
 fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) !void {
-    const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2);
+    const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2 + 1024);
     defer std.testing.allocator.free(output_buffer);
     var output_stream = std.io.fixedBufferStream(output_buffer);
     const output_writer = output_stream.writer();
@@ -681,6 +700,23 @@ test "structs" {
         Instruction.equal(),
         Instruction.ret(),
     }, 0, &.{}, &.{ "a", "b" }), "", 1);
+
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.structAlloc(),
+
+        Instruction.load(0),
+        Instruction.push(0),
+        Instruction.structStore(1),
+        Instruction.load(1),
+        Instruction.push(1),
+        Instruction.structStore(0),
+
+        Instruction.load(0),
+        Instruction.load(1),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{ "a", "b" }), "", 0);
 }
 
 test "lists" {
@@ -736,57 +772,74 @@ test "lists" {
         Instruction.ret(),
     }, 0, &.{}, &.{}), "[[]]", 0);
 
-    // TODO: list equality checking
-    // try testRun(Program.init(&.{
-    //     Instruction.listAlloc(),
-    //     Instruction.listAlloc(),
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.listAlloc(),
 
-    //     Instruction.load(0),
-    //     Instruction.push(0),
-    //     Instruction.push(1),
-    //     Instruction.listStore(),
+        Instruction.load(0),
+        Instruction.push(0),
+        Instruction.push(1),
+        Instruction.listStore(),
 
-    //     Instruction.load(1),
-    //     Instruction.push(0),
-    //     Instruction.push(1),
-    //     Instruction.listStore(),
+        Instruction.load(1),
+        Instruction.push(0),
+        Instruction.push(1),
+        Instruction.listStore(),
 
-    //     Instruction.load(0),
-    //     Instruction.load(1),
-    //     Instruction.equal(),
-    //     Instruction.ret(),
-    // }, 0, &.{}, &.{}), "", 1);
+        Instruction.load(0),
+        Instruction.load(1),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 1);
 
-    // try testRun(Program.init(&.{
-    //     Instruction.listAlloc(),
-    //     Instruction.load(0),
-    //     Instruction.push(0),
-    //     Instruction.load(0),
-    //     Instruction.listStore(),
-    //     Instruction.load(0),
-    //     Instruction.load(0),
-    //     Instruction.equal(),
-    //     Instruction.ret(),
-    // }, 0, &.{}, &.{}), "", 1);
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.load(0),
+        Instruction.push(0),
+        Instruction.load(0),
+        Instruction.listStore(),
+        Instruction.load(0),
+        Instruction.load(0),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 1);
 
-    // try testRun(Program.init(&.{
-    //     Instruction.listAlloc(),
-    //     Instruction.listAlloc(),
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.listAlloc(),
 
-    //     Instruction.load(0),
-    //     Instruction.push(0),
-    //     Instruction.load(1),
-    //     Instruction.listStore(), // list0[0] = list1
-    //     Instruction.load(1),
-    //     Instruction.push(0),
-    //     Instruction.load(0),
-    //     Instruction.listStore(), // list1[0] = list2
+        Instruction.load(0),
+        Instruction.push(0),
+        Instruction.load(1),
+        Instruction.listStore(), // list0[0] = list1
+        Instruction.load(1),
+        Instruction.push(0),
+        Instruction.load(0),
+        Instruction.listStore(), // list1[0] = list2
 
-    //     Instruction.load(0),
-    //     Instruction.dup(),
-    //     Instruction.equal(),
-    //     Instruction.ret(),
-    // }, 0, &.{}, &.{}), "", 1);
+        Instruction.load(0),
+        Instruction.dup(),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 1);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.listAlloc(),
+
+        Instruction.load(0),
+        Instruction.push(0),
+        Instruction.push(0),
+        Instruction.listStore(),
+
+        Instruction.load(1),
+        Instruction.push(0),
+        Instruction.push(1),
+        Instruction.listStore(),
+
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 0);
 }
 
 test "arithmetic" {
