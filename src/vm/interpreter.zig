@@ -133,6 +133,7 @@ fn take(ctxt: *VMContext, v: Type) Type {
     }
 
     return v.clone();
+    // return v;
 }
 
 fn drop(ctxt: *VMContext, v: Type) void {
@@ -141,6 +142,7 @@ fn drop(ctxt: *VMContext, v: Type) void {
     }
 
     v.deinit();
+    // _ = v;
 }
 
 fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
@@ -156,6 +158,17 @@ fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
     };
 
     return ctxt.stack.items[idx];
+}
+
+// mark condition as unlikely (optimizer hint)
+fn unlikely(a: bool) bool {
+    @setCold(true);
+    return a;
+}
+
+// mark condition as likely (optimizer hint)
+fn likely(a: bool) bool {
+    return !unlikely(!a);
 }
 
 fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
@@ -176,7 +189,10 @@ fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
 }
 
 fn push(ctxt: *VMContext, v: Type) !void {
-    try ctxt.stack.append(take(ctxt, v));
+    if (unlikely(ctxt.stack.capacity == ctxt.stack.items.len)) {
+        try ctxt.stack.ensureTotalCapacityPrecise(ctxt.stack.items.len * 4);
+    }
+    ctxt.stack.appendAssumeCapacity(take(ctxt, v));
 }
 
 fn pop(ctxt: *VMContext) !Type {
@@ -269,8 +285,15 @@ fn print(x: *Type, ctxt: *VMContext) !void {
     _ = try ctxt.write("\n");
 }
 
+// wrapper around std.debug.print, but marked as cold as a hint to the optimizer
+fn debug_log(comptime fmt: []const u8, args: anytype) void {
+    @setCold(true);
+    std.debug.print(fmt, args);
+}
+
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
+    try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
     var mem = try Mem.MemoryManager.init(ctxt.alloc);
     defer mem.deinit();
     while (true) {
@@ -279,7 +302,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
         const i = ctxt.prog.code[ctxt.pc];
         if (ctxt.debug_output) {
-            std.debug.print("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(i.op), ctxt.stack.items.len, ctxt.bp });
+            debug_log("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(i.op), ctxt.stack.items.len, ctxt.bp });
         }
 
         ctxt.pc += 1;
@@ -328,10 +351,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 if (ctxt.debug_output) {
                     if (op.isArithmetic()) {
-                        std.debug.print("arithmetic: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
+                        debug_log("arithmetic: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
                     }
                     if (op.isComparison()) {
-                        std.debug.print("comparison: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
+                        debug_log("comparison: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
                     }
                 }
 
@@ -371,7 +394,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const v = try get(ctxt, false, -1);
 
                 if (ctxt.debug_output) {
-                    std.debug.print("duplicated: {}\n", .{v});
+                    debug_log("duplicated: {}\n", .{v});
                 }
 
                 try push(ctxt, v);
@@ -436,7 +459,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     try assert(N.tag() == .int);
 
                     if (ctxt.debug_output) {
-                        std.debug.print("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
+                        debug_log("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
                     }
 
                     // ctxt.stack.shrinkRetainingCapacity(ctxt.stack.items.len - @as(usize, @intCast(N.int)));
@@ -454,7 +477,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const loc = i.operand.location;
 
                 if (ctxt.debug_output) {
-                    std.debug.print("jumping to: {}\n", .{loc});
+                    debug_log("jumping to: {}\n", .{loc});
                 }
 
                 ctxt.pc = loc;
@@ -467,13 +490,13 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(v.tag() == .int);
                 if (v.int != 0) {
                     if (ctxt.debug_output) {
-                        std.debug.print("took branch to: {}\n", .{loc});
+                        debug_log("took branch to: {}\n", .{loc});
                     }
 
                     ctxt.pc = loc;
                 } else {
                     if (ctxt.debug_output) {
-                        std.debug.print("didn't take branch to: {}\n", .{loc});
+                        debug_log("didn't take branch to: {}\n", .{loc});
                     }
                 }
             },
