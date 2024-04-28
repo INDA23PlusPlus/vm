@@ -37,18 +37,18 @@ fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !vo
     try ref.print(writer);
 }
 
-inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {
+inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !Type {
     return switch (op) {
-        .add => if (T == Type.GetRepr(.int)) a +% b else a + b,
-        .sub => if (T == Type.GetRepr(.int)) a -% b else a - b,
-        .mul => if (T == Type.GetRepr(.int)) a *% b else a * b,
+        .add => if (T == Type.GetRepr(.int)) Type.from(a +% b) else Type.from(a + b),
+        .sub => if (T == Type.GetRepr(.int)) Type.from(a -% b) else Type.from(a - b),
+        .mul => if (T == Type.GetRepr(.int)) Type.from(a *% b) else Type.from(a * b),
         .div => blk: {
             if (T == Type.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
                     return error.InvalidOperation;
                 }
             }
-            break :blk std.math.divTrunc(T, a, b);
+            break :blk Type.from(try std.math.divTrunc(T, a, b));
         },
         .mod => blk: {
             if (T == Type.GetRepr(.int)) {
@@ -56,14 +56,14 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {
                     return error.InvalidOperation;
                 }
             }
-            break :blk a - b * try std.math.divTrunc(T, a, b);
+            break :blk Type.from(a - b * try std.math.divTrunc(T, a, b));
         },
-        .cmp_eq => if (T == Type.GetRepr(.int)) @intFromBool(a == b) else @floatFromInt(@intFromBool(a == b)),
-        .cmp_ne => if (T == Type.GetRepr(.int)) @intFromBool(a != b) else @floatFromInt(@intFromBool(a != b)),
-        .cmp_lt => if (T == Type.GetRepr(.int)) @intFromBool(a < b) else @floatFromInt(@intFromBool(a < b)),
-        .cmp_le => if (T == Type.GetRepr(.int)) @intFromBool(a <= b) else @floatFromInt(@intFromBool(a <= b)),
-        .cmp_gt => if (T == Type.GetRepr(.int)) @intFromBool(a > b) else @floatFromInt(@intFromBool(a > b)),
-        .cmp_ge => if (T == Type.GetRepr(.int)) @intFromBool(a >= b) else @floatFromInt(@intFromBool(a >= b)),
+        .cmp_eq => if (T == Type.GetRepr(.int)) Type.from(a == b) else Type.from(a == b),
+        .cmp_ne => if (T == Type.GetRepr(.int)) Type.from(a != b) else Type.from(a != b),
+        .cmp_lt => if (T == Type.GetRepr(.int)) Type.from(a < b) else Type.from(a < b),
+        .cmp_le => if (T == Type.GetRepr(.int)) Type.from(a <= b) else Type.from(a <= b),
+        .cmp_gt => if (T == Type.GetRepr(.int)) Type.from(a > b) else Type.from(a > b),
+        .cmp_ge => if (T == Type.GetRepr(.int)) Type.from(a >= b) else Type.from(a >= b),
         else => unreachable,
     };
 }
@@ -411,7 +411,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(rhs.is(.int));
                 const a = lhs.int;
                 const b = rhs.int;
-                stack_items[stack_len - 2].int = doArithmetic(Type.GetRepr(.int), a, i.op, b) catch return handleInvalidOperation(lhs, i.op, rhs, ctxt);
+                stack_items[stack_len - 2] = doArithmetic(Type.GetRepr(.int), a, i.op, b) catch return handleInvalidOperation(lhs, i.op, rhs, ctxt);
                 drop(ctxt, try pop(ctxt));
                 continue;
             }
