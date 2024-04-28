@@ -169,8 +169,9 @@ fn handleInvalidOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) anyerr
         .float => |f| f == 0.0,
         else => false,
     };
+    const a_is_numeric = a == .int or a == .float;
 
-    if (is_division and is_by_zero) {
+    if (is_division and is_by_zero and a_is_numeric) {
         try printErr(ctxt, "division by zero\n", .{});
         return error.InvalidOperation;
     }
@@ -191,10 +192,13 @@ fn handleInvalidOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) anyerr
         else => @tagName(op),
     };
 
+    const astr = a.str();
+    const bstr = b.str();
+
     try printErr(
         ctxt,
         "can't perform {s} on types {s} and {s}\n",
-        .{ opstr, @tagName(a), @tagName(b) },
+        .{ opstr, astr, bstr },
     );
 
     return error.InvalidOperation;

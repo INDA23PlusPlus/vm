@@ -202,6 +202,15 @@ pub const Type = union(TypeEnum) {
     list: ListRef,
     object: ObjectRef,
 
+    pub fn str(self: *const Self) []const u8 {
+        return switch (self.tag()) {
+            .int => "integer",
+            .string_lit => "string literal",
+            .string_ref => "string",
+            else => @tagName(self.tag()),
+        };
+    }
+
     pub fn GetRepr(comptime E: Type.Tag) type {
         return switch (E) {
             .unit => UnitType,
