@@ -14,7 +14,7 @@ const Self = @This();
 
 prog: Program,
 pc: usize,
-bp: usize, 
+bp: usize,
 alloc: Allocator,
 stack: Stack,
 refc: i64,
@@ -75,7 +75,15 @@ pub fn write(self: *const Self, bytes: []const u8) anyerror!usize {
     return self.write_fn(self.write_ctxt, bytes);
 }
 
+pub fn writeStderr(self: *const Self, bytes: []const u8) anyerror!usize {
+    return self.stderr_write_fn(self.write_ctxt, bytes);
+}
+
 pub fn writer(self: *const Self) std.io.Writer(*const Self, anyerror, write) {
+    return .{ .context = self };
+}
+
+pub fn errWriter(self: *const Self) std.io.Writer(*const Self, anyerror, writeStderr) {
     return .{ .context = self };
 }
 
