@@ -152,10 +152,6 @@ fn remapTokens(
         }
     }
 
-    for (tokens) |tok| {
-        std.debug.print("{s}\n", .{tok});
-    }
-
     return new_toks;
 }
 
