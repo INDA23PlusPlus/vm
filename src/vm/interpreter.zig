@@ -11,11 +11,29 @@ const Program = arch.Program;
 const Mem = @import("memory_manager");
 const Type = Mem.APITypes.Type;
 const VMContext = @import("VMContext.zig");
+const SourceRef = @import("asm").SourceRef;
 
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
         return error.AssertionFailed;
     }
+}
+
+fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !void {
+    const writer = ctxt.errWriter();
+
+    if (ctxt.prog.tokens.len == 0) {
+        try writer.print("Runtime error: " ++ fmt, args);
+    }
+
+    const instr_addr = ctxt.pc - 1;
+    const source = ctxt.prog.deinit_data.?.source.?;
+    const token = ctxt.prog.tokens.?[instr_addr];
+    const ref = try SourceRef.init(source, token);
+
+    try writer.print("Runtime error (line {d}): ", .{ref.line_num});
+    try writer.print(fmt, args);
+    try ref.print(writer);
 }
 
 fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !T {

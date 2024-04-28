@@ -18,6 +18,7 @@ deinit_data: ?struct {
     allocator: Allocator,
     strings: []const u8,
     field_names: []const u8,
+    // TODO: move out of `deinit_data`, source is always contigous
     source: ?[]const u8,
 } = null,
 
