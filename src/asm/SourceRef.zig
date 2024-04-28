@@ -10,7 +10,9 @@ string: []const u8,
 line_num: usize,
 /// The line where the substring appears as a substring
 line: []const u8,
-/// The offset of the substring within the line
+/// The offset of the substring within the line.
+/// The actual line may have to be scanned for tabs
+/// in order to print diagnostics correctly.
 offset: usize,
 
 pub fn init(source: []const u8, substr: []const u8) !Self {
@@ -48,9 +50,11 @@ pub fn init(source: []const u8, substr: []const u8) !Self {
 
 pub fn print(self: Self, writer: anytype) !void {
     try writer.print("{s}\n", .{self.line});
-    for (0..self.offset) |_| {
-        try writer.writeByte(' ');
+    for (0..self.offset) |i| {
+        const c: u8 = if (self.line[i] == '\t') '\t' else ' ';
+        try writer.writeByte(c);
     }
+
     for (0..self.string.len) |_| {
         try writer.writeByte('~');
     }

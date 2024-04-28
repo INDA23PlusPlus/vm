@@ -26,13 +26,10 @@ fn lspRangeFromSourceLocation(source: []const u8, where: []const u8) !lsp.Range 
 pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
     std.log.info("Producing diagnostics for document {s}", .{doc.uri});
 
-    const source = try asm_.preproc.run(doc.text, alloc);
-    defer alloc.free(source);
-
     var errors = std.ArrayList(asm_.Error).init(alloc);
     defer errors.deinit();
 
-    var asm_instance = asm_.Asm.init(source, alloc, &errors);
+    var asm_instance = asm_.Asm.init(doc.text, alloc, &errors);
     defer asm_instance.deinit();
 
     var msg_buf = std.ArrayList(u8).init(alloc);
@@ -58,11 +55,11 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
         }
 
         // Compute location(s)
-        const range = try lspRangeFromSourceLocation(source, err.where.?);
+        const range = try lspRangeFromSourceLocation(doc.text, err.where.?);
         var related: ?[]lsp.DiagnosticRelatedInformation = null;
 
         if (err.related) |rel| {
-            const rel_range = try lspRangeFromSourceLocation(source, rel);
+            const rel_range = try lspRangeFromSourceLocation(doc.text, rel);
 
             if (put_related_in_separate_diagnostic) {
                 try doc.diagnostics.append(.{

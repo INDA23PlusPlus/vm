@@ -90,7 +90,7 @@ pub const Scanner = struct {
     fn skipWhitespace(self: *Scanner) bool {
         var skip = false;
         while (self.current()) |c| {
-            if (c == ' ' or c == '\n') {
+            if (std.ascii.isWhitespace(c)) {
                 self.advance();
                 skip = true;
             } else {

@@ -17,7 +17,6 @@ const Program = arch.Program;
 const asm_ = @import("asm");
 const Asm = asm_.Asm;
 const AsmError = asm_.Error;
-const preproc = asm_.preproc;
 
 const binary = @import("binary");
 
@@ -135,20 +134,17 @@ pub fn main() !u8 {
             };
             defer allocator.free(source);
 
-            const source_pp = try preproc.run(source, allocator);
-            defer allocator.free(source_pp);
-
             var errors = ArrayList(AsmError).init(allocator);
             defer errors.deinit();
 
-            var assembler = Asm.init(source_pp, allocator, &errors);
+            var assembler = Asm.init(source, allocator, &errors);
             defer assembler.deinit();
 
             try assembler.assemble();
 
             if (errors.items.len > 0) {
                 for (errors.items) |err| {
-                    try err.print(source_pp, stderr);
+                    try err.print(source, stderr);
                 }
                 return 1;
             }
