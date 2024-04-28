@@ -621,7 +621,7 @@ fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) 
     var output_stream = std.io.fixedBufferStream(output_buffer);
     const output_writer = output_stream.writer();
 
-    var ctxt = VMContext.init(prog, std.testing.allocator, &output_writer, false);
+    var ctxt = VMContext.init(prog, std.testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
     defer ctxt.deinit();
 
     try std.testing.expectEqual(expected_exit_code, try run(&ctxt));

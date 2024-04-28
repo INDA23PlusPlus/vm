@@ -181,7 +181,7 @@ pub fn main() !u8 {
             };
         },
         .run => {
-            var context = Context.init(program, allocator, &stdout, false);
+            var context = Context.init(program, allocator, &stdout, &stderr, false);
             defer context.deinit();
             const ret = interpreter.run(&context) catch |err| {
                 try stderr.print(
