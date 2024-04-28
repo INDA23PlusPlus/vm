@@ -22,7 +22,7 @@ fn assert(b: bool) !void {
 fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !void {
     const writer = ctxt.errWriter();
 
-    if (ctxt.prog.tokens.len == 0) {
+    if (ctxt.prog.tokens == null) {
         try writer.print("Runtime error: " ++ fmt, args);
         return;
     }
