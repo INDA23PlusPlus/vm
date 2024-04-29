@@ -7,8 +7,11 @@ pub const Opcode = enum(u8) {
     add = 0,
     sub = 1,
     mul = 2,
-    div = 3,
-    mod = 4,
+    div = 11,
+    mod = 12,
+
+    inc = 3,
+    dec = 4,
 
     cmp_lt = 5,
     cmp_gt = 6,
@@ -17,7 +20,7 @@ pub const Opcode = enum(u8) {
     cmp_eq = 9,
     cmp_ne = 10,
 
-    jmp,
+    jmp = 13,
     jmpnz,
 
     push,

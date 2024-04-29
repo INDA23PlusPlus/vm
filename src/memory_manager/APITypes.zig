@@ -159,7 +159,7 @@ pub const TypeEnum = enum(u8) {
     // zig fmt: on
 };
 
-// assert that @intFromEnum(e1) ^ @intFromEnum(e2) is equivalent to checking if comparisons are equivalent
+// assert that @intFromEnum(e1) ^ @intFromEnum(e2) is equivalent to checking if comparisons are allowed between these types
 comptime {
     for ([_]TypeEnum{
         .int,
@@ -181,9 +181,11 @@ comptime {
         }) |e2| {
             // should only happen on valid comparisons
             if (@intFromEnum(e1) ^ @intFromEnum(e2) < 2) {
-                // should only be valid if one is int and one is float
+                // should only be valid if one is int and one is float, or both are some kind of string
                 if (e1 != e2) {
-                    std.debug.assert((e1 == .int and e2 == .float) or (e1 == .float and e2 == .int) or (e1 == .string_lit and e2 == .string_ref) or (e1 == .string_ref and e2 == .string_lit));
+                    const int_float = (e1 == .int and e2 == .float) or (e1 == .float and e2 == .int);
+                    const strings = (e1 == .string_lit and e2 == .string_ref) or (e1 == .string_ref and e2 == .string_lit);
+                    std.debug.assert(int_float or strings);
                 }
             }
         }
@@ -223,23 +225,36 @@ pub const Type = union(TypeEnum) {
         };
     }
 
-    pub fn clone(self: *const Self) Self {
-        var res = self.*;
-        switch (res) {
+    pub fn incr(self: *const Self) void {
+        @setCold(true);
+        switch (self.*) {
             .string_ref => |*m| m.incr(),
             .list => |*m| m.incr(),
             .object => |*m| m.incr(),
             else => {},
         }
-        return res;
+    }
+
+    pub fn decr(self: *const Self) void {
+        @setCold(true);
+        switch (self.*) {
+            .string_ref => |*m| m.decr(),
+            .list => |*m| m.decr(),
+            .object => |*m| m.decr(),
+            else => {},
+        }
+    }
+
+    pub fn clone(self: *const Self) Self {
+        if (@intFromEnum(self.tag()) > 2) {
+            self.incr();
+        }
+        return self.*;
     }
 
     pub fn deinit(self: *const Self) void {
-        switch (self.tag()) {
-            .string_ref => self.string_ref.decr(),
-            .list => self.list.decr(),
-            .object => self.object.decr(),
-            else => {},
+        if (@intFromEnum(self.tag()) > 2) {
+            self.decr();
         }
     }
 

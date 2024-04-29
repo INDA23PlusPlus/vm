@@ -19,7 +19,8 @@ fn assert(b: bool) !void {
     }
 }
 
-fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !void {
+noinline fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !void {
+    @setCold(true);
     const writer = ctxt.errWriter();
 
     if (ctxt.prog.tokens == null) {
@@ -48,7 +49,7 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !Type {
                     return error.InvalidOperation;
                 }
             }
-            break :blk Type.from(try std.math.divTrunc(T, a, b));
+            break :blk Type.from(@divTrunc(a, b));
         },
         .mod => blk: {
             if (T == Type.GetRepr(.int)) {
@@ -56,14 +57,14 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !Type {
                     return error.InvalidOperation;
                 }
             }
-            break :blk Type.from(a - b * try std.math.divTrunc(T, a, b));
+            break :blk Type.from(a - b * @divTrunc(a, b));
         },
-        .cmp_eq => if (T == Type.GetRepr(.int)) Type.from(a == b) else Type.from(a == b),
-        .cmp_ne => if (T == Type.GetRepr(.int)) Type.from(a != b) else Type.from(a != b),
-        .cmp_lt => if (T == Type.GetRepr(.int)) Type.from(a < b) else Type.from(a < b),
-        .cmp_le => if (T == Type.GetRepr(.int)) Type.from(a <= b) else Type.from(a <= b),
-        .cmp_gt => if (T == Type.GetRepr(.int)) Type.from(a > b) else Type.from(a > b),
-        .cmp_ge => if (T == Type.GetRepr(.int)) Type.from(a >= b) else Type.from(a >= b),
+        .cmp_eq => Type.from(a == b),
+        .cmp_ne => Type.from(a != b),
+        .cmp_lt => Type.from(a < b),
+        .cmp_le => Type.from(a <= b),
+        .cmp_gt => Type.from(a > b),
+        .cmp_ge => Type.from(a >= b),
         else => unreachable,
     };
 }
@@ -145,8 +146,8 @@ fn stringOperation(a: Type, op: Opcode, b: Type) !Type {
 
 fn compareEq(a: Type, b: Type) bool {
     if (a.tag() != b.tag()) {
-        const af = floatValue(a) catch return false;
-        const bf = floatValue(b) catch return false;
+        const af = floatValue(a) catch unreachable;
+        const bf = floatValue(b) catch unreachable;
         return af == bf;
     }
 
@@ -225,8 +226,10 @@ fn doBinaryOpSameType(a: Type, op: Opcode, b: Type) !Type {
     };
 }
 
-fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
-    if (@intFromEnum(a) ^ @intFromEnum(b) == 0) return doBinaryOpSameType(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+inline fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
+    if (a.tag() == b.tag()) {
+        return doBinaryOpSameType(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+    }
 
     // if a and b are different type and theyre not `int` and `float` or `string_lit` and `string_ref` it's invalid and should end up triggering this
     if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
@@ -272,7 +275,7 @@ fn drop(ctxt: *VMContext, v: Type) void {
     _ = v;
 }
 
-fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
+inline fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
     const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
     const idx: usize = if (pos < 0)
         base - @as(usize, @intCast(-pos))
@@ -288,17 +291,17 @@ fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
 }
 
 // mark condition as unlikely (optimizer hint)
-fn unlikely(a: bool) bool {
+inline fn unlikely(a: bool) bool {
     @setCold(true);
     return a;
 }
 
 // mark condition as likely (optimizer hint)
-fn likely(a: bool) bool {
+inline fn likely(a: bool) bool {
     return !unlikely(!a);
 }
 
-fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
+inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
     const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
     const idx: usize = if (pos < 0)
         base - @as(usize, @intCast(-pos))
@@ -413,14 +416,14 @@ fn print(x: *Type, ctxt: *VMContext) !void {
 }
 
 // wrapper around std.debug.print, but marked as cold as a hint to the optimizer
-fn debug_log(comptime fmt: []const u8, args: anytype) void {
+noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
     @setCold(true);
     std.debug.print(fmt, args);
 }
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
-    try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
+    try ctxt.stack.ensureTotalCapacity(1 << 24); // skip branch in reallocation
     var mem = try Mem.MemoryManager.init(ctxt.alloc);
     defer mem.deinit();
     while (true) {
@@ -434,10 +437,16 @@ pub fn run(ctxt: *VMContext) !i64 {
 
         ctxt.pc += 1;
         // fastpath for integer math
-        if (@intFromEnum(i.op) < 11) {
+        if (@intFromEnum(i.op) < @intFromEnum(arch.Opcode.div)) {
             const stack_items = ctxt.stack.items;
             const stack_len = stack_items.len;
-            if ((!std.debug.runtime_safety or stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Type.int))) {
+            if (i.op == .inc) {
+                stack_items[stack_len - 1].int += 1;
+                continue;
+            } else if (i.op == .dec) {
+                stack_items[stack_len - 1].int -= 1;
+                continue;
+            } else if ((stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Type.int))) {
                 const lhs = stack_items[stack_len - 2];
                 const rhs = stack_items[stack_len - 1];
                 try assert(lhs.is(.int));
@@ -480,6 +489,16 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, r);
             },
+            .inc => {
+                try assert(ctxt.stack.items.len > 0);
+                try assert(ctxt.stack.items[ctxt.stack.items.len - 1].is(.int));
+                ctxt.stack.items[ctxt.stack.items.len - 1].int += 1;
+            },
+            .dec => {
+                try assert(ctxt.stack.items.len > 0);
+                try assert(ctxt.stack.items[ctxt.stack.items.len - 1].is(.int));
+                ctxt.stack.items[ctxt.stack.items.len - 1].int -= 1;
+            },
             .push => try push(ctxt, Type.from(i.operand.int)),
             .pushf => try push(ctxt, Type.from(i.operand.float)),
             .pushs => {
@@ -497,9 +516,9 @@ pub fn run(ctxt: *VMContext) !i64 {
             .dup => {
                 const v = try get(ctxt, false, -1);
 
-                if (ctxt.debug_output) {
-                    debug_log("duplicated: {}\n", .{v});
-                }
+                // if (ctxt.debug_output) {
+                //     debug_log("duplicated: {}\n", .{v});
+                // }
 
                 try push(ctxt, v);
             },
@@ -735,10 +754,8 @@ fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) 
     const b = try replaceWhiteSpace(output_stream.getWritten(), std.testing.allocator);
     defer std.testing.allocator.free(b);
 
-    if (!std.mem.eql(u8, a, b)) {
-        std.debug.print("{s} {s} {s} {s}\n", .{ a, b, expected_output, output_stream.getWritten() });
-    }
-    try std.testing.expect(std.mem.eql(u8, a, b));
+    try std.testing.expectEqualSlices(u8, a, b);
+    try std.testing.expectEqualSlices(u8, expected_output, output_stream.getWritten());
 }
 
 test "structs" {
