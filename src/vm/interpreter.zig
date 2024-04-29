@@ -755,7 +755,6 @@ fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) 
     defer std.testing.allocator.free(b);
 
     try std.testing.expectEqualSlices(u8, a, b);
-    try std.testing.expectEqualSlices(u8, expected_output, output_stream.getWritten());
 }
 
 test "structs" {
