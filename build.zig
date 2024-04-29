@@ -143,6 +143,20 @@ pub fn build(b: *std.Build) void {
     const blue_run_tests = b.addRunArtifact(blue_tests);
 
     //
+    // JIT
+    //
+    const jit_mod = b.addModule(
+        "jit",
+        .{ .root_source_file = .{ .path = "src/jit/module.zig" } },
+    );
+    const jit_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/jit/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const jit_run_tests = b.addRunArtifact(jit_tests);
+
+    //
     // Main executable
     //
     const vemod = b.addExecutable(.{
@@ -180,6 +194,7 @@ pub fn build(b: *std.Build) void {
     binary_mod.addImport("arch", arch_mod);
     blue_mod.addImport("asm", assembler_mod);
     blue_mod.addImport("arch", arch_mod);
+    jit_mod.addImport("arch", arch_mod);
 
     //
     // Test dependencies
@@ -218,6 +233,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&vmdls_run_tests.step);
     test_step.dependOn(&binary_run_tests.step);
     test_step.dependOn(&blue_run_tests.step);
+    test_step.dependOn(&jit_run_tests.step);
 
     //
     // Run step for compiler driver
