@@ -17,3 +17,4 @@ Makefile
 
 # VS Code
 .vscode
+*.vsix
