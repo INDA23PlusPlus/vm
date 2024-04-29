@@ -1,0 +1,81 @@
+{
+  "name": "vscode-vemod",
+  "displayName": "VeMod Language",
+  "description": "Language support for the VeMod assembly language",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/INDA23PlusPlus/vm"
+  },
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "vemod",
+        "extensions": [
+          ".vmd"
+        ]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "VeMod",
+      "properties": {
+        "vemod.vmdls.path": {
+          "scope": "machine-overridable",
+          "type": "string",
+          "description": "Path to `vmdls` executable. Example: `~/vm/zig-out/bin/vmdls`. The string \"vmdls\" means lookup vmdls in PATH.",
+          "format": "path"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "vemod.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "vemod.vmdls.startRestart",
+        "title": "Start / Restart Server",
+        "category": "VeMod Language Server"
+      },
+      {
+        "command": "vemod.vmdls.stop",
+        "title": "Stop Server",
+        "category": "VeMod Language Server"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.88.0",
+    "@types/which": "^3.0.3",
+    "@typescript-eslint/eslint-plugin": "^7.7.1",
+    "@typescript-eslint/parser": "^7.7.1",
+    "@vscode/test-cli": "^0.0.8",
+    "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "which": "^4.0.0"
+  }
+}

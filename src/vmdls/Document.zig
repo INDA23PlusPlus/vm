@@ -23,11 +23,13 @@ pub fn init(
     languageId: []const u8,
     text: []const u8,
 ) !Document {
+    _ = languageId;
     return .{
         .uri = uri,
         .version = version,
         .text = try alloc.dupe(u8, text),
-        .language = lang.Tag.map.get(languageId),
+        // .language = lang.Tag.map.get(languageId),
+        .language = lang.Tag.vmd, // TODO fix vs code extention
         .diagnostics = std.ArrayList(lsp.Diagnostic).init(alloc),
     };
 }
