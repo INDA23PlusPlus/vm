@@ -6,7 +6,7 @@ const std = @import("std");
 const Document = @This();
 const lsp = @import("lsp.zig");
 const lang = @import("lang.zig");
-const vmd = @import("vmd/vmd.zig");
+const vemod = @import("vemod/vemod.zig");
 
 // `uri` is managed by DocumentStore as it's used as key to this document
 uri: []const u8,
@@ -55,8 +55,8 @@ pub fn produceDiagnostics(self: *Document, alloc: std.mem.Allocator) !void {
     self.resetDiagnostics(alloc);
     if (self.language) |language| {
         switch (language) {
-            .vmd => try vmd.produceDiagnostics(self, alloc),
-            .mcl => {
+            .vemod => try vemod.produceDiagnostics(self, alloc),
+            .melancolang => {
                 std.log.warn("Can't produce diagnostics for Melancolang yet.", .{});
             },
         }

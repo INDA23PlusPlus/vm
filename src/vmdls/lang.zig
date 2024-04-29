@@ -6,9 +6,9 @@ const utils = @import("utils.zig");
 
 pub const Tag = enum {
     /// Melancolang source code
-    mcl,
+    melancolang,
     /// Assembly for VeMod
-    vmd,
+    vemod,
 
     pub const map = utils.TagNameMap(@This());
 };

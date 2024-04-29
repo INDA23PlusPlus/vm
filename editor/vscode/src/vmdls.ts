@@ -60,7 +60,7 @@ async function startClient() {
     };
 
     const clientOptions: LanguageClientOptions = {
-        documentSelector: [{ scheme: "file", language: "vmd" }],
+        documentSelector: [{ scheme: "file", language: "vemod" }],
         outputChannel,
         middleware: {
             workspace: {

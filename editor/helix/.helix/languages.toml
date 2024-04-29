@@ -5,7 +5,7 @@ command = "vmdls"
 name = "Melancolang"
 scope = "source.mcl"
 roots = []
-language-id = "mcl"
+language-id = "melancolang"
 file-types = ["mcl"]
 language-servers = ["vmdls"]
 
@@ -14,6 +14,6 @@ name = "VeMod"
 scope = "source.vmd"
 roots = []
 comment-token = "#"
-language-id = "vmd"
+language-id = "vemod"
 file-types = ["vmd"]
 language-servers = ["vmdls"]

@@ -1,7 +1,7 @@
-autocmd BufNewFile,BufRead *.mcl set filetype=mcl
-autocmd BufNewFile,BufRead *.vmd set filetype=vmd
+autocmd BufNewFile,BufRead *.mcl set filetype=melancolang
+autocmd BufNewFile,BufRead *.vmd set filetype=vemod
 
-call ale#linter#Define('mcl', {
+call ale#linter#Define('melancolang', {
 \   'name': 'vmdls',
 \   'lsp': 'stdio',
 \   'executable': 'vmdls',
@@ -9,7 +9,7 @@ call ale#linter#Define('mcl', {
 \   'project_root': '.',
 \})
 
-call ale#linter#Define('vmd', {
+call ale#linter#Define('vemod', {
 \   'name': 'vmdls',
 \   'lsp': 'stdio',
 \   'executable': 'vmdls',
