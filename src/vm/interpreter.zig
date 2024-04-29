@@ -423,7 +423,7 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
-    try ctxt.stack.ensureTotalCapacity(1 << 24); // skip branch in reallocation
+    try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
     var mem = try Mem.MemoryManager.init(ctxt.alloc);
     defer mem.deinit();
     while (true) {
@@ -516,9 +516,9 @@ pub fn run(ctxt: *VMContext) !i64 {
             .dup => {
                 const v = try get(ctxt, false, -1);
 
-                // if (ctxt.debug_output) {
-                //     debug_log("duplicated: {}\n", .{v});
-                // }
+                if (ctxt.debug_output) {
+                    debug_log("duplicated: {}\n", .{v});
+                }
 
                 try push(ctxt, v);
             },
