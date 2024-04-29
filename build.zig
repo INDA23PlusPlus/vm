@@ -44,32 +44,6 @@ pub fn build(b: *std.Build) void {
     const assembler_run_tests = b.addRunArtifact(assembler_tests);
 
     //
-    // JIT
-    //
-    const jit_mod = b.addModule(
-        "jit",
-        .{ .root_source_file = .{ .path = "src/jit/module.zig" } },
-    );
-
-    const jit = b.addExecutable(.{
-        .name = "jit",
-        .root_source_file = .{ .path = "src/jit/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const jit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/jit/module.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    const jit_run_tests = b.addRunArtifact(jit_tests);
-
-    const build_jit = b.step("jit", "Build the jit executable");
-    const install_jit = b.addInstallArtifact(jit, .{});
-    build_jit.dependOn(&install_jit.step);
-
-    //
     // Memory manager
     //
     const memory_manager_mod = b.addModule(
@@ -171,8 +145,6 @@ pub fn build(b: *std.Build) void {
     //
     // Executable dependencies
     //
-    jit.root_module.addImport("arch", arch_mod);
-    jit.root_module.addImport("asm", assembler_mod);
     vmdls.root_module.addImport("compiler", compiler_mod);
     vmdls.root_module.addImport("asm", assembler_mod);
     vmdls.root_module.addImport("arch", arch_mod);
@@ -190,7 +162,6 @@ pub fn build(b: *std.Build) void {
     assembler_mod.addImport("vm", vm_mod);
     assembler_mod.addImport("arch", arch_mod);
     binary_mod.addImport("arch", arch_mod);
-    jit_mod.addImport("arch", arch_mod);
 
     //
     // Test dependencies
@@ -212,7 +183,6 @@ pub fn build(b: *std.Build) void {
     //
     // Default build step
     //
-    b.installArtifact(jit);
     b.installArtifact(vmdls);
     b.installArtifact(vemod);
 
@@ -223,7 +193,6 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&arch_run_tests.step);
     test_step.dependOn(&assembler_run_tests.step);
     test_step.dependOn(&compiler_run_tests.step);
-    test_step.dependOn(&jit_run_tests.step);
     test_step.dependOn(&memory_manager_run_tests.step);
     test_step.dependOn(&vm_run_tests.step);
     test_step.dependOn(&vmdls_run_tests.step);
