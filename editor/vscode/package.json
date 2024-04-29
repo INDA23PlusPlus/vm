@@ -19,7 +19,7 @@
   "contributes": {
     "languages": [
       {
-        "id": "vemod",
+        "id": "vmd",
         "extensions": [
           ".vmd"
         ]
