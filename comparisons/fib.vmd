@@ -1,0 +1,35 @@
+-function $main
+-begin
+	push %37
+	push %1
+	call $fib
+	syscall %0
+	push %0
+	ret
+-end
+
+-function $fib
+-begin
+	load %-4
+	push %2
+	cmp_lt
+	jmpnz .lt_2
+	
+	load %-4
+	dec
+	dup
+	push %1
+	call $fib
+	
+	load %0
+	dec
+	push %1
+	call $fib
+	
+	add
+	ret
+	
+	.lt_2
+	load %-4
+	ret
+-end

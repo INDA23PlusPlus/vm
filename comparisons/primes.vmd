@@ -1,0 +1,56 @@
+-function $main
+-begin
+	push %2
+	
+	.loop
+	load %0
+	push %1000000
+	cmp_gt
+	jmpnz .end
+	
+	load %0
+	push %1
+	call $print_if_prime
+	pop
+
+	load %0
+	push %1
+	add
+	store %0
+	
+	jmp .loop
+	
+	.end
+	push %0
+	ret
+-end
+
+-function $print_if_prime
+-begin
+	load %-4
+	push %1
+
+	.loop
+	inc
+
+	dup
+	dup
+	mul
+	load %0
+	cmp_gt
+	jmpnz .found_prime
+
+	load %0
+	load %1
+	mod
+	jmpnz .loop
+
+	jmp .done
+	.found_prime
+	load %0
+	syscall %0
+
+	.done
+	push %0
+	ret
+-end
