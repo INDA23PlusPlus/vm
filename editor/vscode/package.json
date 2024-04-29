@@ -33,7 +33,8 @@
           "scope": "machine-overridable",
           "type": "string",
           "description": "Path to `vmdls` executable. Example: `~/vm/zig-out/bin/vmdls`. The string \"vmdls\" means lookup vmdls in PATH.",
-          "format": "path"
+          "format": "path",
+          "default": "vmdls"
         }
       }
     },
