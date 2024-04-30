@@ -1,4 +1,11 @@
-# VeMod ![Tests](https://github.com/INDA23PlusPLus/vm/actions/workflows/zig.yml/badge.svg?event=push)
+<div align="center">
+<h1>VeMod</h1>
+
+<a href="#installation">Installation</a> | <a href="#visual-studio-code">VS Code Extension</a>
+
+![Tests](https://github.com/INDA23PlusPLus/vm/actions/workflows/zig.yml/badge.svg?event=push) ![Extension](https://github.com/INDA23PlusPLus/vm/actions/workflows/vscode.yml/badge.svg?event=push)
+</div>
+
 VeMod is a virtual stack machine written in Zig, with an associated assembly language and higher level
 language (Melancolang).
 
@@ -52,3 +59,24 @@ for VeMod assembly. Too view available options, run
 ```bash
 vmdls --help
 ```
+
+### Visual Studio Code
+To install the language server in Visual Studio Code, download the VS Code
+extension here:
+
+[Download](https://nightly.link/INDA23PlusPlus/vm/workflows/vscode/main/vscode-vemod.zip)
+
+Installation Instructions:
+- download the zip above
+- unzip the file
+- inside Visual Studio Code, go to the "Extensions" tab
+- press the three dots `...`
+- click `Install from VSIX...`
+- choose the `.vsix` file from the zip
+- Done! You may now delete the zip and the `.vsix` file.
+
+To update the extension, uninstall it and then install the new version.
+
+The first time you run the extension, you will need to choose a path for the
+`vmdls` binary if you do not have it on your `PATH`. This is done from the
+Visual Studio Code settings under Extensions > VeMod.
