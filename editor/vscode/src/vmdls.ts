@@ -1,11 +1,7 @@
-import vscode, { CancellationToken } from "vscode";
+import vscode from "vscode";
 import {
-    ConfigurationParams,
-    LSPAny,
     LanguageClient,
     LanguageClientOptions,
-    RequestHandler,
-    ResponseError,
     ServerOptions,
 } from "vscode-languageclient/node";
 import which from "which";
@@ -67,11 +63,6 @@ async function startClient() {
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ scheme: "file", language: "vemod" }],
         outputChannel,
-        middleware: {
-            workspace: {
-                configuration: configurationMiddleware,
-            },
-        },
     };
 
     // Create the language client and start the client.
@@ -109,20 +100,4 @@ export function getPath(): string {
     } catch {
         throw error(`\`vemod.vmdls.path\` ${path} is not an executable`);
     }
-}
-
-async function configurationMiddleware(
-    params: ConfigurationParams,
-    token: CancellationToken,
-    next: RequestHandler<ConfigurationParams, LSPAny[], void>,
-): Promise<LSPAny[] | ResponseError> {
-    console.log("params", params);
-    console.log("token", token);
-    
-    const result = await next(params, token);
-    console.log("result", result);
-    if (result instanceof ResponseError) {
-        return result;
-    }
-    return result as unknown[];
 }
