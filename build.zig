@@ -182,6 +182,7 @@ pub fn build(b: *std.Build) void {
     vemod.root_module.addImport("asm", assembler_mod);
     vemod.root_module.addImport("binary", binary_mod);
     vemod.root_module.addImport("blue", blue_mod);
+    vemod.root_module.addImport("jit", jit_mod);
 
     //
     // Module-module dependencies

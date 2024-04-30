@@ -59,6 +59,13 @@ pub fn deinit(self: *Self) void {
     self.relocs.deinit();
 }
 
+fn syscall(v: i64) callconv(.C) void {
+    const output_stream = std.io.getStdOut();
+    const output_writer = output_stream.writer();
+
+    output_writer.print("{}\n", .{v}) catch {};
+}
+
 pub fn compile(self: *Self, prog: arch.Program) !void {
     //try self.int3();
     try self.push_r64(.RBX);
@@ -87,12 +94,68 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try self.sub_r64_r64(.RAX, .RBX);
                 try self.push_r64(.RAX);
             },
+            .mul => {
+                try self.pop_r64(.RBX);
+                try self.pop_r64(.RAX);
+                try self.imul_r64(.RBX);
+                try self.push_r64(.RAX);
+            },
+            .mod => {
+                try self.pop_r64(.RBX);
+                try self.pop_r64(.RAX);
+                try self.cqo();
+                try self.idiv_r64(.RBX);
+                try self.push_r64(.RDX);
+            },
+            .inc => {
+                try self.pop_r64(.RAX);
+                try self.inc_r64(.RAX);
+                try self.push_r64(.RAX);
+            },
+            .dec => {
+                try self.pop_r64(.RAX);
+                try self.dec_r64(.RAX);
+                try self.push_r64(.RAX);
+            },
+            .dup => {
+                try self.pop_r64(.RAX);
+                try self.push_r64(.RAX);
+                try self.push_r64(.RAX);
+            },
+            .stack_alloc => {
+                try self.mov_r64_imm64(.RAX, i.operand.int * 8);
+                try self.sub_r64_r64(.RSP, .RAX);
+            },
             .cmp_lt => {
                 try self.xor_r64_r64(.RCX, .RCX);
                 try self.pop_r64(.RBX);
                 try self.pop_r64(.RAX);
                 try self.cmp_r64_r64(.RAX, .RBX);
                 try self.setcc_r8(.RCX, 0xC);
+                try self.push_r64(.RCX);
+            },
+            .cmp_gt => {
+                try self.xor_r64_r64(.RCX, .RCX);
+                try self.pop_r64(.RBX);
+                try self.pop_r64(.RAX);
+                try self.cmp_r64_r64(.RAX, .RBX);
+                try self.setcc_r8(.RCX, 0xF);
+                try self.push_r64(.RCX);
+            },
+            .cmp_eq => {
+                try self.xor_r64_r64(.RCX, .RCX);
+                try self.pop_r64(.RBX);
+                try self.pop_r64(.RAX);
+                try self.cmp_r64_r64(.RAX, .RBX);
+                try self.setcc_r8(.RCX, 0x4);
+                try self.push_r64(.RCX);
+            },
+            .cmp_ne => {
+                try self.xor_r64_r64(.RCX, .RCX);
+                try self.pop_r64(.RBX);
+                try self.pop_r64(.RAX);
+                try self.cmp_r64_r64(.RAX, .RBX);
+                try self.setcc_r8(.RCX, 0x5);
                 try self.push_r64(.RCX);
             },
             .call => {
@@ -108,10 +171,25 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try self.mov_r64_r64(.RSP, .RSI);
                 try self.push_r64(.RAX);
             },
+            .syscall => {
+                try self.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall)));
+                try self.pop_r64(.RDI);
+                try self.mov_r64_imm64(.RBX, 0x8);
+                try self.test_r64_r64(.RSP, .RBX);
+                try self.jcc_rel(0x5, 2 + 5);
+                try self.call_r64(.RAX);
+                try self.jmp_rel(10 + 3 + 2 + 3);
+                try self.sub_r64_r64(.RSP, .RBX);
+                try self.call_r64(.RAX);
+                try self.add_r64_r64(.RSP, .RBX);
+            },
             .ret => {
                 try self.pop_r64(.RAX);
                 try self.mov_r64_r64(.RSP, .RBP);
                 try self.ret_near();
+            },
+            .jmp => {
+                try self.jmp_loc(i.operand.location);
             },
             .jmpnz => {
                 try self.pop_r64(.RAX);
@@ -127,8 +205,13 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try self.mov_r64_m64(.RAX, .RBP, .RCX, 8);
                 try self.push_r64(.RAX);
             },
+            .store => {
+                try self.pop_r64(.RAX);
+                try self.mov_r64_imm64(.RCX, -i.operand.int - 1);
+                try self.mov_m64_r64(.RBP, .RCX, 8, .RAX);
+            },
             else => {
-                std.debug.print("unimplemented instruction\n", .{});
+                std.debug.print("unimplemented instruction: {s}\n", .{@tagName(i.op)});
             },
         }
     }
@@ -269,10 +352,47 @@ pub fn call_loc(self: *Self, loc: usize) !void {
     try self.dword(0);
 }
 
+pub fn call_r64(self: *Self, r: R64) !void {
+    if (reg_ex(r)) {
+        try self.rex_byte(.{ .B = true });
+    }
+    try self.byte(0xFF);
+    try self.modrm_byte(.rm, @enumFromInt(2), r);
+}
+
 pub fn cmp_r64_r64(self: *Self, r: R64, p: R64) !void {
     try self.rex_byte(.{ .W = true, .R = reg_ex(r), .B = reg_ex(p) });
     try self.byte(0x3B);
     try self.modrm_byte(.rm, r, p);
+}
+
+pub fn cqo(self: *Self) !void {
+    try self.rex_byte(.{ .W = true });
+    try self.byte(0x99);
+}
+
+pub fn dec_r64(self: *Self, r: R64) !void {
+    try self.rex_byte(.{ .W = true, .B = reg_ex(r) });
+    try self.byte(0xFF);
+    try self.modrm_byte(.rm, @enumFromInt(1), r);
+}
+
+pub fn idiv_r64(self: *Self, r: R64) !void {
+    try self.rex_byte(.{ .W = true, .B = reg_ex(r) });
+    try self.byte(0xF7);
+    try self.modrm_byte(.rm, @enumFromInt(7), r);
+}
+
+pub fn imul_r64(self: *Self, r: R64) !void {
+    try self.rex_byte(.{ .W = true, .B = reg_ex(r) });
+    try self.byte(0xF7);
+    try self.modrm_byte(.rm, @enumFromInt(5), r);
+}
+
+pub fn inc_r64(self: *Self, r: R64) !void {
+    try self.rex_byte(.{ .W = true, .B = reg_ex(r) });
+    try self.byte(0xFF);
+    try self.modrm_byte(.rm, @enumFromInt(0), r);
 }
 
 pub fn int3(self: *Self) !void {
@@ -284,6 +404,23 @@ pub fn jcc_loc(self: *Self, cc: u8, loc: usize) !void {
     try self.byte(0x80 + cc);
     try self.relocs.append(.{ .off = self.offset(), .loc = loc });
     try self.dword(0);
+}
+
+pub fn jcc_rel(self: *Self, cc: u8, off: i32) !void {
+    try self.byte(0x0F);
+    try self.byte(0x80 + cc);
+    try self.dword(@bitCast(off));
+}
+
+pub fn jmp_loc(self: *Self, loc: usize) !void {
+    try self.byte(0xE9);
+    try self.relocs.append(.{ .off = self.offset(), .loc = loc });
+    try self.dword(0);
+}
+
+pub fn jmp_rel(self: *Self, off: i32) !void {
+    try self.byte(0xE9);
+    try self.dword(@bitCast(off));
 }
 
 pub fn lea_r64(self: *Self, r: R64, base: R64, index: R64, scale: u8) !void {
@@ -303,6 +440,19 @@ pub fn mov_r64_imm64(self: *Self, r: R64, v: i64) !void {
     try self.rex_byte(.{ .W = true, .B = reg_ex(r) });
     try self.op_reg_byte(0xB8, r);
     try self.qword(@bitCast(v));
+}
+
+pub fn mov_m64_r64(self: *Self, base: R64, index: R64, scale: u8, r: R64) !void {
+    try self.rex_byte(.{ .W = true, .R = reg_ex(r), .X = reg_ex(index), .B = reg_ex(base) });
+    try self.byte(0x89);
+    if (base == R64.RBP) {
+        try self.modrm_byte(.sib_disp8, r, .RSP);
+        try self.sib_byte(base, index, scale);
+        try self.byte(0x0);
+    } else {
+        try self.modrm_byte(.sib, r, .RSP);
+        try self.sib_byte(base, index, scale);
+    }
 }
 
 pub fn mov_r64_m64(self: *Self, r: R64, base: R64, index: R64, scale: u8) !void {

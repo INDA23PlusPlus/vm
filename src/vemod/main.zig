@@ -26,6 +26,8 @@ const interpreter = vm.interpreter;
 
 const blue = @import("blue");
 
+const Jit = @import("jit").Jit;
+
 const Extension = enum { vmd, mcl, vbf, blue };
 
 pub fn logFn(
@@ -61,6 +63,7 @@ const Options = struct {
     input_filename: ?[]const u8 = null,
     extension: ?Extension = null,
     strip: bool = false,
+    jit: bool = false,
 };
 
 fn usage(name: []const u8) !void {
@@ -73,6 +76,7 @@ fn usage(name: []const u8) !void {
         \\    -t          Only transpile.
         \\    -o OUTPUT   Write output to file OUTPUT.
         \\    -s          Don't include source information in compiled program.
+        \\    -j          Use experimental JIT recompiler.
         \\    -h          Show this help message and exit.
         \\
     , .{name});
@@ -103,6 +107,8 @@ pub fn main() !u8 {
             return 0;
         } else if (mem.eql(u8, arg, "-s")) {
             options.strip = true;
+        } else if (mem.eql(u8, arg, "-j")) {
+            options.jit = true;
         } else if (arg[0] == '-') {
             try stderr.print("error: unknown option '{s}'\n", .{arg});
             try usage(name);
@@ -241,17 +247,30 @@ pub fn main() !u8 {
             };
         },
         .run => {
-            var context = Context.init(program, allocator, &stdout, &stderr, false);
-            defer context.deinit();
-            const ret = interpreter.run(&context) catch |err| {
-                if (context.rterror) |rterror| {
-                    try rterror.print(&context);
-                } else {
-                    try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
-                }
-                return 1;
-            };
-            return @intCast(ret);
+            if (options.jit) {
+                var jit = Jit.init(allocator);
+                defer jit.deinit();
+
+                try jit.compile(program);
+
+                const ret = jit.execute() catch |err| {
+                    try stderr.print("error: {s}\n", .{@errorName(err)});
+                    return 1;
+                };
+                return @intCast(ret);
+            } else {
+                var context = Context.init(program, allocator, &stdout, &stderr, false);
+                defer context.deinit();
+                const ret = interpreter.run(&context) catch |err| {
+                    if (context.rterror) |rterror| {
+                        try rterror.print(&context);
+                    } else {
+                        try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
+                    }
+                    return 1;
+                };
+                return @intCast(ret);
+            }
         },
     }
 

@@ -1,3 +1,5 @@
+pub const Jit = @import("Jit.zig");
+
 test {
-    _ = @import("jit.zig");
+    _ = @import("Jit.zig");
 }
