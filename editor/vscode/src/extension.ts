@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as vmdls from './vmdls';
 
-export function activate(context: vscode.ExtensionContext) {
-    vmdls.activate(context);
+export async function activate(context: vscode.ExtensionContext) {
+    await vmdls.activate(context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('vemod.helloWorld', () => {
@@ -11,6 +11,6 @@ export function activate(context: vscode.ExtensionContext) {
     );
 }
 
-export function deactivate() {
-    vmdls.deactivate();
+export async function deactivate() {
+    await vmdls.deactivate();
 }

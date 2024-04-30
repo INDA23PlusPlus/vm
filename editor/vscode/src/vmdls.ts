@@ -14,7 +14,7 @@ import fs from "fs";
 let outputChannel: vscode.OutputChannel;
 export let client: LanguageClient | null = null;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel("VeMod Language Server");
 
     context.subscriptions.push(
@@ -26,7 +26,12 @@ export function activate(context: vscode.ExtensionContext) {
             await stopClient();
             await startClient();
         }),
+        vscode.commands.registerCommand("vemod.vmdls.stop", async () => {
+            await stopClient();
+        }),
     );
+
+    await startClient();
 }
 
 export function deactivate() {
@@ -83,17 +88,17 @@ async function startClient() {
 
 export function getPath(): string {
     const configuration = vscode.workspace.getConfiguration("vemod.vmdls");
-    let path: string | null = configuration.get<string>("path") || null;
+    let path: string | null = configuration.get<string>("path", "vmdls"); // "vmdls" is default
     // the string "vmdls" means lookup in PATH
     if (path === "vmdls") {
         path = which.sync(path, { nothrow: true });
     }
     const error = (msg: string) => {
-        vscode.window.showErrorMessage(msg);
+        vscode.window.showErrorMessage(msg, { modal: true });
         return new Error(msg);
     };
     if (!path) {
-        throw error(`Could not find ${path} in PATH`);
+        throw error(`Could not find 'vmdls' in PATH. Please set the 'vemod.vmdls.path' setting in VS Code settings. For example '~/vm/zig-out/bin/vmdls'.`);
     }
     if (!fs.existsSync(path)) {
         throw error(`\`vemod.vmdls.path\` ${path} does not exist`);

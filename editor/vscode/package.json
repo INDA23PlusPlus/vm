@@ -14,8 +14,10 @@
   "categories": [
     "Programming Languages"
   ],
-  "activationEvents": [],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:vemod"
+  ],
   "contributes": {
     "languages": [
       {
