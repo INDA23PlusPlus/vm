@@ -594,6 +594,35 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn add_rm64_imm8(self: *Self, rm: RM64, imm: i8) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x83, null);
+        instr.set_modrm_ext(0);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm8 = imm });
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn add_rm64_imm32(self: *Self, rm: RM64, imm: i32) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x81, null);
+        instr.set_modrm_ext(0);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm32 = imm });
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn add_rm64_r64(self: *Self, rm: RM64, reg: R64) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x01, null);
+        instr.set_modrm_reg(reg);
+        instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
     pub inline fn call_rel32(self: *Self, rel: i32) !void {
         var instr = Instr{};
         instr.set_opcode(0xE8, null);
@@ -613,6 +642,15 @@ pub const As = struct {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
         instr.set_opcode(0x3B, null);
+        instr.set_modrm_reg(reg);
+        instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn cmp_rm64_r64(self: *Self, rm: RM64, reg: R64) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x39, null);
         instr.set_modrm_reg(reg);
         instr.set_rm(rm);
         try self.emit_instr(instr);
@@ -717,6 +755,16 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn movzx_r64_rm8(self: *Self, reg: R64, rm: RM8) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_esc(&.{0x0F});
+        instr.set_opcode(0xB6, null);
+        instr.set_modrm_reg(reg);
+        instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
     pub inline fn neg_rm64(self: *Self, rm: RM64) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
@@ -732,9 +780,25 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn pop_rm64(self: *Self, rm: RM64) !void {
+        var instr = Instr{};
+        instr.set_opcode(0x8F, null);
+        instr.set_modrm_ext(0);
+        instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
     pub inline fn push_r64(self: *Self, reg: R64) !void {
         var instr = Instr{};
         instr.set_opcode(0x50, .{ .r64 = reg });
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn push_rm64(self: *Self, rm: RM64) !void {
+        var instr = Instr{};
+        instr.set_opcode(0xFF, null);
+        instr.set_modrm_ext(6);
+        instr.set_rm(rm);
         try self.emit_instr(instr);
     }
 
@@ -768,10 +832,58 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn sub_rm64_imm8(self: *Self, rm: RM64, imm: i8) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x83, null);
+        instr.set_modrm_ext(5);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm8 = imm });
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn sub_rm64_imm32(self: *Self, rm: RM64, imm: i32) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x81, null);
+        instr.set_modrm_ext(5);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm32 = imm });
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn sub_rm64_r64(self: *Self, rm: RM64, reg: R64) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x29, null);
+        instr.set_modrm_reg(reg);
+        instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn test_rm64_imm32(self: *Self, rm: RM64, imm: i32) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0xF7, null);
+        instr.set_modrm_ext(0);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm32 = imm });
+        try self.emit_instr(instr);
+    }
+
     pub inline fn test_rm64_r64(self: *Self, rm: RM64, reg: R64) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
         instr.set_opcode(0x85, null);
+        instr.set_modrm_reg(reg);
+        instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn xchg_rm64_r64(self: *Self, rm: RM64, reg: R64) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x87, null);
         instr.set_modrm_reg(reg);
         instr.set_rm(rm);
         try self.emit_instr(instr);

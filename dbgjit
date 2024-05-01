@@ -1,8 +1,31 @@
-#!/bin/sh
+#!/bin/bash
 
-if [ x"${1}" = x"" ]; then
-	echo 'usage: '"${0}"' <script-file>'
+dbgjit="${DBGJIT:-start}"
+filename=''
+
+usage() {
+	echo 'usage: '"${0}"' [-b <break-instructions>] <script-file>'
 	exit 1
-fi
+}
 
-exec /bin/sh -c "zig build vemod && gdb -q --tui -ex 'layout asm' -ex 'layout regs' -ex 'r' --args zig-out/bin/vemod -j ${1}"
+while [ ! x"${1}" = x"" ]; do
+	case "${1}" in
+	-b)
+		shift
+		if [ x"${1}" = "" ]; then usage; fi
+		dbgjit="${1}"
+		;;
+	*)
+		if [ ! x"${filename}" = x"" ]; then usage; fi
+		filename="${1}"
+		;;
+	esac
+	shift
+done
+
+if [ x"${filename}" = x"" ]; then usage; fi
+
+DBGJIT="${DBGJIT}${DBGJIT:+,}${dbgjit}"
+export DBGJIT
+
+exec /bin/sh -c 'zig build vemod && gdb -q --tui -ex '"'"'layout asm'"'"' -ex '"'"'layout regs'"'"' -ex '"'"'r'"'"' --args zig-out/bin/vemod -j "'"${filename}"'"'

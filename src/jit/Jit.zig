@@ -20,12 +20,14 @@ const Lbl = struct {
 as: As,
 insn_map: std.ArrayList(usize),
 relocs: std.ArrayList(Reloc),
+dbgjit: ?[]const u8,
 
 pub fn init(alloc: std.mem.Allocator) Self {
     return .{
         .as = As.init(alloc),
         .insn_map = std.ArrayList(usize).init(alloc),
         .relocs = std.ArrayList(Reloc).init(alloc),
+        .dbgjit = std.posix.getenv("DBGJIT"),
     };
 }
 
@@ -92,16 +94,31 @@ fn syscall(v: i64) callconv(.C) void {
     output_writer.print("{}\n", .{v}) catch {};
 }
 
+fn dbg_break(self: *Self, tag: ?[]const u8) !void {
+    if (self.dbgjit) |v| {
+        if (tag) |t| {
+            var it = std.mem.split(u8, v, ",");
+            while (it.next()) |s| {
+                if (std.mem.eql(u8, s, t) or std.mem.eql(u8, s, "all")) {
+                    try self.as.int3();
+                    break;
+                }
+            }
+        } else {
+            try self.as.int3();
+        }
+    }
+}
+
 pub fn compile(self: *Self, prog: arch.Program) !void {
     const as = &self.as;
 
-    //try as.int3();
+    try self.dbg_break("start");
     try as.push_r64(.RBX);
     try as.push_r64(.RBP);
-    try as.mov_r64_rm64(.RBP, .{ .reg = .RSP });
-    try as.mov_r64_imm64(.RAX, -8);
-    try as.add_r64_rm64(.RBP, .{ .reg = .RAX });
+    try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
     try self.call_loc(prog.entry);
+    try self.dbg_break("end");
     try as.pop_r64(.RBP);
     try as.pop_r64(.RBX);
     try as.ret_near();
@@ -111,24 +128,23 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
 
         switch (i.op) {
             .add => {
-                try as.pop_r64(.RBX);
+                try self.dbg_break("add");
                 try as.pop_r64(.RAX);
-                try as.add_r64_rm64(.RAX, .{ .reg = .RBX });
-                try as.push_r64(.RAX);
+                try as.add_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .sub => {
-                try as.pop_r64(.RBX);
+                try self.dbg_break("sub");
                 try as.pop_r64(.RAX);
-                try as.sub_r64_rm64(.RAX, .{ .reg = .RBX });
-                try as.push_r64(.RAX);
+                try as.sub_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .mul => {
-                try as.pop_r64(.RBX);
+                try self.dbg_break("mul");
                 try as.pop_r64(.RAX);
-                try as.imul_rm64(.{ .reg = .RBX });
-                try as.push_r64(.RAX);
+                try as.imul_rm64(.{ .mem = .{ .base = .RSP } });
+                try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .mod => {
+                try self.dbg_break("mod");
                 try as.pop_r64(.RBX);
                 try as.pop_r64(.RAX);
                 try as.cqo();
@@ -136,109 +152,109 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try as.push_r64(.RDX);
             },
             .inc => {
-                try as.pop_r64(.RAX);
-                try as.inc_rm64(.{ .reg = .RAX });
-                try as.push_r64(.RAX);
+                try self.dbg_break("inc");
+                try as.inc_rm64(.{ .mem = .{ .base = .RSP } });
             },
             .dec => {
-                try as.pop_r64(.RAX);
-                try as.dec_rm64(.{ .reg = .RAX });
-                try as.push_r64(.RAX);
+                try self.dbg_break("dec");
+                try as.dec_rm64(.{ .mem = .{ .base = .RSP } });
             },
             .dup => {
-                try as.pop_r64(.RAX);
-                try as.push_r64(.RAX);
-                try as.push_r64(.RAX);
+                try self.dbg_break("dup");
+                try as.push_rm64(.{ .mem = .{ .base = .RSP } });
             },
             .stack_alloc => {
-                try as.mov_r64_imm64(.RAX, i.operand.int * 8);
-                try as.sub_r64_rm64(.RSP, .{ .reg = .RAX });
+                try self.dbg_break("stack_alloc");
+                try as.sub_rm64_imm32(.{ .reg = .RSP }, @truncate(i.operand.int * 8));
             },
             .cmp_lt => {
-                try as.xor_r64_rm64(.RCX, .{ .reg = .RCX });
-                try as.pop_r64(.RBX);
+                try self.dbg_break("cmp_lt");
                 try as.pop_r64(.RAX);
-                try as.cmp_r64_rm64(.RAX, .{ .reg = .RBX });
-                try as.setcc_rm8(.L, .{ .reg = .CL });
-                try as.push_r64(.RCX);
+                try as.cmp_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
+                try as.setcc_rm8(.L, .{ .reg = .AL });
+                try as.movzx_r64_rm8(.RAX, .{ .reg = .AL });
+                try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .cmp_gt => {
-                try as.xor_r64_rm64(.RCX, .{ .reg = .RCX });
-                try as.pop_r64(.RBX);
+                try self.dbg_break("cmp_gt");
                 try as.pop_r64(.RAX);
-                try as.cmp_r64_rm64(.RAX, .{ .reg = .RBX });
-                try as.setcc_rm8(.G, .{ .reg = .CL });
-                try as.push_r64(.RCX);
+                try as.cmp_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
+                try as.setcc_rm8(.G, .{ .reg = .AL });
+                try as.movzx_r64_rm8(.RAX, .{ .reg = .AL });
+                try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .cmp_eq => {
-                try as.xor_r64_rm64(.RCX, .{ .reg = .RCX });
-                try as.pop_r64(.RBX);
+                try self.dbg_break("cmp_eq");
                 try as.pop_r64(.RAX);
-                try as.cmp_r64_rm64(.RAX, .{ .reg = .RBX });
-                try as.setcc_rm8(.E, .{ .reg = .CL });
-                try as.push_r64(.RCX);
+                try as.cmp_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
+                try as.setcc_rm8(.E, .{ .reg = .AL });
+                try as.movzx_r64_rm8(.RAX, .{ .reg = .AL });
+                try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .cmp_ne => {
-                try as.xor_r64_rm64(.RCX, .{ .reg = .RCX });
-                try as.pop_r64(.RBX);
+                try self.dbg_break("cmp_ne");
                 try as.pop_r64(.RAX);
-                try as.cmp_r64_rm64(.RAX, .{ .reg = .RBX });
-                try as.setcc_rm8(.NE, .{ .reg = .CL });
-                try as.push_r64(.RCX);
+                try as.cmp_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
+                try as.setcc_rm8(.NE, .{ .reg = .AL });
+                try as.movzx_r64_rm8(.RAX, .{ .reg = .AL });
+                try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RAX);
             },
             .call => {
+                try self.dbg_break("call");
                 try as.push_r64(.RBP);
-                try as.mov_r64_rm64(.RBP, .{ .reg = .RSP });
-                try as.mov_r64_imm64(.RAX, -8);
-                try as.add_r64_rm64(.RBP, .{ .reg = .RAX });
+                try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
                 try self.call_loc(i.operand.location);
+                try self.dbg_break("call_ret");
                 try as.pop_r64(.RBP);
                 try as.pop_r64(.RCX);
-                try as.mov_r64_rm64(.RSI, .{ .reg = .RSP });
-                try as.lea_r64(.RSI, .{ .base = .RSI, .index = .{ .reg = .RCX, .scale = 8 } });
-                try as.mov_r64_rm64(.RSP, .{ .reg = .RSI });
+                try as.lea_r64(.RSP, .{ .base = .RSP, .index = .{ .reg = .RCX, .scale = 8 } });
                 try as.push_r64(.RAX);
             },
             .syscall => {
+                try self.dbg_break("syscall");
+                try as.mov_r64_rm64(.RDI, .{ .mem = .{ .base = .RSP } });
                 try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall)));
-                try as.pop_r64(.RDI);
-                try as.mov_r64_imm64(.RBX, 0x8);
-                try as.test_rm64_r64(.{ .reg = .RBX }, .RSP);
+                try as.test_rm64_imm32(.{ .reg = .RSP }, 0x8);
                 const la = try self.jcc_lbl(.NE);
                 try as.call_rm64(.{ .reg = .RAX });
+                try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
+                try self.dbg_break("syscall_ret");
                 const lb = try self.jmp_lbl();
                 self.put_lbl(la);
-                try as.sub_r64_rm64(.RSP, .{ .reg = .RBX });
+                try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
                 try as.call_rm64(.{ .reg = .RAX });
-                try as.add_r64_rm64(.RSP, .{ .reg = .RBX });
+                try self.dbg_break("syscall_ret");
                 self.put_lbl(lb);
             },
             .ret => {
+                try self.dbg_break("ret");
                 try as.pop_r64(.RAX);
                 try as.mov_r64_rm64(.RSP, .{ .reg = .RBP });
                 try as.ret_near();
             },
             .jmp => {
+                try self.dbg_break("jmp");
                 try self.jmp_loc(i.operand.location);
             },
             .jmpnz => {
+                try self.dbg_break("jmpnz");
                 try as.pop_r64(.RAX);
                 try as.test_rm64_r64(.{ .reg = .RAX }, .RAX);
                 try self.jcc_loc(.NE, i.operand.location);
             },
             .push => {
+                try self.dbg_break("push");
                 try as.mov_r64_imm64(.RAX, i.operand.int);
                 try as.push_r64(.RAX);
             },
             .load => {
-                try as.mov_r64_imm64(.RCX, -i.operand.int - 1);
-                try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .index = .{ .reg = .RCX, .scale = 8 } } });
-                try as.push_r64(.RAX);
+                try self.dbg_break("load");
+                try as.push_rm64(.{ .mem = .{ .base = .RBP, .disp = @truncate((-i.operand.int - 1) * 8) } });
             },
             .store => {
+                try self.dbg_break("store");
                 try as.pop_r64(.RAX);
-                try as.mov_r64_imm64(.RCX, -i.operand.int - 1);
-                try as.mov_rm64_r64(.{ .mem = .{ .base = .RBP, .index = .{ .reg = .RCX, .scale = 8 } } }, .RAX);
+                try as.mov_rm64_r64(.{ .mem = .{ .base = .RBP, .disp = @truncate((-i.operand.int - 1) * 8) } }, .RAX);
             },
             else => {
                 std.debug.print("Unimplemented instruction: {s}.\n", .{@tagName(i.op)});
