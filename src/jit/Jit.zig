@@ -87,14 +87,7 @@ inline fn put_lbl(self: *Self, lbl: Lbl) void {
     self.relocate(.{ .off = lbl.ref, .val = .{ .off = self.as.offset() } });
 }
 
-fn syscall(v: i64) callconv(.C) void {
-    const output_stream = std.io.getStdOut();
-    const output_writer = output_stream.writer();
-
-    output_writer.print("{}\n", .{v}) catch {};
-}
-
-fn dbg_break(self: *Self, tag: ?[]const u8) !void {
+inline fn dbg_break(self: *Self, tag: ?[]const u8) !void {
     if (self.dbgjit) |v| {
         if (tag) |t| {
             var it = std.mem.split(u8, v, ",");
@@ -108,6 +101,13 @@ fn dbg_break(self: *Self, tag: ?[]const u8) !void {
             try self.as.int3();
         }
     }
+}
+
+fn syscall(v: i64) callconv(.C) void {
+    const output_stream = std.io.getStdOut();
+    const output_writer = output_stream.writer();
+
+    output_writer.print("{}\n", .{v}) catch {};
 }
 
 pub fn compile(self: *Self, prog: arch.Program) !void {
