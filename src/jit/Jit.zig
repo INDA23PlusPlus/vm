@@ -127,7 +127,7 @@ const exec_globals = struct {
     }
 };
 
-fn syscall(v: i64) callconv(.C) void {
+fn syscall_0(v: i64) callconv(.C) void {
     exec_globals.output_writer.print("{}\n", .{v}) catch {};
 }
 
@@ -236,7 +236,7 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 switch (i.operand.int) {
                     0 => {
                         try as.mov_r64_rm64(.RDI, .{ .mem = .{ .base = .RSP } });
-                        try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall)));
+                        try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall_0)));
                         try as.test_rm64_imm32(.{ .reg = .RSP }, 8);
                         const la = try self.jcc_lbl(.NE);
                         try as.call_rm64(.{ .reg = .RAX });
