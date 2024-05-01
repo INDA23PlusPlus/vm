@@ -1,0 +1,8 @@
+#!/bin/sh
+
+if [ x"${1}" = x"" ]; then
+	echo 'usage: '"${0}"' <script-file>'
+	exit 1
+fi
+
+exec /bin/sh -c "zig build vemod && gdb -q --tui -ex 'layout asm' -ex 'layout regs' -ex 'r' --args zig-out/bin/vemod -j ${1}"
