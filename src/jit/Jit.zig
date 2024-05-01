@@ -58,7 +58,7 @@ inline fn relocate(self: *Self, reloc: Reloc) void {
         .off => |off| off,
         .loc => |loc| self.insn_map.items[loc],
     };
-    const off = val -% (reloc.off + 0x4);
+    const off = val -% (reloc.off + 4);
 
     code[reloc.off + 0] = @truncate(off >> 0);
     code[reloc.off + 1] = @truncate(off >> 8);
@@ -117,11 +117,18 @@ inline fn dbg_break(self: *Self, tag: ?[]const u8) !void {
     }
 }
 
-fn syscall(v: i64) callconv(.C) void {
-    const output_stream = std.io.getStdOut();
-    const output_writer = output_stream.writer();
+const exec_globals = struct {
+    var output_stream: std.fs.File = undefined;
+    var output_writer: std.fs.File.Writer = undefined;
 
-    output_writer.print("{}\n", .{v}) catch {};
+    inline fn init() void {
+        output_stream = std.io.getStdOut();
+        output_writer = output_stream.writer();
+    }
+};
+
+fn syscall(v: i64) callconv(.C) void {
+    exec_globals.output_writer.print("{}\n", .{v}) catch {};
 }
 
 pub fn compile(self: *Self, prog: arch.Program) !void {
@@ -230,14 +237,14 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                     0 => {
                         try as.mov_r64_rm64(.RDI, .{ .mem = .{ .base = .RSP } });
                         try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall)));
-                        try as.test_rm64_imm32(.{ .reg = .RSP }, 0x8);
+                        try as.test_rm64_imm32(.{ .reg = .RSP }, 8);
                         const la = try self.jcc_lbl(.NE);
                         try as.call_rm64(.{ .reg = .RAX });
-                        try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
+                        try as.add_rm64_imm8(.{ .reg = .RSP }, 8);
                         try self.dbg_break("syscall_ret");
                         const lb = try self.jmp_lbl();
                         self.put_lbl(la);
-                        try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
+                        try as.add_rm64_imm8(.{ .reg = .RSP }, 8);
                         try as.call_rm64(.{ .reg = .RAX });
                         try self.dbg_break("syscall_ret");
                         self.put_lbl(lb);
@@ -269,6 +276,10 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                     try as.mov_r64_imm64(.RAX, i.operand.int);
                     try as.push_r64(.RAX);
                 }
+            },
+            .pop => {
+                try self.dbg_break("pop");
+                try as.add_rm64_imm8(.{ .reg = .RSP }, 8);
             },
             .load => {
                 try self.dbg_break("load");
@@ -306,6 +317,8 @@ pub fn execute(self: *Self) !i64 {
     if (std.os.linux.mprotect(ptr.?, size, 0x1 | 0x4) != 0) {
         return error.AccessDenied;
     }
+
+    exec_globals.init();
 
     const fun: ?*fn () callconv(.C) i64 = @ptrCast(ptr);
     const ret = fun.?();
