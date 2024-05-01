@@ -37,6 +37,20 @@ pub fn deinit(self: *Self) void {
     self.relocs.deinit();
 }
 
+inline fn imm_size(imm: i64) usize {
+    if (imm < std.math.minInt(i32) or imm > std.math.maxInt(i32)) {
+        return 8;
+    } else if (imm < std.math.minInt(i16) or imm > std.math.maxInt(i16)) {
+        return 4;
+    } else if (imm < std.math.minInt(i8) or imm > std.math.maxInt(i8)) {
+        return 2;
+    } else if (imm != 0) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 inline fn relocate(self: *Self, reloc: Reloc) void {
     const code = self.as.code();
 
@@ -212,19 +226,24 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
             },
             .syscall => {
                 try self.dbg_break("syscall");
-                try as.mov_r64_rm64(.RDI, .{ .mem = .{ .base = .RSP } });
-                try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall)));
-                try as.test_rm64_imm32(.{ .reg = .RSP }, 0x8);
-                const la = try self.jcc_lbl(.NE);
-                try as.call_rm64(.{ .reg = .RAX });
-                try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
-                try self.dbg_break("syscall_ret");
-                const lb = try self.jmp_lbl();
-                self.put_lbl(la);
-                try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
-                try as.call_rm64(.{ .reg = .RAX });
-                try self.dbg_break("syscall_ret");
-                self.put_lbl(lb);
+                switch (i.operand.int) {
+                    0 => {
+                        try as.mov_r64_rm64(.RDI, .{ .mem = .{ .base = .RSP } });
+                        try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall)));
+                        try as.test_rm64_imm32(.{ .reg = .RSP }, 0x8);
+                        const la = try self.jcc_lbl(.NE);
+                        try as.call_rm64(.{ .reg = .RAX });
+                        try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
+                        try self.dbg_break("syscall_ret");
+                        const lb = try self.jmp_lbl();
+                        self.put_lbl(la);
+                        try as.add_rm64_imm8(.{ .reg = .RSP }, 0x8);
+                        try as.call_rm64(.{ .reg = .RAX });
+                        try self.dbg_break("syscall_ret");
+                        self.put_lbl(lb);
+                    },
+                    else => {},
+                }
             },
             .ret => {
                 try self.dbg_break("ret");
@@ -244,8 +263,12 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
             },
             .push => {
                 try self.dbg_break("push");
-                try as.mov_r64_imm64(.RAX, i.operand.int);
-                try as.push_r64(.RAX);
+                if (imm_size(i.operand.int) <= 4) {
+                    try as.push_imm32(@truncate(i.operand.int));
+                } else {
+                    try as.mov_r64_imm64(.RAX, i.operand.int);
+                    try as.push_r64(.RAX);
+                }
             },
             .load => {
                 try self.dbg_break("load");

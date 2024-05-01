@@ -294,7 +294,7 @@ const Instr = struct {
     }
 
     pub inline fn set_rm_mem(self: *Self, mem: Mem) void {
-        var disp_min: u8 = 0;
+        var disp_min: usize = 0;
 
         if (mem.disp < std.math.minInt(i8) or mem.disp > std.math.maxInt(i8)) {
             disp_min = 4;
