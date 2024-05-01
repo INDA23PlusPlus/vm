@@ -7,7 +7,14 @@ const Self = @This();
 
 const Reloc = struct {
     off: usize,
-    loc: usize,
+    val: union(enum) {
+        off: usize,
+        loc: usize,
+    },
+};
+
+const Lbl = struct {
+    ref: usize,
 };
 
 as: As,
@@ -28,26 +35,61 @@ pub fn deinit(self: *Self) void {
     self.relocs.deinit();
 }
 
+inline fn relocate(self: *Self, reloc: Reloc) void {
+    const code = self.as.code();
+
+    const val = switch (reloc.val) {
+        .off => |off| off,
+        .loc => |loc| self.insn_map.items[loc],
+    };
+    const off = val -% (reloc.off + 0x4);
+
+    code[reloc.off + 0] = @truncate(off >> 0);
+    code[reloc.off + 1] = @truncate(off >> 8);
+    code[reloc.off + 2] = @truncate(off >> 16);
+    code[reloc.off + 3] = @truncate(off >> 24);
+}
+
+inline fn relocate_all(self: *Self) void {
+    for (self.relocs.items) |reloc| {
+        self.relocate(reloc);
+    }
+}
+
+inline fn call_loc(self: *Self, loc: usize) !void {
+    try self.as.call_rel32(0);
+    try self.relocs.append(.{ .off = self.as.imm_off, .val = .{ .loc = loc } });
+}
+
+inline fn jmp_loc(self: *Self, loc: usize) !void {
+    try self.as.jmp_rel32(0);
+    try self.relocs.append(.{ .off = self.as.imm_off, .val = .{ .loc = loc } });
+}
+
+inline fn jmp_lbl(self: *Self) !Lbl {
+    try self.as.jmp_rel32(0);
+    return .{ .ref = self.as.imm_off };
+}
+
+inline fn jcc_loc(self: *Self, cc: CC, loc: usize) !void {
+    try self.as.jcc_rel32(cc, 0);
+    try self.relocs.append(.{ .off = self.as.imm_off, .val = .{ .loc = loc } });
+}
+
+inline fn jcc_lbl(self: *Self, cc: CC) !Lbl {
+    try self.as.jcc_rel32(cc, 0);
+    return .{ .ref = self.as.imm_off };
+}
+
+inline fn put_lbl(self: *Self, lbl: Lbl) void {
+    self.relocate(.{ .off = lbl.ref, .val = .{ .off = self.as.offset() } });
+}
+
 fn syscall(v: i64) callconv(.C) void {
     const output_stream = std.io.getStdOut();
     const output_writer = output_stream.writer();
 
     output_writer.print("{}\n", .{v}) catch {};
-}
-
-inline fn call_loc(self: *Self, loc: usize) !void {
-    try self.as.call_rel32(0);
-    try self.relocs.append(.{ .off = self.as.imm_off, .loc = loc });
-}
-
-inline fn jmp_loc(self: *Self, loc: usize) !void {
-    try self.as.jmp_rel32(0);
-    try self.relocs.append(.{ .off = self.as.imm_off, .loc = loc });
-}
-
-inline fn jcc_loc(self: *Self, cc: CC, loc: usize) !void {
-    try self.as.jcc_rel32(cc, 0);
-    try self.relocs.append(.{ .off = self.as.imm_off, .loc = loc });
 }
 
 pub fn compile(self: *Self, prog: arch.Program) !void {
@@ -162,12 +204,14 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try as.pop_r64(.RDI);
                 try as.mov_r64_imm64(.RBX, 0x8);
                 try as.test_rm64_r64(.{ .reg = .RBX }, .RSP);
-                try as.jcc_rel32(.NE, 2 + 5);
+                const la = try self.jcc_lbl(.NE);
                 try as.call_rm64(.{ .reg = .RAX });
-                try as.jmp_rel32(10 + 3 + 2 + 3);
+                const lb = try self.jmp_lbl();
+                self.put_lbl(la);
                 try as.sub_r64_rm64(.RSP, .{ .reg = .RBX });
                 try as.call_rm64(.{ .reg = .RAX });
                 try as.add_r64_rm64(.RSP, .{ .reg = .RBX });
+                self.put_lbl(lb);
             },
             .ret => {
                 try as.pop_r64(.RAX);
@@ -202,19 +246,7 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
         }
     }
 
-    self.relocate();
-}
-
-pub fn relocate(self: *Self) void {
-    const code = self.as.code();
-
-    for (self.relocs.items) |r| {
-        const off = self.insn_map.items[r.loc] -% (r.off + 0x4);
-        code[r.off + 0] = @truncate(off >> 0);
-        code[r.off + 1] = @truncate(off >> 8);
-        code[r.off + 2] = @truncate(off >> 16);
-        code[r.off + 3] = @truncate(off >> 24);
-    }
+    self.relocate_all();
 }
 
 pub fn execute(self: *Self) !i64 {
