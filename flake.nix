@@ -1,28 +1,37 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
-    nixpkgsUnstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    flakeUtils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+
+    zig-overlay.url = "github:mitchellh/zig-overlay";
+    zig-overlay.inputs.nixpkgs.follows = "nixpkgs";
+
+    zls.url = "github:zigtools/zls";
+    zls.inputs.nixpkgs.follows = "nixpkgs";
   };
+
   outputs = {
     self,
     nixpkgs,
-    nixpkgsUnstable,
-    flakeUtils,
+    flake-utils,
+    zig-overlay,
+    zls,
+    ...
   }:
-    flakeUtils.lib.eachDefaultSystem (
+    flake-utils.lib.eachDefaultSystem (
       system: let
-        pkgs = nixpkgs.legacyPackages.${system};
-        pkgsUnstable = nixpkgsUnstable.legacyPackages.${system};
+        pkgs = import nixpkgs {inherit system;};
+        zigpkg = zig-overlay.packages.${system}."0.12.0";
+        zlspkg = zls.packages.${system}.zls;
       in {
-        packages = flakeUtils.lib.flattenTree {
-          zig = pkgs.zig;
-        };
-        devShell = pkgs.mkShell {
-          buildInputs = with self.packages.${system}; [
-            zig
+        devShells.default = pkgs.mkShell {
+          nativeBuildInputs = with pkgs; [
+              zigpkg
+              zlspkg
           ];
         };
+
+        devShell = self.devShells.${system}.default;
       }
     );
 }
