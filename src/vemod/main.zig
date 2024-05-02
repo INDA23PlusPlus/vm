@@ -26,6 +26,25 @@ const interpreter = vm.interpreter;
 
 const Extension = enum { vmd, mcl, vbf };
 
+pub fn logFn(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const scope_prefix = "(" ++ @tagName(scope) ++ "): ";
+    const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
+    std.debug.getStderrMutex().lock();
+    defer std.debug.getStderrMutex().unlock();
+    const stderr = std.io.getStdErr().writer();
+    nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+}
+
+pub const std_options = std.Options{
+    .log_level = .debug,
+    .logFn = logFn,
+};
+
 fn getExtension(filename: []const u8) ?Extension {
     if (filename.len == 0) return null;
     var iter = mem.tokenizeScalar(u8, filename, '.');
