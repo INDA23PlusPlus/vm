@@ -13,6 +13,7 @@ const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
 const StringPool = @import("StringPool.zig");
 const StringParser = @import("StringParser.zig");
+const FnLenMap = Program.FnLenMap;
 
 const entry_name = "main";
 
@@ -29,6 +30,7 @@ str_build: std.ArrayList(u8),
 str_parser: StringParser,
 instr_toks: std.ArrayList([]const u8),
 curr_fn_addr: usize,
+fn_len_map: FnLenMap,
 
 pub fn init(
     source: []const u8,
@@ -49,6 +51,7 @@ pub fn init(
         .str_parser = StringParser.init(allocator, errors),
         .instr_toks = std.ArrayList([]const u8).init(allocator),
         .curr_fn_addr = 0,
+        .fn_len_map = FnLenMap.init(allocator),
     };
 }
 
@@ -62,6 +65,7 @@ pub fn deinit(self: *Asm) void {
     self.str_build.deinit();
     self.str_parser.deinit();
     self.instr_toks.deinit();
+    self.fn_len_map.deinit();
 }
 
 pub fn assemble(self: *Asm) !void {
@@ -205,6 +209,8 @@ pub fn getProgram(
         .strings = strings,
         .field_names = field_names,
         .tokens = tokens,
+        // TODO: make this optional
+        .fn_len_map = try self.fn_len_map.cloneWithAllocator(allocator),
         .deinit_data = .{
             .allocator = allocator,
             .strings = string_buffer,
