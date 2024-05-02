@@ -118,12 +118,46 @@ inline fn dbg_break(self: *Self, tag: ?[]const u8) !void {
 }
 
 const exec_globals = struct {
+    var exec_args: packed struct {
+        unwind_sp: u64,
+    } = undefined;
+    var err: ?anyerror = undefined;
+
     var output_stream: std.fs.File = undefined;
     var output_writer: std.fs.File.Writer = undefined;
 
+    var old_sigfpe_handler: std.os.linux.Sigaction = undefined;
+
+    fn unwind() callconv(.Naked) noreturn {
+        asm volatile (
+            \\pop %rbp
+            \\pop %rbx
+            \\ret
+            :
+            : [unwind_sp] "{rsp}" (exec_args.unwind_sp),
+        );
+    }
+
+    fn sigfpe_handler(sig: i32, info: *const std.os.linux.siginfo_t, ucontext: ?*anyopaque) callconv(.C) void {
+        _ = sig;
+        _ = info;
+
+        err = error.InvalidOperation;
+
+        const uc: *std.os.linux.ucontext_t = @alignCast(@ptrCast(ucontext.?));
+        uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
+    }
+
     inline fn init() void {
+        err = null;
         output_stream = std.io.getStdOut();
         output_writer = output_stream.writer();
+
+        _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &.{ .handler = .{ .sigaction = &sigfpe_handler }, .mask = .{0} ** 32, .flags = std.os.linux.SA.SIGINFO }, &old_sigfpe_handler);
+    }
+
+    inline fn deinit() void {
+        _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &old_sigfpe_handler, null);
     }
 };
 
@@ -137,6 +171,7 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
     try self.dbg_break("start");
     try as.push_r64(.RBX);
     try as.push_r64(.RBP);
+    try as.mov_rm64_r64(.{ .mem = .{ .base = .RDI } }, .RSP);
     try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
     try self.call_loc(prog.entry);
     try self.dbg_break("end");
@@ -303,8 +338,7 @@ pub fn execute(self: *Self) !i64 {
     const code = self.as.code();
     const size = self.as.offset();
 
-    // PROT_READ | PROT_WRITE
-    const addr = std.os.linux.mmap(null, size, 0x1 | 0x2, .{ .TYPE = .PRIVATE, .ANONYMOUS = true }, -1, 0);
+    const addr = std.os.linux.mmap(null, size, std.os.linux.PROT.READ | std.os.linux.PROT.WRITE, .{ .TYPE = .PRIVATE, .ANONYMOUS = true }, -1, 0);
     const ptr: ?[*]u8 = @ptrFromInt(addr);
 
     if (ptr == null) {
@@ -313,17 +347,17 @@ pub fn execute(self: *Self) !i64 {
 
     @memcpy(ptr.?, code);
 
-    // PROT_READ | PROT_EXEC
-    if (std.os.linux.mprotect(ptr.?, size, 0x1 | 0x4) != 0) {
+    if (std.os.linux.mprotect(ptr.?, size, std.os.linux.PROT.READ | std.os.linux.PROT.EXEC) != 0) {
         return error.AccessDenied;
     }
 
     exec_globals.init();
+    defer exec_globals.deinit();
 
-    const fun: ?*fn () callconv(.C) i64 = @ptrCast(ptr);
-    const ret = fun.?();
+    const fun: ?*fn (*anyopaque) callconv(.C) i64 = @ptrCast(ptr);
+    const ret = fun.?(&exec_globals.exec_args);
 
     _ = std.os.linux.munmap(ptr.?, size);
 
-    return ret;
+    return exec_globals.err orelse ret;
 }
