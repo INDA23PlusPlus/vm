@@ -121,6 +121,7 @@ const exec_globals = struct {
     var exec_args: packed struct {
         unwind_sp: u64,
     } = undefined;
+
     var err: ?anyerror = undefined;
 
     var output_stream: std.fs.File = undefined;
@@ -150,6 +151,7 @@ const exec_globals = struct {
 
     inline fn init() void {
         err = null;
+
         output_stream = std.io.getStdOut();
         output_writer = output_stream.writer();
 
