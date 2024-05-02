@@ -34,6 +34,7 @@ errors: *std.ArrayList(Error),
 str_build: std.ArrayList(u8),
 str_parser: StringParser,
 instr_toks: std.ArrayList([]const u8),
+curr_fn_addr: usize,
 
 pub fn init(
     source: []const u8,
@@ -53,6 +54,7 @@ pub fn init(
         .str_build = std.ArrayList(u8).init(allocator),
         .str_parser = StringParser.init(allocator, errors),
         .instr_toks = std.ArrayList([]const u8).init(allocator),
+        .curr_fn_addr = 0,
     };
 }
 
@@ -243,6 +245,7 @@ fn asmString(self: *Asm) !void {
 }
 
 fn asmFunc(self: *Asm) !void {
+    self.curr_fn_addr = self.code.items.len;
     _ = try self.expectKw(.function, "expected '-function'");
     const name = try self.expect(.identifier, "expected function identifier");
     _ = try self.expectKw(.begin, "expected '-begin'");
@@ -282,7 +285,7 @@ fn asmFunc(self: *Asm) !void {
 
     // add implicit return unit at end of function
     // if the last statement is not `ret`
-    if (self.code.items.len == 0 or self.code.getLast().op != .ret) {
+    if (self.code.items.len == self.curr_fn_addr or self.code.getLast().op != .ret) {
         const unit_alloc = Instruction{
             .op = .stack_alloc,
             .operand = .{
