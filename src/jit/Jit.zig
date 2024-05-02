@@ -341,25 +341,20 @@ pub fn execute(self: *Self) !i64 {
     const size = self.as.offset();
 
     const addr = std.os.linux.mmap(null, size, std.os.linux.PROT.READ | std.os.linux.PROT.WRITE, .{ .TYPE = .PRIVATE, .ANONYMOUS = true }, -1, 0);
-    const ptr: ?[*]u8 = @ptrFromInt(addr);
+    const ptr = @as(?[*]u8, @ptrFromInt(addr)) orelse return error.OutOfMemory;
+    defer _ = std.os.linux.munmap(ptr, size);
 
-    if (ptr == null) {
-        return error.OutOfMemory;
-    }
+    @memcpy(ptr, code);
 
-    @memcpy(ptr.?, code);
-
-    if (std.os.linux.mprotect(ptr.?, size, std.os.linux.PROT.READ | std.os.linux.PROT.EXEC) != 0) {
+    if (std.os.linux.mprotect(ptr, size, std.os.linux.PROT.READ | std.os.linux.PROT.EXEC) != 0) {
         return error.AccessDenied;
     }
 
     exec_globals.init();
     defer exec_globals.deinit();
 
-    const fun: ?*fn (*anyopaque) callconv(.C) i64 = @ptrCast(ptr);
-    const ret = fun.?(&exec_globals.exec_args);
-
-    _ = std.os.linux.munmap(ptr.?, size);
+    const fn_ptr: *fn (*anyopaque) callconv(.C) i64 = @ptrCast(ptr);
+    const ret = fn_ptr(&exec_globals.exec_args);
 
     return exec_globals.err orelse ret;
 }
