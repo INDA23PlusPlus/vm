@@ -383,6 +383,59 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
     std.debug.print(fmt, args);
 }
 
+// TODO: maybe move this to JIT module?
+fn is_jitable_function(allocator: Allocator, program: []const Instruction, function_start: usize) bool {
+    var bitset = std.DynamicBitSet.initEmpty(allocator, program.len) catch @panic("oom");
+    defer bitset.deinit();
+
+    const util = struct {
+        fn dfs(fn_start: usize, prog: []const Instruction, i: usize, bs: *std.DynamicBitSet) bool {
+            if (i >= prog.len) return true;
+            if (bs.isSet(i)) return true;
+            bs.set(i);
+
+            return switch (prog[i].op) {
+                // supported opcodes that dont branch
+                .add,
+                .sub,
+                .mul,
+                .mod,
+                .inc,
+                .dec,
+                .dup,
+                .stack_alloc,
+                .cmp_lt,
+                .cmp_gt,
+                .cmp_eq,
+                .cmp_ne,
+                .syscall,
+                .push,
+                .pop,
+                .load,
+                .store,
+                // go to next instruction
+                => dfs(fn_start, prog, i + 1, bs),
+
+                // branching
+                .jmpnz => dfs(fn_start, prog, prog[i].operand.location, bs) and dfs(fn_start, prog, i + 1, bs),
+
+                // if we recurse or call another jittable function
+                .jmp,
+                .call,
+                => prog[i].operand.location == fn_start or
+                 dfs(prog[i].operand.location, prog, prog[i].operand.location, bs),
+
+                // base case
+                .ret => true,
+
+                // unsupported instruction
+                else => false,
+            };
+        }
+    };
+    return util.dfs(function_start, program, function_start, &bitset);
+}
+
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
     try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
@@ -1254,7 +1307,7 @@ test "arithmetic" {
 }
 
 test "fibonacci" {
-    try testRun(Program.init(&.{
+    const prog = Program.init(&.{
         Instruction.push(10),
         Instruction.push(0),
         Instruction.push(1),
@@ -1277,7 +1330,9 @@ test "fibonacci" {
         Instruction.pop(),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}),
+    }, 0, &.{}, &.{});
+    try std.testing.expect(is_jitable_function(std.testing.allocator, prog.code, 0));
+    try testRun(prog,
         \\0
         \\1
         \\1
@@ -1341,6 +1396,8 @@ test "recursive fibonacci" {
 
     var program = try asm_.getProgram(std.testing.allocator, .none);
     defer program.deinit();
+
+    try std.testing.expect(is_jitable_function(std.testing.allocator, program.code, 0));
 
     try testRun(program, "", 55);
 }
