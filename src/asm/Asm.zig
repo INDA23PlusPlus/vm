@@ -279,6 +279,20 @@ fn asmFunc(self: *Asm) !void {
 
     try self.lbl_patcher.patch(self.code.items);
     self.lbl_patcher.reset();
+
+    // add implicit return unit at end of function
+    // if the last statement is not `ret`
+    if (self.code.items.len == 0 or self.code.getLast().op != .ret) {
+        const unit_alloc = Instruction{
+            .op = .stack_alloc,
+            .operand = .{
+                .int = 1,
+            },
+        };
+        const implicit_return = Instruction{ .op = .ret };
+        try self.code.append(unit_alloc);
+        try self.code.append(implicit_return);
+    }
 }
 
 fn asmInstr(self: *Asm) !void {

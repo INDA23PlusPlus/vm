@@ -177,9 +177,9 @@ test "patching calls" {
     const code = asm_.code.items;
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
-    try std.testing.expectEqual(@as(usize, 6), code.len);
+    try std.testing.expectEqual(@as(usize, 10), code.len);
     try std.testing.expectEqual(Opcode.call, code[0].op);
-    try std.testing.expectEqual(@as(usize, 5), code[0].operand.location);
+    try std.testing.expectEqual(@as(usize, 7), code[0].operand.location);
 }
 
 test "patching labels" {
@@ -204,7 +204,7 @@ test "patching labels" {
     const code = asm_.code.items;
 
     try std.testing.expectEqual(@as(usize, 0), errors.items.len);
-    try std.testing.expectEqual(@as(usize, 4), code.len);
+    try std.testing.expectEqual(@as(usize, 6), code.len);
     try std.testing.expectEqual(Opcode.jmp, code[0].op);
     try std.testing.expectEqual(@as(usize, 3), code[0].operand.location);
 }
