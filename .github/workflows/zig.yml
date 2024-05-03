@@ -2,7 +2,9 @@ name: Zig Test and Lint
 
 on:
   push:
-    branches: [ "main" ]
+    -paths:
+      - 'src/*'
+      - 'build.zig'
   pull_request:
     branches: [ "main" ]
 
