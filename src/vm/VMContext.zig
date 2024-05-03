@@ -25,6 +25,72 @@ stderr_write_ctxt: *const anyopaque,
 stderr_write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 debug_output: bool,
 rterror: ?RtError = null,
+jit_mask: std.DynamicBitSetUnmanaged,
+
+fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged {
+    var visited = std.DynamicBitSet.initEmpty(alloc, program.code.len) catch @panic("oom");
+    defer visited.deinit();
+    var jitable = std.DynamicBitSetUnmanaged.initEmpty(alloc, program.code.len) catch @panic("oom");
+
+    const util = struct {
+        fn dfs(fn_start: usize, prog: []const Instruction, i: usize, vis: *std.DynamicBitSet, jit: *std.DynamicBitSetUnmanaged) bool {
+            if (i >= prog.len) return true;
+            if (vis.isSet(i)) return true;
+            vis.set(i);
+
+            return switch (prog[i].op) {
+                // supported opcodes that dont branch
+                .add,
+                .sub,
+                .mul,
+                .mod,
+                .inc,
+                .dec,
+                .dup,
+                .stack_alloc,
+                .cmp_lt,
+                .cmp_gt,
+                .cmp_eq,
+                .cmp_ne,
+                .syscall,
+                .push,
+                .pop,
+                .load,
+                .store,
+                // go to next instruction
+                => dfs(fn_start, prog, i + 1, vis, jit),
+
+                // branching
+                .jmpnz => {
+                    const dest = prog[i].operand.location;
+                    const res = dfs(fn_start, prog, prog[i].operand.location, vis, jit) and dfs(fn_start, prog, i + 1, vis, jit);
+                    jit.setValue(dest, res);
+                    return res;
+                },
+
+                // if we recurse or call another jittable function
+                .jmp,
+                .call,
+                => {
+                    const dest = prog[i].operand.location;
+                    const res = prog[i].operand.location == fn_start or
+                        dfs(prog[i].operand.location, prog, prog[i].operand.location, vis, jit);
+                    jit.setValue(dest, res);
+                    return res;
+                },
+                // base case
+                .ret => true,
+
+                // unsupported instruction
+                else => false,
+            };
+        }
+    };
+
+    const main_jitable = util.dfs(program.entry, program.code, program.entry, &visited, &jitable);
+    jitable.setValue(program.entry, main_jitable);
+    return jitable;
+}
 
 pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_writer: anytype, debug_output: bool) Self {
     switch (@typeInfo(@TypeOf(output_writer))) {
@@ -60,6 +126,7 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .stderr_write_ctxt = error_writer,
         .stderr_write_fn = stderr_write_fn,
         .debug_output = debug_output,
+        .jit_mask = make_jit_mask(prog, alloc),
     };
 }
 
@@ -91,4 +158,5 @@ pub fn errWriter(self: *const Self) std.io.Writer(*const Self, anyerror, writeSt
 
 pub fn deinit(self: *Self) void {
     self.stack.deinit();
+    self.jit_mask.deinit(self.alloc);
 }

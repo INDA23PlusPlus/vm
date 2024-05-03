@@ -145,7 +145,7 @@ const exec_globals = struct {
 
         err = error.InvalidOperation;
 
-        const uc: *std.os.linux.ucontext_t = @alignCast(@ptrCast(ucontext.?));
+        const uc: *std.os.linux.ucontext_t = @alignCast(@ptrCast(ucontext));
         uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
     }
 
