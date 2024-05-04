@@ -505,7 +505,7 @@ pub const As = struct {
     }
 
     inline fn emit_instr(self: *Self, instr: Instr) !void {
-        @setEvalBranchQuota(5000);
+        @setEvalBranchQuota(8000);
 
         if (instr.rex) |rex| {
             var rex_byte: u8 = 0x40;
@@ -647,6 +647,16 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn cmp_rm64_imm32(self: *Self, rm: RM64, imm: i32) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x81, null);
+        instr.set_modrm_ext(7);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm32 = imm });
+        try self.emit_instr(instr);
+    }
+
     pub inline fn cmp_rm64_r64(self: *Self, rm: RM64, reg: R64) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
@@ -743,6 +753,16 @@ pub const As = struct {
         instr.set_opcode(0x8B, null);
         instr.set_modrm_reg(reg);
         instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn mov_rm64_imm32(self: *Self, rm: RM64, imm: i32) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0xC7, null);
+        instr.set_modrm_ext(0);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm32 = imm });
         try self.emit_instr(instr);
     }
 
