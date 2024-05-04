@@ -8,9 +8,12 @@ benchmark() {
 		exit 1
 	fi
 
-	echo 'Running benchmarks on '"'"'fib'"'"
-
 	prog="${1}"
+
+	if [ -z "${prog}" ]; then exit 0; fi
+
+	echo 'Running benchmarks on '"'${prog}'"
+
 	benchmarks=('zig-out/bin/vemod -j '"'comparisons/${prog}.vmd'")
 
 	if which luajit >/dev/null; then
