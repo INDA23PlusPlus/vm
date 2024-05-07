@@ -22,12 +22,18 @@
 
         packages = 
           let
-            commonDrvAttrs = {
+            vemod-package = { pname, version ? "master" }: pkgs.stdenvNoCC.mkDerivation {
+              inherit pname version;
               src = gitignoreSource ./.;
               nativeBuildInputs = with pkgs; [ zig ];
               dontConfigure = true;
               dontInstall = true;
               doCheck = true;
+              buildPhase = ''
+                export XDG_CACHE_HOME=$(mktemp -d)
+                zig build ${pname} --prefix $out -Doptimize=ReleaseFast
+                rm -rf $XDG_CACHE_HOME
+              '';
               checkPhase = ''
                 export XDG_CACHE_HOME=$(mktemp -d)
                 zig fmt --check .
@@ -38,26 +44,8 @@
           in
           rec {
             default = vemod;
-
-            vemod = pkgs.stdenvNoCC.mkDerivation (commonDrvAttrs // {
-              pname = "vemod";
-              version = "master";
-              buildPhase = ''
-                export XDG_CACHE_HOME=$(mktemp -d)
-                zig build vemod --prefix $out -Doptimize=ReleaseFast
-                rm -rf $XDG_CACHE_HOME
-              '';
-            });
-
-            vmdls = pkgs.stdenvNoCC.mkDerivation (commonDrvAttrs // {
-              pname = "vmdls";
-              version = "master";
-              buildPhase = ''
-                export XDG_CACHE_HOME=$(mktemp -d)
-                zig build vmdls --prefix $out -Doptimize=ReleaseFast
-                rm -rf $XDG_CACHE_HOME
-              '';
-            });
+            vemod = vemod-package { pname = "vemod"; };
+            vmdls = vemod-package { pname = "vmdls"; };
           };
       }
     );
