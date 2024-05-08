@@ -44,6 +44,8 @@ pub const RtError = union(enum) {
     non_list_indexing: Type,
     /// A list_store/load was performed with index being not of type int
     invalid_index_type: Type,
+    /// Undefined syscall
+    undefined_syscall: i64,
 
     pub fn print(rte: RtError, ctxt: *const VMContext) !void {
         switch (rte) {
@@ -84,6 +86,13 @@ pub const RtError = union(enum) {
                     ctxt,
                     "can't index with type {s}\n",
                     .{e.str()},
+                );
+            },
+            .undefined_syscall => |e| {
+                try printErr(
+                    ctxt,
+                    "undefined syscall number {d}\n",
+                    .{e},
                 );
             },
         }

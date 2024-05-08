@@ -502,7 +502,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                         try print(&v, ctxt);
                     },
-                    else => {},
+                    else => |c| {
+                        ctxt.rterror = .{ .undefined_syscall = c };
+                        return error.RuntimeError;
+                    },
                 }
             },
             .call => {
