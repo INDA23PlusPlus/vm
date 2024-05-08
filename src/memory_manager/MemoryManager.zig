@@ -71,8 +71,17 @@ pub fn alloc_list(self: *Self) ListRef {
 pub fn gc_pass(self: *Self) !void {
     //TODO implement gc method that detects and deallocates cycles
 
+    // Mark all objects that are reachable from the stack
+    self.mark_items_in_stack();
+
     try self.remove_unreachable_references(Object, &self.allObjects);
     try self.remove_unreachable_references(List, &self.allLists);
+}
+
+fn mark_items_in_stack(self: *Self) void {
+    for (self.stack.items) |*item| {
+        mark_item(item);
+    }
 }
 
 fn mark_item(item: *APITypes.Type) void {
@@ -102,17 +111,6 @@ fn mark_item(item: *APITypes.Type) void {
 /// Objects with a refcount of 0 are assumed to already have been deinitialized.
 /// This function simply removes them from the internal array storing objects.
 fn remove_unreachable_references(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) !void {
-    // Mark all objects as false
-    for (list.items) |obj| {
-        obj.refs.mark = false;
-    }
-
-    // Mark roots (objects on the stack)
-    for (self.stack.items) |*item| {
-        // TODO only mark if type is T.
-        mark_item(item);
-    }
-
     // Sweep
     // Actually drop and remove garbage objects.
     //
@@ -128,6 +126,7 @@ fn remove_unreachable_references(self: *Self, comptime T: type, list: *Unmanaged
         if (obj.refs.mark) {
             // Keep this object
             list.items[write] = obj;
+            obj.refs.mark = false;
             write += 1;
         } else {
             // Drop this garbage since it was not marked
