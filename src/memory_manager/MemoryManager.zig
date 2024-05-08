@@ -40,36 +40,59 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn alloc_struct(self: *Self) ObjectRef {
-    var objRef = ObjectRef.init(self.allocator) catch |e| {
-        // TODO handle error, try gc then try again
-        std.debug.panic("out of memory {}", .{e});
+    var objRef = ObjectRef.init(self.allocator) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block ObjectRef.init(self.allocator) catch |e| {
+            std.debug.panic("out of memory {}", .{e});
+        };
     };
 
-    self.allObjects.append(self.allocator, objRef.ref) catch |e| {
-        // TODO handle error, try gc then try again
-        objRef.deinit();
-        std.debug.panic("out of memory {}", .{e});
+    self.allObjects.append(self.allocator, objRef.ref) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block self.allObjects.append(self.allocator, objRef.ref) catch |e| {
+            objRef.deinit();
+            std.debug.panic("out of memory {}", .{e});
+        };
     };
+
+    self.maybe_gc();
 
     return objRef;
 }
 
 pub fn alloc_list(self: *Self) ListRef {
-    var listRef = ListRef.init(self.allocator) catch |e| {
-        // TODO handle error, try gc then try again
-        std.debug.panic("out of memory {}", .{e});
+    var listRef = ListRef.init(self.allocator) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block ListRef.init(self.allocator) catch |e| {
+            std.debug.panic("out of memory {}", .{e});
+        };
     };
 
-    self.allLists.append(self.allocator, listRef.ref) catch |e| {
-        // TODO handle error, try gc then try again
-        listRef.deinit();
-        std.debug.panic("out of memory {}", .{e});
+    self.allLists.append(self.allocator, listRef.ref) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block self.allLists.append(self.allocator, listRef.ref) catch |e| {
+            listRef.deinit();
+            std.debug.panic("out of memory {}", .{e});
+        };
     };
+
+    self.maybe_gc();
+
     return listRef;
 }
 
+fn maybe_gc(self: *Self) void {
+    if (self.allObjects.items.len + self.allLists.items.len > 2_500_000) {
+        self.gc_pass();
+    }
+}
+
 pub fn gc_pass(self: *Self) void {
-    //TODO implement gc method that detects and deallocates cycles
+    // std.debug.print("[vemod] Garbage collecting.\n", .{});
 
     // Mark all objects that are reachable from the stack
     self.mark_items_in_stack();
