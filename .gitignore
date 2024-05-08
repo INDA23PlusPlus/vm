@@ -21,3 +21,6 @@ Makefile
 
 # Nix result symlink
 result
+
+# direnv state
+.direnv/
