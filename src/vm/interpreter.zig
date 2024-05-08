@@ -706,7 +706,10 @@ pub fn run(ctxt: *VMContext) !i64 {
         const rv = try pop(ctxt);
         defer drop(ctxt, rv);
 
-        r = rv.as(.int) orelse return error.NonIntReturnValue;
+        r = rv.as(.int) orelse {
+            ctxt.rterror = .{ .non_int_main_ret_val = rv };
+            return error.RuntimeError;
+        };
     }
 
     assert(ctxt.refc == ctxt.stack.items.len) catch |e| {

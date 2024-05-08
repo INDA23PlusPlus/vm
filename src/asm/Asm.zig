@@ -250,7 +250,7 @@ fn asmFunc(self: *Asm) !void {
     const name = try self.expect(.identifier, "expected function identifier");
     _ = try self.expectKw(.begin, "expected '-begin'");
     try self.fn_patcher.decl(name.where, self.code.items.len);
-    if (std.mem.eql(u8, name.where, "main")) {
+    if (std.mem.eql(u8, name.where, entry_name)) {
         self.entry = self.code.items.len;
     }
     self.lbl_patcher.reset();
@@ -284,16 +284,18 @@ fn asmFunc(self: *Asm) !void {
     self.lbl_patcher.reset();
 
     // add implicit return unit at end of function
-    // if the last statement is not `ret`
+    // if the last statement is not `ret`.
+    // if the current function is main, return 0.
     if (self.code.items.len == self.curr_fn_addr or self.code.getLast().op != .ret) {
-        const unit_alloc = Instruction{
+        const value = if (std.mem.eql(u8, name.where, entry_name)) Instruction{
+            .op = .push,
+            .operand = .{ .int = 0 },
+        } else Instruction{
             .op = .stack_alloc,
-            .operand = .{
-                .int = 1,
-            },
+            .operand = .{ .int = 1 },
         };
         const implicit_return = Instruction{ .op = .ret };
-        try self.code.append(unit_alloc);
+        try self.code.append(value);
         try self.code.append(implicit_return);
     }
 }

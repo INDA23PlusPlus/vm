@@ -46,6 +46,8 @@ pub const RtError = union(enum) {
     invalid_index_type: Type,
     /// Undefined syscall
     undefined_syscall: i64,
+    /// The main function returned non-integer value
+    non_int_main_ret_val: Type,
 
     pub fn print(rte: RtError, ctxt: *const VMContext) !void {
         switch (rte) {
@@ -93,6 +95,13 @@ pub const RtError = union(enum) {
                     ctxt,
                     "undefined syscall number {d}\n",
                     .{e},
+                );
+            },
+            .non_int_main_ret_val => |e| {
+                try printErr(
+                    ctxt,
+                    "main function return value is of non-integer type {s}\n",
+                    .{e.str()},
                 );
             },
         }
