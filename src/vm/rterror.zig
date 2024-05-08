@@ -30,6 +30,11 @@ pub noinline fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args:
 }
 
 pub const RtError = union(enum) {
+    /// Invalid unary operator
+    invalid_unop: struct {
+        v: Type,
+        op: Opcode,
+    },
     /// Invalid binary operation
     invalid_binop: struct {
         l: Type,
@@ -54,12 +59,31 @@ pub const RtError = union(enum) {
             .division_by_zero => {
                 try printErr(ctxt, "division by zero\n", .{});
             },
+            .invalid_unop => |e| {
+                const opstr = switch (e.op) {
+                    .inc => "increment",
+                    .dec => "decrement",
+                    else => @tagName(e.op),
+                };
+
+                try printErr(
+                    ctxt,
+                    "can't perform {s} on type {s}\n",
+                    .{ opstr, e.v.str() },
+                );
+            },
             .invalid_binop => |e| {
                 const opstr = switch (e.op) {
                     .add => "addition",
                     .sub => "subtraction",
                     .mul => "multiplication",
                     .div, .mod => "division",
+                    .cmp_lt,
+                    .cmp_le,
+                    .cmp_ge,
+                    .cmp_gt,
+                    => "comparison",
+                    .cmp_eq, .cmp_ne => "equality check",
                     else => @tagName(e.op),
                 };
 

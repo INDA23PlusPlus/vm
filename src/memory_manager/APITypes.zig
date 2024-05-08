@@ -207,6 +207,7 @@ pub const Type = union(TypeEnum) {
             .int => "integer",
             .string_lit => "string literal",
             .string_ref => "string",
+            .object => "struct",
             else => @tagName(self.tag()),
         };
     }

@@ -453,12 +453,30 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
             .inc => {
                 try assert(ctxt.stack.items.len > 0);
-                try assert(ctxt.stack.items[ctxt.stack.items.len - 1].is(.int));
+                const v = ctxt.stack.getLast();
+                if (v.tag() != .int) {
+                    ctxt.rterror = .{
+                        .invalid_unop = .{
+                            .v = v,
+                            .op = i.op,
+                        },
+                    };
+                    return error.RuntimeError;
+                }
                 ctxt.stack.items[ctxt.stack.items.len - 1].int += 1;
             },
             .dec => {
                 try assert(ctxt.stack.items.len > 0);
-                try assert(ctxt.stack.items[ctxt.stack.items.len - 1].is(.int));
+                const v = ctxt.stack.getLast();
+                if (v.tag() != .int) {
+                    ctxt.rterror = .{
+                        .invalid_unop = .{
+                            .v = v,
+                            .op = i.op,
+                        },
+                    };
+                    return error.RuntimeError;
+                }
                 ctxt.stack.items[ctxt.stack.items.len - 1].int -= 1;
             },
             .push => try push(ctxt, Type.from(i.operand.int)),
