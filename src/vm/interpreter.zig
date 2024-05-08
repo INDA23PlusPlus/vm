@@ -11,7 +11,7 @@ const Program = arch.Program;
 const Mem = @import("memory_manager");
 const Type = Mem.APITypes.Type;
 const VMContext = @import("VMContext.zig");
-const SourceRef = @import("asm").SourceRef;
+const RtError = @import("rterror.zig").RtError;
 
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
@@ -19,26 +19,7 @@ fn assert(b: bool) !void {
     }
 }
 
-noinline fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args: anytype) !void {
-    @setCold(true);
-    const writer = ctxt.errWriter();
-
-    if (ctxt.prog.tokens == null) {
-        try writer.print("Runtime error: " ++ fmt, args);
-        return;
-    }
-
-    const instr_addr = ctxt.pc - 1;
-    const source = ctxt.prog.deinit_data.?.source.?;
-    const token = ctxt.prog.tokens.?[instr_addr];
-    const ref = try SourceRef.init(source, token);
-
-    try writer.print("Runtime error (line {d}): ", .{ref.line_num});
-    try writer.print(fmt, args);
-    try ref.print(writer);
-}
-
-inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !Type {
+inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContext) !Type {
     return switch (op) {
         .add => if (T == Type.GetRepr(.int)) Type.from(a +% b) else Type.from(a + b),
         .sub => if (T == Type.GetRepr(.int)) Type.from(a -% b) else Type.from(a - b),
@@ -46,7 +27,8 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !Type {
         .div => blk: {
             if (T == Type.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
-                    return error.InvalidOperation;
+                    ctxt.rterror = RtError.division_by_zero;
+                    return error.RuntimeError;
                 }
             }
             break :blk Type.from(@divTrunc(a, b));
@@ -54,7 +36,8 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T) !Type {
         .mod => blk: {
             if (T == Type.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
-                    return error.InvalidOperation;
+                    ctxt.rterror = RtError.division_by_zero;
+                    return error.RuntimeError;
                 }
             }
             break :blk Type.from(a - b * @divTrunc(a, b));
@@ -125,7 +108,7 @@ fn getstr(a: Type) []const u8 {
     return if (a.is(.string_lit)) a.string_lit.* else a.string_ref.get();
 }
 
-fn stringOperation(a: Type, op: Opcode, b: Type) !Type {
+fn stringOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     const lhs = getstr(a);
     const rhs = getstr(b);
 
@@ -140,7 +123,12 @@ fn stringOperation(a: Type, op: Opcode, b: Type) !Type {
         .cmp_le => order != .gt,
         .cmp_lt => order == .lt,
 
-        else => return error.InvalidOperation,
+        else => {
+            ctxt.rterror = RtError{
+                .invalid_binop = .{ .l = a, .op = op, .r = b },
+            };
+            return error.InvalidOperation;
+        },
     }));
 }
 
@@ -161,79 +149,53 @@ fn compareEq(a: Type, b: Type) bool {
     };
 }
 
-fn handleInvalidOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) anyerror {
-    @setCold(true);
-
-    const is_division = op == .div or op == .mod;
-    const is_by_zero = switch (b) {
-        .int => |i| i == 0,
-        .float => |f| f == 0.0,
-        else => false,
-    };
-    const a_is_numeric = a == .int or a == .float;
-
-    if (is_division and is_by_zero and a_is_numeric) {
-        try printErr(ctxt, "division by zero\n", .{});
-        return error.InvalidOperation;
-    }
-
-    const opstr = switch (op) {
-        .add => "addition",
-        .sub => "subtraction",
-        .div => "division",
-        .mul => "multiplication",
-        .mod => "modulus",
-        .cmp_lt,
-        .cmp_le,
-        .cmp_eq,
-        .cmp_ne,
-        .cmp_ge,
-        .cmp_gt,
-        => "comparison",
-        else => @tagName(op),
-    };
-
-    const astr = a.str();
-    const bstr = b.str();
-
-    try printErr(
-        ctxt,
-        "can't perform {s} on types {s} and {s}\n",
-        .{ opstr, astr, bstr },
-    );
-
-    return error.InvalidOperation;
-}
-
-fn doBinaryOpSameType(a: Type, op: Opcode, b: Type) !Type {
-    try assert(a.tag() == b.tag());
+fn doBinaryOpSameType(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     return switch (a.tag()) {
-        .unit => Type.tryFrom(doArithmetic(Type.GetRepr(.int), 0, op, 0)),
-        .int => Type.tryFrom(doArithmetic(Type.GetRepr(.int), a.int, op, b.int)),
-        .float => Type.tryFrom(doArithmetic(Type.GetRepr(.float), a.float, op, b.float)),
-        .string_lit => stringOperation(a, op, b),
-        .string_ref => stringOperation(a, op, b),
+        .unit => Type.tryFrom(doArithmetic(Type.GetRepr(.int), 0, op, 0, ctxt)),
+        .int => Type.tryFrom(doArithmetic(Type.GetRepr(.int), a.int, op, b.int, ctxt)),
+        .float => Type.tryFrom(doArithmetic(Type.GetRepr(.float), a.float, op, b.float, ctxt)),
+        .string_lit => stringOperation(a, op, b, ctxt),
+        .string_ref => stringOperation(a, op, b, ctxt),
         .list => switch (op) {
             .cmp_eq => Type.from(listEq(a, b)),
             .cmp_ne => Type.from(!listEq(a, b)),
-            else => error.InvalidOperation,
+            else => err: {
+                ctxt.rterror = RtError{
+                    .invalid_binop = .{
+                        .l = a,
+                        .op = op,
+                        .r = b,
+                    },
+                };
+                break :err error.RuntimeError;
+            },
         },
         .object => switch (op) {
             .cmp_eq => Type.from(objectEq(a, b)),
             .cmp_ne => Type.from(!objectEq(a, b)),
-            else => error.InvalidOperation,
+            else => err: {
+                ctxt.rterror = RtError{
+                    .invalid_binop = .{
+                        .l = a,
+                        .op = op,
+                        .r = b,
+                    },
+                };
+                break :err error.RuntimeError;
+            },
         },
     };
 }
 
 inline fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     if (a.tag() == b.tag()) {
-        return doBinaryOpSameType(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+        return doBinaryOpSameType(a, op, b, ctxt);
     }
 
     // if a and b are different type and theyre not `int` and `float` or `string_lit` and `string_ref` it's invalid and should end up triggering this
     if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
-        return handleInvalidOperation(a, op, b, ctxt);
+        ctxt.rterror = RtError{ .invalid_binop = .{ .l = a, .op = op, .r = b } };
+        return error.RuntimeError;
     }
 
     // only valid types from here on out, could still be invalid if you try to add lists for example
@@ -241,20 +203,20 @@ inline fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     if (a.as(.int)) |ai| {
         const af: float = @floatFromInt(ai);
         const bf: float = b.float;
-        return Type.tryFrom(doArithmetic(float, af, op, bf)) catch handleInvalidOperation(a, op, b, ctxt);
+        return Type.tryFrom(doArithmetic(float, af, op, bf, ctxt));
     }
 
     if (b.as(.int)) |bi| {
         const af: float = a.float;
         const bf: float = @floatFromInt(bi);
-        return Type.tryFrom(doArithmetic(float, af, op, bf)) catch handleInvalidOperation(a, op, b, ctxt);
+        return Type.tryFrom(doArithmetic(float, af, op, bf, ctxt));
     }
 
     if ((@intFromEnum(a) | @intFromEnum(b)) ^ 0b10000 < 2) {
-        return stringOperation(a, op, b) catch handleInvalidOperation(a, op, b, ctxt);
+        return stringOperation(a, op, b, ctxt);
     }
 
-    return handleInvalidOperation(a, op, b, ctxt);
+    return error.RuntimeError;
 }
 
 fn take(ctxt: *VMContext, v: Type) Type {
@@ -453,7 +415,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(rhs.is(.int));
                 const a = lhs.int;
                 const b = rhs.int;
-                stack_items[stack_len - 2] = doArithmetic(Type.GetRepr(.int), a, i.op, b) catch return handleInvalidOperation(lhs, i.op, rhs, ctxt);
+                stack_items[stack_len - 2] = try doArithmetic(Type.GetRepr(.int), a, i.op, b, ctxt);
                 drop(ctxt, try pop(ctxt));
                 continue;
             }
@@ -649,12 +611,22 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 const idx = try pop(ctxt);
                 defer drop(ctxt, idx);
-                try assert(idx.is(.int));
+
+                if (idx.tag() != .int) {
+                    ctxt.rterror = RtError{ .invalid_index_type = idx };
+                    return error.RuntimeError;
+                }
+
                 const index = @as(usize, @intCast(idx.asUnChecked(.int)));
 
                 const s = try pop(ctxt);
                 defer drop(ctxt, s);
-                try assert(s.is(.list));
+
+                if (s.tag() != .list) {
+                    ctxt.rterror = RtError{ .non_list_indexing = s };
+                    return error.RuntimeError;
+                }
+
                 const list = s.asUnChecked(.list);
 
                 list.set(index, v);
@@ -662,12 +634,22 @@ pub fn run(ctxt: *VMContext) !i64 {
             .list_load => {
                 const idx = try pop(ctxt);
                 defer drop(ctxt, idx);
-                try assert(idx.is(.int));
+
+                if (idx.tag() != .int) {
+                    ctxt.rterror = RtError{ .invalid_index_type = idx };
+                    return error.RuntimeError;
+                }
+
                 const index = @as(usize, @intCast(idx.asUnChecked(.int)));
 
                 const s = try pop(ctxt);
+
+                if (s.tag() != .list) {
+                    ctxt.rterror = RtError{ .non_list_indexing = s };
+                    return error.RuntimeError;
+                }
+
                 defer drop(ctxt, s);
-                try assert(s.is(.list));
                 const list = s.asUnChecked(.list);
 
                 const v = take(ctxt, Type.from(list.get(index)));
@@ -688,7 +670,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const s = try pop(ctxt);
                 defer drop(ctxt, s);
 
-                try assert(s.is(.object));
+                if (s.tag() != .object) {
+                    ctxt.rterror = RtError{ .non_struct_field_access = s };
+                    return error.RuntimeError;
+                }
 
                 const obj = s.asUnChecked(.object);
                 try obj.set(f, v);
@@ -699,7 +684,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const s = try pop(ctxt);
                 defer drop(ctxt, s);
 
-                try assert(s.is(.object));
+                if (s.tag() != .object) {
+                    ctxt.rterror = RtError{ .non_struct_field_access = s };
+                    return error.RuntimeError;
+                }
 
                 const obj = s.asUnChecked(.object);
                 const v = Type.from(obj.get(f));

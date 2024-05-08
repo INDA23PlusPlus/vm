@@ -9,6 +9,7 @@ const Instruction = arch.Instruction;
 const Program = arch.Program;
 const Type = @import("memory_manager").APITypes.Type;
 const Stack = std.ArrayList(Type);
+const RtError = @import("rterror.zig").RtError;
 
 const Self = @This();
 
@@ -23,6 +24,7 @@ write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usiz
 stderr_write_ctxt: *const anyopaque,
 stderr_write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 debug_output: bool,
+rterror: ?RtError = null,
 
 pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_writer: anytype, debug_output: bool) Self {
     switch (@typeInfo(@TypeOf(output_writer))) {

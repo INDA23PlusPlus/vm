@@ -203,10 +203,11 @@ pub fn main() !u8 {
             var context = Context.init(program, allocator, &stdout, &stderr, false);
             defer context.deinit();
             const ret = interpreter.run(&context) catch |err| {
-                try stderr.print(
-                    "error: {s}\n",
-                    .{@errorName(err)},
-                );
+                if (context.rterror) |rterror| {
+                    try rterror.print(&context);
+                } else {
+                    try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
+                }
                 return 1;
             };
             return @intCast(ret);

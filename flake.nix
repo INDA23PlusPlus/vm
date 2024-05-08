@@ -22,10 +22,10 @@
 
         packages = 
           let
-            vemod-package = { pname, version ? "master" }: pkgs.stdenvNoCC.mkDerivation {
+            mkVemodPkg = { pname, version ? "master" }: pkgs.stdenvNoCC.mkDerivation {
               inherit pname version;
               src = gitignoreSource ./.;
-              nativeBuildInputs = with pkgs; [ zig ];
+              nativeBuildInputs = with pkgs; [ zig_0_12 ];
               dontConfigure = true;
               dontInstall = true;
               doCheck = true;
@@ -44,8 +44,8 @@
           in
           rec {
             default = vemod;
-            vemod = vemod-package { pname = "vemod"; };
-            vmdls = vemod-package { pname = "vmdls"; };
+            vemod = mkVemodPkg { pname = "vemod"; };
+            vmdls = mkVemodPkg { pname = "vmdls"; };
           };
       }
     );
