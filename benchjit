@@ -24,8 +24,9 @@ benchmark() {
 		benchmarks[${#benchmarks[@]}]='pypy '"'comparisons/${prog}.py'"
 	fi
 
-	hyperfine --warmup 3 "${benchmarks[@]}"
+	hyperfine --warmup 5 "${benchmarks[@]}"
 }
 
-benchmark fib
-benchmark primes
+for p in $(basename -s .vmd comparisons/*.vmd); do
+	benchmark "${p}"
+done
