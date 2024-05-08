@@ -4,9 +4,9 @@ const APITypes = @import("APITypes.zig");
 const ObjectRef = APITypes.ObjectRef;
 const ListRef = APITypes.ListRef;
 const types = @import("types.zig");
-const metadata = @import("metadata.zig");
 const Object = types.Object;
 const List = types.List;
+const Stack = std.ArrayList(APITypes.Type);
 
 fn UnmanagedObjectList(comptime T: type) type {
     return std.ArrayListUnmanaged(*T);
@@ -15,23 +15,23 @@ fn UnmanagedObjectList(comptime T: type) type {
 allocator: std.mem.Allocator,
 allObjects: UnmanagedObjectList(Object),
 allLists: UnmanagedObjectList(List),
+stack: *Stack,
 
-pub fn init(allocator: std.mem.Allocator) !Self {
+pub fn init(allocator: std.mem.Allocator, stack: *Stack) !Self {
     return Self{
         .allocator = allocator,
         .allObjects = try UnmanagedObjectList(Object).initCapacity(allocator, 0),
         .allLists = try UnmanagedObjectList(List).initCapacity(allocator, 0),
+        .stack = stack,
     };
 }
 
 pub fn deinit(self: *Self) void {
     for (self.allObjects.items) |value| {
-        value.refs.metadata.count = 0;
         value.deinit();
         self.allocator.destroy(value);
     }
     for (self.allLists.items) |value| {
-        value.refs.metadata.count = 0;
         value.deinit();
         self.allocator.destroy(value);
     }
@@ -77,36 +77,24 @@ pub fn gc_pass(self: *Self) !void {
 
 fn mark_item(item: *APITypes.Type) void {
     switch (item.*) {
-        .object => |*inner| {
-            if (inner.ref.refs.metadata.mark == 0) {
-                inner.ref.refs.metadata.mark = 1;
-                mark(Object, inner.ref);
+        .object => |*obj| {
+            if (!obj.ref.refs.mark) {
+                obj.ref.refs.mark = true;
+                var it = obj.ref.map.valueIterator();
+                while (it.next()) |inner_item| {
+                    mark_item(inner_item);
+                }
             }
         },
-        .list => |*inner| {
-            if (inner.ref.refs.metadata.mark == 0) {
-                inner.ref.refs.metadata.mark = 1;
-                mark(List, inner.ref);
+        .list => |*list| {
+            if (!list.ref.refs.mark) {
+                list.ref.refs.mark = true;
+                for (list.ref.items.items) |*inner_item| {
+                    mark_item(inner_item);
+                }
             }
         },
         else => {},
-    }
-}
-
-fn mark(comptime T: type, obj: *T) void {
-    switch (T) {
-        List => {
-            for (obj.*.items.items) |*item| {
-                mark_item(item);
-            }
-        },
-        Object => {
-            var it = obj.map.valueIterator();
-            while (it.next()) |item| {
-                mark_item(item);
-            }
-        },
-        else => |t| @compileError("Cannot mark " ++ @typeName(t)),
     }
 }
 
@@ -114,12 +102,15 @@ fn mark(comptime T: type, obj: *T) void {
 /// Objects with a refcount of 0 are assumed to already have been deinitialized.
 /// This function simply removes them from the internal array storing objects.
 fn remove_unreachable_references(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) !void {
-    // Mark roots (objects on the stack)
+    // Mark all objects as false
     for (list.items) |obj| {
-        obj.refs.metadata.mark = @intFromBool(obj.refs.get_stack_refcount() > 0);
-        if (obj.refs.metadata.mark > 0) {
-            mark(T, obj);
-        }
+        obj.refs.mark = false;
+    }
+
+    // Mark roots (objects on the stack)
+    for (self.stack.items) |*item| {
+        // TODO only mark if type is T.
+        mark_item(item);
     }
 
     // Sweep
@@ -134,7 +125,7 @@ fn remove_unreachable_references(self: *Self, comptime T: type, list: *Unmanaged
 
     while (read < list.items.len) {
         const obj = list.items[read];
-        if (obj.refs.metadata.mark > 0) {
+        if (obj.refs.mark) {
             // Keep this object
             list.items[write] = obj;
             write += 1;
@@ -158,9 +149,30 @@ pub fn get_object_count(self: *Self) usize {
     return self.allObjects.items.len + self.allLists.items.len;
 }
 
+/// Remove an obj from the stack.
+///
+/// For testing.
+fn remove(stack: *Stack, obj: APITypes.ObjectRef) void {
+    // TODO there might be a better way to do this...
+    for (stack.items, 0..) |item, index| {
+        switch (item) {
+            .object => |obj2| {
+                if (obj.ref == obj2.ref) {
+                    _ = stack.orderedRemove(index);
+                    return;
+                }
+            },
+            else => {},
+        }
+    }
+    @panic("Unable to find object to remove.");
+}
+
 test "get and set to struct" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectRef = memoryManager.alloc_struct();
@@ -172,7 +184,9 @@ test "get and set to struct" {
 
 test "get and set to list" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var listRef = memoryManager.alloc_list();
@@ -184,52 +198,60 @@ test "get and set to list" {
 }
 
 test "run gc pass with empty memory manager" {
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     try memoryManager.gc_pass();
 }
 
 test "gc pass removes one unused object" {
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
-    var objectRef = memoryManager.alloc_struct();
-
+    // Do not put object on stack.
+    _ = memoryManager.alloc_struct();
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
-    objectRef.deinit();
     try memoryManager.gc_pass();
-
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "gc pass keeps one object still in use" {
-    var memoryManager = try Self.init(std.testing.allocator);
+    const Type = APITypes.Type;
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
-    _ = memoryManager.alloc_struct();
+    const objectRef = memoryManager.alloc_struct();
+    try stack.append(Type.from(objectRef));
 
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
     try memoryManager.gc_pass();
-
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 }
 
 test "gc pass keeps one object still in use and discards one unused" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectRef1 = memoryManager.alloc_struct();
-    var objectRef2 = memoryManager.alloc_struct();
+    _ = memoryManager.alloc_struct();
 
+    try stack.append(Type.from(objectRef1));
     try objectRef1.set(123, Type.from(456));
 
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
-    objectRef2.deinit();
+    // objectRef2 is not on the stack
     try memoryManager.gc_pass();
 
     try std.testing.expectEqual(1, memoryManager.get_object_count());
@@ -238,7 +260,9 @@ test "gc pass keeps one object still in use and discards one unused" {
 
 test "assign object to object" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectRef1 = memoryManager.alloc_struct();
@@ -250,18 +274,23 @@ test "assign object to object" {
 
 test "object in object, drop parent, keep child" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
     var objectB = memoryManager.alloc_struct(); // B
     try objectA.set(123, Type.from(456)); // A[123] = 456
     try objectB.set(123, Type.from(objectA)); // B[123] = A
+
+    try stack.append(Type.from(objectA));
+    try stack.append(Type.from(objectB));
+    try memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object B from stack. The child A should still be kept since it
-    // is referenced on the stack.
-    objectB.decr();
+    remove(&stack, objectB);
     // Object B should be dropped
     try memoryManager.gc_pass();
     // Only Object A should be alive.
@@ -272,79 +301,105 @@ test "object in object, drop parent, keep child" {
 
 test "object in object, drop child from stack, gc, both stay" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
     var objectB = memoryManager.alloc_struct(); // B
     try objectA.set(123, Type.from(456)); // A[123] = 456
     try objectB.set(123, Type.from(objectA)); // B[123] = A
+
+    try stack.append(Type.from(objectA));
+    try stack.append(Type.from(objectB));
+    try memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object A from stack. It should still be kept since it is alive as a child of object B.
-    objectA.decr();
+    remove(&stack, objectA);
     try memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 }
 
 test "cycles get dropped" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
     var objectB = memoryManager.alloc_struct(); // B
     try objectA.set(124, Type.from(objectA)); // A[124] = B
     try objectB.set(123, Type.from(objectA)); // B[123] = A
+
+    try stack.append(Type.from(objectA));
+    try stack.append(Type.from(objectB));
+    try memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop both from stack.
     // They should both
-    objectA.decr();
-    objectB.decr();
+    remove(&stack, objectA);
+    remove(&stack, objectB);
     try memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "one object refers to same object twice" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
-    var objectB = memoryManager.alloc_struct(); // B
+    const objectB = memoryManager.alloc_struct(); // B
     try objectA.set(0, Type.from(objectB)); // A[0] = B
     try objectA.set(1, Type.from(objectB)); // A[1] = B
-    objectB.decr(); // all references to B are from A
+    // all references to B are from A
 
+    try stack.append(Type.from(objectA));
+    try stack.append(Type.from(objectB));
+    try memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
-    objectA.decr();
+    remove(&stack, objectA);
+    remove(&stack, objectB);
     try memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "object key set twice with same value" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
-    var objectB = memoryManager.alloc_struct(); // B
+    const objectB = memoryManager.alloc_struct(); // B
     try objectA.set(0, Type.from(objectB)); // A[0] = B
     try objectA.set(0, Type.from(objectB)); // A[0] = B
-    objectB.decr(); // all references to B are from A
+    // all references to B are from A
 
+    try stack.append(Type.from(objectA));
+    try stack.append(Type.from(objectB));
+    try memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
-    objectA.decr(); // drop A
+    remove(&stack, objectA);
+    remove(&stack, objectB);
     try memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "big cycle" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     var objects = std.ArrayList(ObjectRef).init(std.testing.allocator);
@@ -353,26 +408,28 @@ test "big cycle" {
     const cycle_len = 128;
 
     for (0..cycle_len) |_| {
-        try objects.append(memoryManager.alloc_struct());
+        const objectRef = memoryManager.alloc_struct();
+        try objects.append(objectRef);
+        try stack.append(Type.from(objectRef));
     }
 
     for (0..cycle_len) |i| {
         try objects.items[(i + 1) % cycle_len].set(0, Type.from(objects.items[i]));
     }
 
+    try memoryManager.gc_pass();
     try std.testing.expectEqual(cycle_len, memoryManager.get_object_count());
 
-    for (0..cycle_len) |i| {
-        objects.items[i].decr();
-    }
-
+    stack.clearAndFree();
     try memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
 test "tree of objects with references to root" {
     const Type = APITypes.Type;
-    var memoryManager = try Self.init(std.testing.allocator);
+    var stack = Stack.init(std.testing.allocator);
+    defer stack.deinit();
+    var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
     const utils = struct {

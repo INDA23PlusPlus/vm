@@ -424,7 +424,7 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
     try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
-    var mem = try Mem.MemoryManager.init(ctxt.alloc);
+    var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
     defer mem.deinit();
     while (true) {
         if (ctxt.pc >= ctxt.prog.code.len) {

@@ -17,19 +17,18 @@ pub const ListRef = struct {
         return .{ .ref = list };
     }
 
-    // Deinitialize the list, decrementing the reference count
     pub fn deinit(self: *const Self) void {
-        self.decr();
+        _ = self;
     }
 
-    // Increment the reference count, called when a new reference is created (e.g. copy)
+    // DEPRECATED Increment the reference count, called when a new reference is created (e.g. copy)
     pub fn incr(self: *const Self) void {
-        _ = self.ref.incr();
+        _ = self;
     }
 
-    // Decrement the reference count, called when a reference is destroyed (e.g. deinit)
+    //  DEPRECATED Decrement the reference count, called when a reference is destroyed (e.g. deinit)
     pub fn decr(self: *const Self) void {
-        self.ref.decr();
+        _ = self;
     }
 
     pub fn length(self: *const Self) usize {
@@ -70,26 +69,25 @@ pub const ObjectRef = struct {
     const Self = @This();
     ref: *Object,
 
-    // Initialize the list, refcount is 1
+    // Initialize the list
     pub fn init(allocator: std.mem.Allocator) !Self {
         const obj = try allocator.create(Object);
         obj.* = Object.init(allocator);
         return .{ .ref = obj };
     }
 
-    // Deinitialize list, decrementing the reference count
     pub fn deinit(self: *const Self) void {
-        self.decr();
+        _ = self;
     }
 
-    // Increment the reference count, called when a new reference is created (e.g. copy)
+    //  DEPRECATED Increment the reference count, called when a new reference is created (e.g. copy)
     pub fn incr(self: *const Self) void {
-        _ = self.ref.incr();
+        _ = self;
     }
 
-    // Decrement the reference count, called when a reference is destroyed (e.g. deinit)
+    //  DEPRECATED Decrement the reference count, called when a reference is destroyed (e.g. deinit)
     pub fn decr(self: *const Self) void {
-        self.ref.decr();
+        _ = self;
     }
 
     pub fn get(self: *const Self, key: usize) ?Type {
