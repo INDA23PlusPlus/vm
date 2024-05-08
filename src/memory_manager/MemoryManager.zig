@@ -97,8 +97,8 @@ pub fn gc_pass(self: *Self) void {
     // Mark all objects that are reachable from the stack
     self.mark_items_in_stack();
 
-    self.remove_unreachable_references(Object, &self.allObjects);
-    self.remove_unreachable_references(List, &self.allLists);
+    self.sweep(Object, &self.allObjects);
+    self.sweep(List, &self.allLists);
 }
 
 fn mark_items_in_stack(self: *Self) void {
@@ -130,10 +130,7 @@ fn mark_item(item: *APITypes.Type) void {
     }
 }
 
-/// Remove all objects that have a refcount of 0, but do not deinit them.
-/// Objects with a refcount of 0 are assumed to already have been deinitialized.
-/// This function simply removes them from the internal array storing objects.
-fn remove_unreachable_references(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) void {
+fn sweep(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) void {
     // Sweep
     // Actually drop and remove garbage objects.
     //
@@ -164,8 +161,8 @@ fn remove_unreachable_references(self: *Self, comptime T: type, list: *Unmanaged
     list.shrinkAndFree(self.allocator, write);
 }
 
-/// Get the amount of objects that the memory manager stores.
-/// This includes objects that have a refcount of 0 (garbage) and that will be
+/// Get the amount of objects and lists that the memory manager stores.
+/// This includes unreachable objects (garbage) that will be
 /// removed the next gc pass.
 pub fn get_object_count(self: *Self) usize {
     return self.allObjects.items.len + self.allLists.items.len;
