@@ -68,14 +68,14 @@ pub fn alloc_list(self: *Self) ListRef {
     return listRef;
 }
 
-pub fn gc_pass(self: *Self) !void {
+pub fn gc_pass(self: *Self) void {
     //TODO implement gc method that detects and deallocates cycles
 
     // Mark all objects that are reachable from the stack
     self.mark_items_in_stack();
 
-    try self.remove_unreachable_references(Object, &self.allObjects);
-    try self.remove_unreachable_references(List, &self.allLists);
+    self.remove_unreachable_references(Object, &self.allObjects);
+    self.remove_unreachable_references(List, &self.allLists);
 }
 
 fn mark_items_in_stack(self: *Self) void {
@@ -110,7 +110,7 @@ fn mark_item(item: *APITypes.Type) void {
 /// Remove all objects that have a refcount of 0, but do not deinit them.
 /// Objects with a refcount of 0 are assumed to already have been deinitialized.
 /// This function simply removes them from the internal array storing objects.
-fn remove_unreachable_references(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) !void {
+fn remove_unreachable_references(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) void {
     // Sweep
     // Actually drop and remove garbage objects.
     //
@@ -202,7 +202,7 @@ test "run gc pass with empty memory manager" {
     var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
 }
 
 test "gc pass removes one unused object" {
@@ -215,7 +215,7 @@ test "gc pass removes one unused object" {
     _ = memoryManager.alloc_struct();
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -231,7 +231,7 @@ test "gc pass keeps one object still in use" {
 
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 }
 
@@ -251,7 +251,7 @@ test "gc pass keeps one object still in use and discards one unused" {
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // objectRef2 is not on the stack
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
 
     try std.testing.expectEqual(1, memoryManager.get_object_count());
     try std.testing.expectEqual(456, objectRef1.get(123).?.int);
@@ -285,13 +285,13 @@ test "object in object, drop parent, keep child" {
 
     try stack.append(Type.from(objectA));
     try stack.append(Type.from(objectB));
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object B from stack. The child A should still be kept since it
     remove(&stack, objectB);
     // Object B should be dropped
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     // Only Object A should be alive.
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
@@ -312,12 +312,12 @@ test "object in object, drop child from stack, gc, both stay" {
 
     try stack.append(Type.from(objectA));
     try stack.append(Type.from(objectB));
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object A from stack. It should still be kept since it is alive as a child of object B.
     remove(&stack, objectA);
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 }
 
@@ -335,14 +335,14 @@ test "cycles get dropped" {
 
     try stack.append(Type.from(objectA));
     try stack.append(Type.from(objectB));
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop both from stack.
     // They should both
     remove(&stack, objectA);
     remove(&stack, objectB);
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -361,12 +361,12 @@ test "one object refers to same object twice" {
 
     try stack.append(Type.from(objectA));
     try stack.append(Type.from(objectB));
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     remove(&stack, objectA);
     remove(&stack, objectB);
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -385,12 +385,12 @@ test "object key set twice with same value" {
 
     try stack.append(Type.from(objectA));
     try stack.append(Type.from(objectB));
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     remove(&stack, objectA);
     remove(&stack, objectB);
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -416,11 +416,11 @@ test "big cycle" {
         try objects.items[(i + 1) % cycle_len].set(0, Type.from(objects.items[i]));
     }
 
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(cycle_len, memoryManager.get_object_count());
 
     stack.clearAndFree();
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -470,7 +470,7 @@ test "tree of objects with references to root" {
 
     // drop the entire tree
     root.decr();
-    try memoryManager.gc_pass();
+    memoryManager.gc_pass();
 
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
