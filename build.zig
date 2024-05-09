@@ -129,6 +129,20 @@ pub fn build(b: *std.Build) void {
     const binary_run_tests = b.addRunArtifact(binary_tests);
 
     //
+    // Blue language
+    //
+    const blue_mod = b.addModule(
+        "blue",
+        .{ .root_source_file = .{ .path = "src/blue/module.zig" } },
+    );
+    const blue_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/blue/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const blue_run_tests = b.addRunArtifact(blue_tests);
+
+    //
     // Main executable
     //
     const vemod = b.addExecutable(.{
@@ -152,6 +166,7 @@ pub fn build(b: *std.Build) void {
     vemod.root_module.addImport("vm", vm_mod);
     vemod.root_module.addImport("asm", assembler_mod);
     vemod.root_module.addImport("binary", binary_mod);
+    vemod.root_module.addImport("blue", blue_mod);
 
     //
     // Module-module dependencies
@@ -162,6 +177,8 @@ pub fn build(b: *std.Build) void {
     assembler_mod.addImport("vm", vm_mod);
     assembler_mod.addImport("arch", arch_mod);
     binary_mod.addImport("arch", arch_mod);
+    blue_mod.addImport("asm", assembler_mod);
+    blue_mod.addImport("arch", arch_mod);
 
     //
     // Test dependencies
@@ -174,6 +191,8 @@ pub fn build(b: *std.Build) void {
     binary_tests.root_module.addImport("arch", arch_mod);
     binary_tests.root_module.addImport("asm", assembler_mod);
     binary_tests.root_module.addImport("vm", vm_mod);
+    blue_tests.root_module.addImport("arch", arch_mod);
+    blue_tests.root_module.addImport("asm", assembler_mod);
 
     //
     // Unused modules
@@ -197,6 +216,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&vm_run_tests.step);
     test_step.dependOn(&vmdls_run_tests.step);
     test_step.dependOn(&binary_run_tests.step);
+    test_step.dependOn(&blue_run_tests.step);
 
     //
     // Run step for compiler driver
