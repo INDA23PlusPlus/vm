@@ -47,7 +47,7 @@ pub const Opcode = enum(u8) {
     list_store,
 
     list_length,
-    // list_append,
+    list_append,
     // list_remove,
     // list_concat,
 

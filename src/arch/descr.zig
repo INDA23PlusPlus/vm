@@ -284,6 +284,14 @@ pub const text = blk: {
             \\Pops a list reference from the stack and pushes it's number of elements.
             \\
         },
+        .{
+            .list_append,
+            \\## Append list element
+            \\
+            \\Pops a list reference L and a value V from the stack, an appendsV to the
+            \\end of L.
+            \\
+        },
     };
 
     for (entries) |entry| arr.set(entry.@"0", entry.@"1");

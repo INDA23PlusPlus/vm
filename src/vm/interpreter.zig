@@ -691,6 +691,21 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const len = take(ctxt, Type.from(list.length()));
                 try push(ctxt, len);
             },
+            .list_append => {
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
+
+                const l = try pop(ctxt);
+                if (l.tag() != .list) {
+                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    return error.RuntimeError;
+                }
+
+                defer drop(ctxt, l);
+                var list = l.asUnChecked(.list);
+
+                try list.push(v);
+            },
             .struct_alloc => {
                 const s = mem.alloc_struct();
 
