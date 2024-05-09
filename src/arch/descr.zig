@@ -263,7 +263,8 @@ pub const text = blk: {
             .list_load,
             \\## Load list element
             \\
-            \\ TODO !!!
+            \\Pops a list reference L and an index I from the stack, and pushes the element
+            \\at index I in L.
             \\
             ,
         },
@@ -271,9 +272,17 @@ pub const text = blk: {
             .list_store,
             \\## Store list element
             \\
-            \\ TODO !!!
+            \\Pops a list reference L, an index I and a value V, and assigns V to
+            \\the element at index I in L.
             \\
             ,
+        },
+        .{
+            .list_length,
+            \\## Get list length
+            \\
+            \\Pops a list reference from the stack and pushes it's number of elements.
+            \\
         },
     };
 
