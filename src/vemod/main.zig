@@ -100,6 +100,10 @@ pub fn main() !u8 {
             return 0;
         } else if (mem.eql(u8, arg, "-s")) {
             options.strip = true;
+        } else if (arg[0] == '-') {
+            try stderr.print("error: unknown option '{s}'\n", .{arg});
+            try usage(name);
+            return 1;
         } else {
             options.input_filename = arg;
         }
