@@ -49,7 +49,7 @@ pub const Opcode = enum(u8) {
     list_length,
     list_append,
     // list_remove,
-    // list_concat,
+    list_concat,
 
     pub fn isArithmetic(self: Opcode) bool {
         return switch (self) {

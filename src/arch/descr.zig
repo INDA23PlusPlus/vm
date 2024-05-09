@@ -292,6 +292,14 @@ pub const text = blk: {
             \\end of L.
             \\
         },
+        .{
+            .list_concat,
+            \\## Concatenate lists
+            \\
+            \\Pops two lists references from the stack and appends the latter one to
+            \\the former.
+            \\
+        },
     };
 
     for (entries) |entry| arr.set(entry.@"0", entry.@"1");

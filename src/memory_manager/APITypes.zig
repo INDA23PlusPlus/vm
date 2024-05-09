@@ -63,6 +63,10 @@ pub const ListRef = struct {
     pub fn push(self: *const Self, value: Type) !void {
         try self.ref.items.append(value);
     }
+
+    pub fn concat(self: *const Self, other: *const Self) !void {
+        try self.ref.items.appendSlice(other.ref.items.items);
+    }
 };
 
 pub const ObjectRef = struct {

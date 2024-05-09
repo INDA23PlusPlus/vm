@@ -84,6 +84,7 @@ pub const RtError = union(enum) {
                     .cmp_gt,
                     => "comparison",
                     .cmp_eq, .cmp_ne => "equality check",
+                    .list_concat => "concatenation",
                     else => @tagName(e.op),
                 };
 

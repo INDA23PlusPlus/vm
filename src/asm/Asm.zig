@@ -1,12 +1,6 @@
 //!
 //! The intermediate language assembler.
 //!
-//! Initialize with Asm.init, which takes a pointer to
-//! a std.ArrayList(Error).
-//! Use Asm.assemble to assemble the code.
-//! Check for errors by checking length of error list.
-//! Assembled program is accessed through Asm.getCode.
-//!
 
 const Asm = @This();
 const std = @import("std");

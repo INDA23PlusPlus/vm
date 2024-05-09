@@ -706,6 +706,26 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try list.push(v);
             },
+            .list_concat => {
+                const l_1 = try pop(ctxt);
+                const l_2 = try pop(ctxt);
+                if (l_1.tag() != .list or l_2.tag() != .list) {
+                    ctxt.rterror = RtError{ .invalid_binop = .{
+                        .l = l_1,
+                        .op = i.op,
+                        .r = l_2,
+                    } };
+                    return error.RuntimeError;
+                }
+
+                defer drop(ctxt, l_1);
+                defer drop(ctxt, l_2);
+
+                const list_1 = l_1.asUnChecked(.list);
+                const list_2 = l_2.asUnChecked(.list);
+
+                try list_2.concat(&list_1);
+            },
             .struct_alloc => {
                 const s = mem.alloc_struct();
 
