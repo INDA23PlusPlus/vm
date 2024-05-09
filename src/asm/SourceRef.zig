@@ -55,8 +55,11 @@ pub fn print(self: Self, writer: anytype) !void {
         try writer.writeByte(c);
     }
 
+    try writer.writeAll("\x1b[31m");
     for (0..self.string.len) |_| {
         try writer.writeByte('~');
     }
+    try writer.writeAll("\x1b[0m");
+
     try writer.writeByte('\n');
 }
