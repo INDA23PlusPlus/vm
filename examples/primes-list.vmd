@@ -1,0 +1,66 @@
+-function $main
+-begin
+	push %1000
+	push %1
+	call $primes
+	syscall %0
+-end
+
+-function $primes
+-begin
+	stack_alloc %3
+
+	list_alloc
+	dup
+	push %2
+	list_append
+	store %0
+
+	push %3
+	store %1
+
+.loop
+	load %1
+	load %-4
+	cmp_eq
+	jmpnz .end
+
+	push %0
+	store %2
+
+.inner_loop
+	load %2
+	load %0
+	list_length
+	cmp_eq
+	jmpnz .inner_end
+
+	load %1
+	load %0
+	load %2
+	list_load
+	mod
+	push %0
+	cmp_eq
+	jmpnz .not_prime
+
+	load %2
+	inc
+	store %2
+	jmp .inner_loop
+
+.inner_end
+	load %0
+	load %1
+	list_append
+	
+.not_prime
+	load %1
+	inc
+	store %1
+	jmp .loop
+
+.end
+	load %0
+	ret
+-end
