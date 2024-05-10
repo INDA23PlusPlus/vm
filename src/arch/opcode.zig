@@ -48,7 +48,8 @@ pub const Opcode = enum(u8) {
 
     list_length,
     list_append,
-    // list_remove,
+    list_pop,
+    list_remove,
     list_concat,
 
     pub fn isArithmetic(self: Opcode) bool {

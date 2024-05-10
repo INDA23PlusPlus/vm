@@ -133,6 +133,12 @@ pub fn listLength() Self {
 pub fn listAppend() Self {
     return .{ .op = .list_append };
 }
+pub fn listPop() Self {
+    return .{ .op = .list_pop };
+}
+pub fn listRemove() Self {
+    return .{ .op = .list_remove };
+}
 pub fn listConcat() Self {
     return .{ .op = .list_concat };
 }

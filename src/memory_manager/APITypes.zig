@@ -64,6 +64,18 @@ pub const ListRef = struct {
         try self.ref.items.append(value);
     }
 
+    pub fn pop(self: *const Self) Type {
+        return self.ref.items.pop();
+    }
+
+    pub fn remove(self: *const Self, index: usize) !void {
+        // TODO: error on OOB index?
+        for (index..self.ref.items.items.len - 1) |i| {
+            self.ref.items.items[i] = self.ref.items.items[i + 1];
+        }
+        _ = self.ref.items.pop();
+    }
+
     pub fn concat(self: *const Self, other: *const Self) !void {
         try self.ref.items.appendSlice(other.ref.items.items);
     }

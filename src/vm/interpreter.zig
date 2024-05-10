@@ -707,6 +707,33 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try list.push(v);
             },
+            .list_pop => {
+                const l = try pop(ctxt);
+                if (l.tag() != .list) {
+                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    return error.RuntimeError;
+                }
+                defer drop(ctxt, l);
+                const list = l.asUnChecked(.list);
+
+                try push(ctxt, list.pop());
+            },
+            .list_remove => {
+                const idx = try pop(ctxt);
+                defer drop(ctxt, idx);
+                try assert(idx.is(.int));
+                const index = @as(usize, @intCast(idx.asUnChecked(.int)));
+
+                const l = try pop(ctxt);
+                if (l.tag() != .list) {
+                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    return error.RuntimeError;
+                }
+                defer drop(ctxt, l);
+                const list = l.asUnChecked(.list);
+
+                try list.remove(index);
+            },
             .list_concat => {
                 const l_1 = try pop(ctxt);
                 const l_2 = try pop(ctxt);
@@ -1077,6 +1104,23 @@ test "lists" {
         Instruction.listLength(),
         Instruction.ret(),
     }, 0, &.{}, &.{}), "", 3);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+
+        Instruction.load(0),
+        Instruction.push(42),
+        Instruction.listAppend(),
+
+        Instruction.load(0),
+        Instruction.listPop(),
+
+        Instruction.push(42),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 1);
+
+    // TODO: test list_remove and list_concat
 }
 
 test "arithmetic" {
