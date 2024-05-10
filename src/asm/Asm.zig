@@ -291,6 +291,9 @@ fn asmFunc(self: *Asm) !void {
         const implicit_return = Instruction{ .op = .ret };
         try self.code.append(value);
         try self.code.append(implicit_return);
+        // we need to add dummy tokens to align code with token list
+        // they will never fail (?) so they can be undefined.
+        _ = try self.instr_toks.addManyAsSlice(2);
     }
 }
 
