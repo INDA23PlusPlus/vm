@@ -251,9 +251,10 @@ pub fn main() !u8 {
                 var jit = Jit.init(allocator);
                 defer jit.deinit();
 
-                try jit.compile(program);
+                var jit_fn = try jit.compile_program(program);
+                defer jit_fn.deinit();
 
-                const ret = jit.execute() catch |err| {
+                const ret = jit_fn.execute() catch |err| {
                     try stderr.print("error: {s}\n", .{@errorName(err)});
                     return 1;
                 };

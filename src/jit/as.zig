@@ -70,11 +70,27 @@ pub const Mem = struct {
 pub const RM8 = union(enum) {
     reg: R8,
     mem: Mem,
+
+    pub inline fn from(v: anytype) RM8 {
+        return switch (@TypeOf(v)) {
+            R8 => .{ .reg = v },
+            Mem => .{ .mem = v },
+            else => @compileError("Value is not convertible to RM64."),
+        };
+    }
 };
 
 pub const RM64 = union(enum) {
     reg: R64,
     mem: Mem,
+
+    pub inline fn from(v: anytype) RM64 {
+        return switch (@TypeOf(v)) {
+            R64 => .{ .reg = v },
+            Mem => .{ .mem = v },
+            else => @compileError("Value is not convertible to RM64."),
+        };
+    }
 };
 
 const REX = struct {

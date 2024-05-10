@@ -1,6 +1,8 @@
 const std = @import("std");
 const arch = @import("arch");
 const as_lib = @import("as.zig");
+const ExecContext = @import("exec_context.zig").ExecContext;
+const Function = @import("Function.zig");
 
 const Self = @This();
 
@@ -55,6 +57,16 @@ inline fn imm_size(imm: i64) usize {
     } else {
         return 0;
     }
+}
+
+inline fn opcode_cc(opcode: arch.Opcode) as_lib.CC {
+    return switch (opcode) {
+        .cmp_lt => as_lib.CC.L,
+        .cmp_gt => as_lib.CC.G,
+        .cmp_eq => as_lib.CC.E,
+        .cmp_ne => as_lib.CC.NE,
+        else => unreachable,
+    };
 }
 
 inline fn relocate(self: *Self, reloc: Reloc) void {
@@ -123,121 +135,83 @@ inline fn dbg_break(self: *Self, tag: ?[]const u8) !void {
     }
 }
 
-const exec_globals = struct {
-    var exec_args: extern struct {
-        unwind_sp: u64,
-    } = undefined;
-
-    var err: ?anyerror = undefined;
-
-    var output_stream: std.fs.File = undefined;
-    var output_writer: std.fs.File.Writer = undefined;
-
-    var old_sigfpe_handler: std.os.linux.Sigaction = undefined;
-
-    fn unwind() callconv(.Naked) noreturn {
-        asm volatile (
-            \\pop %rbp
-            \\pop %rbx
-            \\ret
-            :
-            : [unwind_sp] "{rsp}" (exec_args.unwind_sp),
-        );
-    }
-
-    fn sigfpe_handler(sig: i32, info: *const std.os.linux.siginfo_t, ucontext: ?*anyopaque) callconv(.C) void {
-        _ = sig;
-        _ = info;
-
-        err = error.InvalidOperation;
-
-        const uc: *std.os.linux.ucontext_t = @alignCast(@ptrCast(ucontext));
-        uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
-    }
-
-    inline fn init() void {
-        err = null;
-
-        output_stream = std.io.getStdOut();
-        output_writer = output_stream.writer();
-
-        _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &.{ .handler = .{ .sigaction = &sigfpe_handler }, .mask = .{0} ** 32, .flags = std.os.linux.SA.SIGINFO }, &old_sigfpe_handler);
-    }
-
-    inline fn deinit() void {
-        _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &old_sigfpe_handler, null);
-    }
-};
-
-fn syscall_0(v: i64) callconv(.C) void {
-    exec_globals.output_writer.print("{}\n", .{v}) catch {};
-}
-
-const VStack = struct {
-    const Value = union(enum) {
-        unit: void,
+const Context = struct {
+    const VmdVal = union(enum) {
+        unit,
         sprel: i32,
         bprel: i32,
-        reg: as_lib.R64,
         imm: i64,
-        cc: as_lib.CC,
+        asm_reg: as_lib.R64,
+        asm_cc: as_lib.CC,
     };
 
-    stack: std.ArrayList(Value),
+    const AsmVal = struct {
+        val: union(enum) {
+            top,
+            reg: as_lib.R64,
+            mem: as_lib.Mem,
+            imm: i64,
+        },
+        sp: i32 = undefined,
+    };
 
-    pub fn init(alloc: std.mem.Allocator) VStack {
-        return .{ .stack = std.ArrayList(Value).init(alloc) };
+    // Virtal stack of values not yet committed to the real stack
+    vstk: std.ArrayList(VmdVal),
+
+    // Reference value for the "real" sp, used to adjust sp-relative memory accesses
+    sp: i32,
+
+    pub fn init(alloc: std.mem.Allocator) Context {
+        return .{ .vstk = std.ArrayList(VmdVal).init(alloc), .sp = 0 };
     }
 
-    pub fn deinit(self: *VStack) void {
-        self.stack.deinit();
+    pub fn deinit(self: *Context) void {
+        self.vstk.deinit();
     }
 
-    pub fn push(self: *VStack, value: Value) !void {
-        try self.stack.append(value);
+    pub fn vstk_push(self: *Context, value: VmdVal) !void {
+        try self.vstk.append(value);
     }
 
-    pub fn pop(self: *VStack) ?Value {
-        if (self.stack.items.len != 0) {
-            return self.stack.pop();
+    pub fn vstk_pop(self: *Context) ?VmdVal {
+        if (self.vstk.items.len != 0) {
+            return self.vstk.pop();
         } else {
             return null;
         }
     }
 
-    pub fn get(self: *const VStack, offset: i64) ?Value {
-        const n = @as(i64, @intCast(self.stack.items.len)) + offset - 1;
+    pub fn vstk_get(self: *const Context, offset: i64) ?VmdVal {
+        const n = @as(i64, @intCast(self.vstk.items.len)) + offset - 1;
 
-        if (n >= 0 and n < self.stack.items.len) {
-            return self.stack.items[@as(usize, @intCast(n))];
+        if (n >= 0 and n < self.vstk.items.len) {
+            return self.vstk.items[@as(usize, @intCast(n))];
         } else {
             return null;
         }
     }
 
-    pub fn sync(self: *VStack, offset: i64, as: *as_lib.As) !void {
+    pub fn vstk_sync(self: *Context, offset: i64, as: *as_lib.As) !void {
         var units: i32 = 0;
 
-        while (@as(i64, @intCast(self.stack.items.len)) + offset > 0) {
-            const v = self.stack.orderedRemove(0);
+        while (@as(i64, @intCast(self.vstk.items.len)) + offset > 0) {
+            const v = self.vstk.orderedRemove(0);
 
             if (v == .unit) {
                 units += 1;
             } else {
                 if (units != 0) {
                     try as.lea_r64(.RSP, .{ .base = .RSP, .disp = -units * 8 });
+                    self.sp += units;
                     units = 0;
                 }
                 switch (v) {
                     .unit => unreachable,
                     .sprel => |sprel| {
-                        try as.push_rm64(.{ .mem = .{ .base = .RSP, .disp = sprel } });
+                        try as.push_rm64(.{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1) } });
                     },
                     .bprel => |bprel| {
-                        try as.push_rm64(.{ .mem = .{ .base = .RBP, .disp = bprel } });
-                    },
-                    .reg => |reg| {
-                        try as.push_r64(reg);
+                        try as.push_rm64(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                     },
                     .imm => |imm| {
                         if (imm_size(imm) > 4) {
@@ -247,315 +221,347 @@ const VStack = struct {
                             try as.push_imm32(@intCast(imm));
                         }
                     },
-                    .cc => |cc| {
+                    .asm_reg => |reg| {
+                        try as.push_r64(reg);
+                    },
+                    .asm_cc => |cc| {
                         try as.setcc_rm8(cc, .{ .reg = .CL });
                         try as.movzx_r64_rm8(.RCX, .{ .reg = .CL });
                         try as.push_r64(.RCX);
                     },
                 }
+                self.sp += 1;
             }
         }
 
         if (units != 0) {
             try as.lea_r64(.RSP, .{ .base = .RSP, .disp = -units * 8 });
+            self.sp += units;
         }
     }
 
-    pub fn clobber_reg(self: *VStack, reg: as_lib.R64, as: *as_lib.As) !void {
-        const b = 1 - @as(i64, @intCast(self.stack.items.len));
+    pub fn vstk_full_sync(self: *Context, as: *as_lib.As) !void {
+        try self.vstk_sync(0, as);
+        self.sp = 0;
+    }
 
-        for (0..self.stack.items.len) |i| {
-            const j = self.stack.items.len - 1 - i;
-            const v = self.stack.items[j];
-            if (v == .reg and v.reg == reg) {
-                return self.sync(b + @as(i64, @intCast(j)), as);
+    pub fn clobber_reg(self: *Context, reg: as_lib.R64, as: *as_lib.As) !void {
+        const b = 1 - @as(i64, @intCast(self.vstk.items.len));
+
+        for (0..self.vstk.items.len) |i| {
+            const j = self.vstk.items.len - 1 - i;
+            const v = self.vstk.items[j];
+            if (v == .asm_reg and v.asm_reg == reg) {
+                return self.vstk_sync(b + @as(i64, @intCast(j)), as);
             }
         }
     }
 
-    pub fn clobber_cc(self: *VStack, as: *as_lib.As) !void {
-        const b = 1 - @as(i64, @intCast(self.stack.items.len));
+    pub fn clobber_cc(self: *Context, as: *as_lib.As) !void {
+        const b = 1 - @as(i64, @intCast(self.vstk.items.len));
 
-        for (0.., self.stack.items) |i, v| {
-            if (v == .cc) {
-                return self.sync(b + @as(i64, @intCast(i)), as);
+        for (0..self.vstk.items.len) |i| {
+            const j = self.vstk.items.len - 1 - i;
+            const v = self.vstk.items[j];
+            if (v == .asm_cc) {
+                return self.vstk_sync(b + @as(i64, @intCast(i)), as);
             }
+        }
+    }
+
+    pub fn vstk_pop_asm(self: *Context, as: *as_lib.As) !AsmVal {
+        if (self.vstk_pop()) |v| {
+            switch (v) {
+                .unit => {
+                    return .{ .val = .{ .imm = 0 } };
+                },
+                .sprel => |sprel| {
+                    try self.vstk_sync(sprel + 1, as);
+                    return .{ .val = .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(self.vstk.items.len))) } }, .sp = self.sp };
+                },
+                .bprel => |bprel| {
+                    return .{ .val = .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } } };
+                },
+                .imm => |imm| {
+                    return .{ .val = .{ .imm = imm } };
+                },
+                .asm_reg => |reg| {
+                    return .{ .val = .{ .reg = reg } };
+                },
+                .asm_cc => unreachable,
+            }
+        } else {
+            return .{ .val = .top };
+        }
+    }
+
+    pub fn asm_adjust_disp(self: *Context, v: *AsmVal) void {
+        if (v.val == .mem and v.val.mem.base == .RSP) {
+            v.val.mem.disp -= (v.sp - self.sp) * 8;
+            v.sp = self.sp;
         }
     }
 };
 
-fn opcode_cc(opcode: arch.Opcode) as_lib.CC {
-    return switch (opcode) {
-        .cmp_lt => as_lib.CC.L,
-        .cmp_gt => as_lib.CC.G,
-        .cmp_eq => as_lib.CC.E,
-        .cmp_ne => as_lib.CC.NE,
-        else => unreachable,
-    };
+fn syscall_0(exec_ctxt: *ExecContext, v: i64) callconv(.C) void {
+    exec_ctxt.common.output_writer.print("{}\n", .{v}) catch {};
 }
 
-pub fn compile(self: *Self, prog: arch.Program) !void {
+pub fn compile_program(self: *Self, prog: arch.Program) !Function {
     const as = &self.as;
+
+    var ctxt = Context.init(self.alloc);
+    defer ctxt.deinit();
 
     try self.insn_meta.appendNTimes(.{ .offset = undefined, .edge = false }, prog.code.len);
 
-    for (0.., prog.code) |i, insn| {
+    for (prog.code) |insn| {
         switch (insn.op) {
-            .call, .syscall => {
-                self.insn_meta.items[i].edge = true;
-            },
-            .ret => {
-                // Handled manually in code generator
-            },
-            .jmp => {
-                self.insn_meta.items[i].edge = true;
-                self.insn_meta.items[insn.operand.location].edge = true;
-            },
-            .jmpnz => {
-                // Outgoing edge handled manually in code generator
+            .jmp, .jmpnz => {
                 self.insn_meta.items[insn.operand.location].edge = true;
             },
             else => {},
         }
     }
 
-    var vstk = VStack.init(self.alloc);
-    defer vstk.deinit();
-
     try self.dbg_break("start");
-    try as.push_r64(.RBX);
     try as.push_r64(.RBP);
-    try as.mov_rm64_r64(.{ .mem = .{ .base = .RDI } }, .RSP);
+    try as.push_r64(.RBX);
+    try as.push_r64(.R15);
+    try as.mov_r64_rm64(.R15, .{ .reg = .RDI });
+    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15 } }, .RSP);
     try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
     try self.call_loc(prog.entry);
     try self.dbg_break("end");
-    try as.pop_r64(.RBP);
+    try as.pop_r64(.R15);
     try as.pop_r64(.RBX);
+    try as.pop_r64(.RBP);
     try as.ret_near();
 
     for (0.., prog.code) |i, insn| {
         if (self.insn_meta.items[i].edge) {
-            try vstk.sync(0, as);
+            try ctxt.vstk_full_sync(as);
         }
 
         switch (insn.op) {
             .add => {
-                try vstk.sync(0, as);
+                try ctxt.vstk_full_sync(as);
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("add");
                 try as.pop_r64(.RCX);
                 try as.add_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RCX);
             },
             .sub => {
-                try vstk.sync(0, as);
+                try ctxt.vstk_full_sync(as);
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("sub");
                 try as.pop_r64(.RCX);
                 try as.sub_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RCX);
             },
             .mul => {
-                if (vstk.pop()) |b| {
-                    if (vstk.pop()) |a| {
-                        try vstk.clobber_reg(.RAX, as);
-                        try vstk.clobber_reg(.RDX, as);
-                        try vstk.clobber_cc(as);
-                        switch (a) {
-                            .sprel => |sprel_a| {
-                                switch (b) {
-                                    .sprel => |sprel_b| {
-                                        try vstk.sync(0, as);
-                                        self.insn_meta.items[i].offset = as.offset();
-                                        try self.dbg_break("mul");
-                                        try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RSP, .disp = sprel_a } });
-                                        try as.imul_rm64(.{ .mem = .{ .base = .RSP, .disp = sprel_b - 8 } });
-                                        try vstk.push(.{ .reg = .RAX });
-                                    },
-                                    else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
-                                }
-                            },
-                            .bprel => |bprel_a| {
-                                switch (b) {
-                                    .bprel => |bprel_b| {
-                                        self.insn_meta.items[i].offset = as.offset();
-                                        try self.dbg_break("mul");
-                                        try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = bprel_a } });
-                                        try as.imul_rm64(.{ .mem = .{ .base = .RBP, .disp = bprel_b } });
-                                        try vstk.push(.{ .reg = .RAX });
-                                    },
-                                    else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
-                                }
-                            },
-                            else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
+                var b = try ctxt.vstk_pop_asm(as);
+                var a = try ctxt.vstk_pop_asm(as);
+
+                try ctxt.clobber_reg(.RAX, as);
+                try ctxt.clobber_reg(.RDX, as);
+                try ctxt.clobber_cc(as);
+
+                self.insn_meta.items[i].offset = as.offset();
+                try self.dbg_break("mul");
+
+                ctxt.asm_adjust_disp(&b);
+                switch (b.val) {
+                    .top => {
+                        try as.pop_r64(.RAX);
+                        ctxt.sp -= 1;
+                    },
+                    .reg => |reg| {
+                        if (reg != .RAX) {
+                            try as.mov_r64_rm64(.RAX, .{ .reg = reg });
                         }
-                    } else {
-                        // vstk empty, no need to sync
-                        switch (b) {
-                            .sprel => |sprel_b| {
-                                try vstk.sync(0, as);
-                                self.insn_meta.items[i].offset = as.offset();
-                                try self.dbg_break("mul");
-                                try as.pop_r64(.RAX);
-                                try as.imul_rm64(.{ .mem = .{ .base = .RSP, .disp = sprel_b - 8 } });
-                                try vstk.push(.{ .reg = .RAX });
-                            },
-                            else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: .. {s}.", .{ i, @tagName(insn.op), @tagName(b) }),
-                        }
-                    }
+                    },
+                    .mem => |mem| {
+                        try as.mov_r64_rm64(.RAX, .{ .mem = mem });
+                    },
+                    .imm => |imm| {
+                        try as.mov_r64_imm64(.RAX, imm);
+                    },
                 }
-                else {
-                    // vstk empty, no need to sync
-                    self.insn_meta.items[i].offset = as.offset();
-                    try self.dbg_break("mul");
-                    try as.pop_r64(.RAX);
-                    try as.imul_rm64(.{ .mem = .{ .base = .RSP } });
-                    try vstk.push(.{ .reg = .RAX });
+
+                ctxt.asm_adjust_disp(&a);
+                switch (a.val) {
+                    .top => {
+                        try as.pop_rm64(.{ .reg = .RCX });
+                        ctxt.sp -= 1;
+                        try as.imul_rm64(.{ .reg = .RCX });
+                    },
+                    .reg => |reg| {
+                        try as.imul_rm64(.{ .reg = reg });
+                    },
+                    .mem => |mem| {
+                        try as.imul_rm64(.{ .mem = mem });
+                    },
+                    .imm => |imm| {
+                        try as.mov_r64_imm64(.RCX, imm);
+                        try as.imul_rm64(.{ .reg = .RCX });
+                    },
                 }
+
+                try ctxt.vstk_push(.{ .asm_reg = .RAX });
             },
             .mod => {
-                if (vstk.pop()) |b| {
-                    if (vstk.pop()) |a| {
-                        try vstk.clobber_reg(.RAX, as);
-                        try vstk.clobber_reg(.RDX, as);
-                        try vstk.clobber_cc(as);
-                        self.insn_meta.items[i].offset = as.offset();
-                        try self.dbg_break("mod");
-                        switch (a) {
-                            .bprel => |bprel| {
-                                try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = bprel } });
-                            },
-                            .reg => |reg| {
-                                if (reg != .RAX) {
-                                    try as.mov_rm64_r64(.{ .reg = .RAX }, reg);
-                                }
-                            },
-                            else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
-                        }
-                    } else {
-                        // vstk empty, no need to sync
-                        self.insn_meta.items[i].offset = as.offset();
-                        try self.dbg_break("mod");
-                        try as.pop_r64(.RAX);
-                    }
-                    try as.cqo();
-                    switch (b) {
-                        .bprel => |bprel| {
-                            try as.idiv_rm64(.{ .mem = .{ .base = .RBP, .disp = bprel } });
-                        },
-                        .reg => |reg| {
-                            try as.idiv_rm64(.{ .reg = reg });
-                        },
-                        else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: .. {s}.", .{ i, @tagName(insn.op), @tagName(b) }),
-                    }
-                } else {
-                    // vstk empty, no need to sync
-                    self.insn_meta.items[i].offset = as.offset();
-                    try self.dbg_break("mod");
-                    try as.pop_r64(.RCX);
-                    try as.pop_r64(.RAX);
-                    try as.cqo();
-                    try as.idiv_rm64(.{ .reg = .RCX });
+                var b = try ctxt.vstk_pop_asm(as);
+                var a = try ctxt.vstk_pop_asm(as);
+
+                try ctxt.clobber_reg(.RAX, as);
+                try ctxt.clobber_reg(.RDX, as);
+                try ctxt.clobber_cc(as);
+
+                self.insn_meta.items[i].offset = as.offset();
+                try self.dbg_break("mod");
+
+                ctxt.asm_adjust_disp(&b);
+                switch (b.val) {
+                    .top => {
+                        try as.pop_r64(.RCX);
+                        ctxt.sp -= 1;
+                        b = .{ .val = .{ .reg = .RCX } };
+                    },
+                    .imm => |imm| {
+                        try as.mov_r64_imm64(.RCX, imm);
+                        b = .{ .val = .{ .reg = .RCX } };
+                    },
+                    else => {},
                 }
-                try vstk.push(.{ .reg = .RDX });
+
+                ctxt.asm_adjust_disp(&a);
+                switch (a.val) {
+                    .top => {
+                        try as.pop_rm64(.{ .reg = .RAX });
+                        ctxt.sp -= 1;
+                    },
+                    .reg => |reg| {
+                        if (reg != .RAX) {
+                            try as.mov_r64_rm64(.RAX, .{ .reg = reg });
+                        }
+                    },
+                    .mem => |mem| {
+                        try as.mov_r64_rm64(.RAX, .{ .mem = mem });
+                    },
+                    .imm => |imm| {
+                        try as.mov_r64_imm64(.RAX, imm);
+                    },
+                }
+
+                try as.cqo();
+
+                switch (b.val) {
+                    inline .reg, .mem => |rm| {
+                        try as.idiv_rm64(as_lib.RM64.from(rm));
+                    },
+                    else => unreachable,
+                }
+
+                try ctxt.vstk_push(.{ .asm_reg = .RDX });
             },
             .inc => {
-                if (vstk.pop()) |v| {
-                    try vstk.clobber_reg(.RAX, as);
-                    try vstk.clobber_cc(as);
+                if (ctxt.vstk_pop()) |v| {
+                    try ctxt.clobber_reg(.RAX, as);
+                    try ctxt.clobber_cc(as);
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("inc");
                     switch (v) {
                         .bprel => |bprel| {
-                            try as.inc_rm64(.{ .mem = .{ .base = .RBP, .disp = bprel } });
+                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
+                            try as.inc_rm64(.{ .reg = .RAX });
+                            try ctxt.vstk_push(.{ .asm_reg = .RAX });
                         },
                         .imm => |imm| {
-                            try vstk.push(.{ .imm = imm - 1 });
+                            try ctxt.vstk_push(.{ .imm = imm - 1 });
                         },
-                        else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
+                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    // ctxt empty, no need to sync
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("inc");
                     try as.inc_rm64(.{ .mem = .{ .base = .RSP } });
                 }
             },
             .dec => {
-                if (vstk.pop()) |v| {
-                    try vstk.clobber_reg(.RAX, as);
-                    try vstk.clobber_cc(as);
+                if (ctxt.vstk_pop()) |v| {
+                    try ctxt.clobber_reg(.RAX, as);
+                    try ctxt.clobber_cc(as);
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("dec");
                     switch (v) {
                         .bprel => |bprel| {
-                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = bprel } });
+                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                             try as.dec_rm64(.{ .reg = .RAX });
-                            try vstk.push(.{ .reg = .RAX });
+                            try ctxt.vstk_push(.{ .asm_reg = .RAX });
                         },
                         .imm => |imm| {
-                            try vstk.push(.{ .imm = imm - 1 });
+                            try ctxt.vstk_push(.{ .imm = imm - 1 });
                         },
-                        else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
+                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    // ctxt empty, no need to sync
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("dec");
                     try as.dec_rm64(.{ .mem = .{ .base = .RSP } });
                 }
             },
             .dup => {
-                if (vstk.get(0)) |v| {
+                if (ctxt.vstk_get(0)) |v| {
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("dup");
                     if (v == .sprel) {
-                        try vstk.push(.{ .sprel = v.sprel + 8 });
+                        try ctxt.vstk_push(.{ .sprel = v.sprel - 1 });
                     } else {
-                        try vstk.push(v);
+                        try ctxt.vstk_push(v);
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    // ctxt empty, no need to sync
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("dup");
-                    try vstk.push(.{ .sprel = 0 });
+                    try ctxt.vstk_push(.{ .sprel = -1 });
                 }
             },
             .stack_alloc => {
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("stack_alloc");
                 for (0..@as(usize, @intCast(insn.operand.int))) |_| {
-                    try vstk.push(.{ .unit = void{} });
+                    try ctxt.vstk_push(.unit);
                 }
             },
             inline .cmp_lt, .cmp_gt, .cmp_eq, .cmp_ne => |cmp| {
-                if (vstk.pop()) |b| {
-                    if (vstk.pop()) |a| {
-                        try vstk.clobber_cc(as);
+                if (ctxt.vstk_pop()) |b| {
+                    if (ctxt.vstk_pop()) |a| {
+                        try ctxt.clobber_cc(as);
                         self.insn_meta.items[i].offset = as.offset();
                         try self.dbg_break(@tagName(cmp));
                         switch (a) {
                             .bprel => |bprel_a| {
                                 switch (b) {
-                                    .reg => |reg_b| {
-                                        try as.cmp_rm64_r64(.{ .mem = .{ .base = .RBP, .disp = bprel_a } }, reg_b);
+                                    .asm_reg => |reg_b| {
+                                        try as.cmp_rm64_r64(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel_a + 1) } }, reg_b);
                                     },
                                     .imm => |imm_b| {
                                         if (imm_size(imm_b) > 4) {
                                             try as.mov_r64_imm64(.RBX, imm_b);
-                                            try as.cmp_rm64_r64(.{ .mem = .{ .base = .RBP, .disp = bprel_a } }, .RBX);
+                                            try as.cmp_rm64_r64(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel_a + 1) } }, .RBX);
                                         } else {
-                                            try as.cmp_rm64_imm32(.{ .mem = .{ .base = .RBP, .disp = bprel_a } }, @intCast(imm_b));
+                                            try as.cmp_rm64_imm32(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel_a + 1) } }, @intCast(imm_b));
                                         }
                                     },
-                                    else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
+                                    else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
                                 }
                             },
-                            .reg => |reg_a| {
+                            .asm_reg => |reg_a| {
                                 switch (b) {
                                     .bprel => |bprel| {
-                                        try as.cmp_r64_rm64(reg_a, .{ .mem = .{ .base = .RBP, .disp = bprel } });
-                                    },
-                                    .reg => |reg_b| {
-                                        try as.cmp_rm64_r64(.{ .reg = reg_a }, reg_b);
+                                        try as.cmp_r64_rm64(reg_a, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                                     },
                                     .imm => |imm_b| {
                                         if (imm_size(imm_b) > 4) {
@@ -565,22 +571,22 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                                             try as.cmp_rm64_imm32(.{ .reg = reg_a }, @intCast(imm_b));
                                         }
                                     },
-                                    else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
+                                    .asm_reg => |reg_b| {
+                                        try as.cmp_rm64_r64(.{ .reg = reg_a }, reg_b);
+                                    },
+                                    else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s} {s}.", .{ i, @tagName(insn.op), @tagName(a), @tagName(b) }),
                                 }
                             },
-                            else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(a) }),
+                            else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(a) }),
                         }
                     } else {
-                        // vstk empty, no need to sync
+                        // ctxt empty, no need to sync
                         self.insn_meta.items[i].offset = as.offset();
                         try self.dbg_break(@tagName(cmp));
                         try as.pop_r64(.RCX);
                         switch (b) {
                             .bprel => |bprel| {
-                                try as.cmp_r64_rm64(.RCX, .{ .mem = .{ .base = .RBP, .disp = bprel } });
-                            },
-                            .reg => |reg| {
-                                try as.cmp_rm64_r64(.{ .reg = .RCX }, reg);
+                                try as.cmp_r64_rm64(.RCX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                             },
                             .imm => |imm| {
                                 if (imm_size(imm) > 4) {
@@ -590,20 +596,24 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                                     try as.cmp_rm64_imm32(.{ .reg = .RCX }, @intCast(imm));
                                 }
                             },
-                            else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: .. {s}.", .{ i, @tagName(insn.op), @tagName(b) }),
+                            .asm_reg => |reg| {
+                                try as.cmp_rm64_r64(.{ .reg = .RCX }, reg);
+                            },
+                            else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: .. {s}.", .{ i, @tagName(insn.op), @tagName(b) }),
                         }
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    // ctxt empty, no need to sync
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break(@tagName(cmp));
                     try as.pop_r64(.RSI);
                     try as.pop_r64(.RCX);
                     try as.cmp_rm64_r64(.{ .reg = .RCX }, .RSI);
                 }
-                try vstk.push(.{ .cc = opcode_cc(cmp) });
+                try ctxt.vstk_push(.{ .asm_cc = opcode_cc(cmp) });
             },
             .call => {
+                try ctxt.vstk_full_sync(as);
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("call");
                 try as.push_r64(.RBP);
@@ -613,14 +623,16 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try as.pop_r64(.RBP);
                 try as.pop_r64(.RCX);
                 try as.lea_r64(.RSP, .{ .base = .RSP, .index = .{ .reg = .RCX, .scale = 8 } });
-                try vstk.push(.{ .reg = .RAX });
+                try ctxt.vstk_push(.{ .asm_reg = .RAX });
             },
             .syscall => {
+                try ctxt.vstk_full_sync(as);
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("syscall");
                 switch (insn.operand.int) {
                     0 => {
-                        try as.mov_r64_rm64(.RDI, .{ .mem = .{ .base = .RSP } });
+                        try as.mov_r64_rm64(.RDI, .{ .reg = .R15 });
+                        try as.mov_r64_rm64(.RSI, .{ .mem = .{ .base = .RSP } });
                         try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall_0)));
                         try as.test_rm64_imm32(.{ .reg = .RSP }, 8);
                         const la = try self.jcc_lbl(.NE);
@@ -638,15 +650,15 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 }
             },
             .ret => {
-                if (vstk.pop()) |v| {
-                    // stack is being cleared, no need to sync vstk
+                if (ctxt.vstk_pop()) |v| {
+                    // stack is being cleared, no need to sync ctxt
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("ret");
                     switch (v) {
                         .bprel => |bprel| {
-                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = bprel } });
+                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                         },
-                        .reg => |reg| {
+                        .asm_reg => |reg| {
                             if (reg != .RAX) {
                                 try as.mov_r64_rm64(.RAX, .{ .reg = reg });
                             }
@@ -654,10 +666,10 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                         .imm => |imm| {
                             try as.mov_r64_imm64(.RAX, imm);
                         },
-                        else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
+                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    // ctxt empty, no need to sync
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("ret");
                     try as.pop_r64(.RAX);
@@ -666,27 +678,28 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                 try as.ret_near();
             },
             .jmp => {
+                try ctxt.vstk_full_sync(as);
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("jmp");
                 try self.jmp_loc(insn.operand.location);
             },
             .jmpnz => {
-                if (vstk.pop()) |v| {
-                    try vstk.sync(0, as);
+                if (ctxt.vstk_pop()) |v| {
+                    try ctxt.vstk_full_sync(as);
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("jmpnz");
                     switch (v) {
-                        .reg => |reg| {
+                        .asm_reg => |reg| {
                             try as.test_rm64_r64(.{ .reg = reg }, reg);
                             try self.jcc_loc(.NE, insn.operand.location);
                         },
-                        .cc => |cc| {
+                        .asm_cc => |cc| {
                             try self.jcc_loc(cc, insn.operand.location);
                         },
-                        else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
+                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    try ctxt.vstk_full_sync(as);
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("jmpnz");
                     try as.pop_r64(.RCX);
@@ -697,23 +710,23 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
             .push => {
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("push");
-                try vstk.push(.{ .imm = insn.operand.int });
+                try ctxt.vstk_push(.{ .imm = insn.operand.int });
             },
             .pop => {
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("pop");
-                if (vstk.pop()) |_| {} else {
+                if (ctxt.vstk_pop()) |_| {} else {
                     try as.lea_r64(.RSP, .{ .base = .RSP, .disp = 8 });
                 }
             },
             .load => {
                 self.insn_meta.items[i].offset = as.offset();
                 try self.dbg_break("load");
-                try vstk.push(.{ .bprel = @intCast((insn.operand.int + 1) * -8) });
+                try ctxt.vstk_push(.{ .bprel = @intCast(insn.operand.int) });
             },
             .store => {
-                const rm = as_lib.RM64{ .mem = .{ .base = .RBP, .disp = @truncate((-insn.operand.int - 1) * 8) } };
-                if (vstk.pop()) |v| {
+                const rm = as_lib.RM64{ .mem = .{ .base = .RBP, .disp = @truncate(-8 * (1 + insn.operand.int)) } };
+                if (ctxt.vstk_pop()) |v| {
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("store");
                     switch (v) {
@@ -725,10 +738,10 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
                                 try as.mov_rm64_imm32(rm, @intCast(imm));
                             }
                         },
-                        else => std.debug.panic("@{}: Unimplemented vstk condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
+                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
                     }
                 } else {
-                    // vstk empty, no need to sync
+                    // ctxt empty, no need to sync
                     self.insn_meta.items[i].offset = as.offset();
                     try self.dbg_break("store");
                     try as.pop_r64(.RCX);
@@ -742,27 +755,6 @@ pub fn compile(self: *Self, prog: arch.Program) !void {
     }
 
     self.relocate_all();
-}
 
-pub fn execute(self: *Self) !i64 {
-    const code = self.as.code();
-    const size = self.as.offset();
-
-    const addr = std.os.linux.mmap(null, size, std.os.linux.PROT.READ | std.os.linux.PROT.WRITE, .{ .TYPE = .PRIVATE, .ANONYMOUS = true }, -1, 0);
-    const ptr = @as(?[*]u8, @ptrFromInt(addr)) orelse return error.OutOfMemory;
-    defer _ = std.os.linux.munmap(ptr, size);
-
-    @memcpy(ptr, code);
-
-    if (std.os.linux.mprotect(ptr, size, std.os.linux.PROT.READ | std.os.linux.PROT.EXEC) != 0) {
-        return error.AccessDenied;
-    }
-
-    exec_globals.init();
-    defer exec_globals.deinit();
-
-    const fn_ptr: *fn (*anyopaque) callconv(.C) i64 = @ptrCast(ptr);
-    const ret = fn_ptr(&exec_globals.exec_args);
-
-    return exec_globals.err orelse ret;
+    return Function.init(self.as.code());
 }
