@@ -245,7 +245,7 @@ test Lexer {
 
     while (try lx.take()) |t| try tags.append(t.tag);
 
-    const expected_tags: []Tag = &.{
+    const expected_tags: []const Tag = &.{
         .let,
         .ident,
         .ident,
@@ -270,11 +270,11 @@ test Lexer {
         .@"-",
         .int,
         .@")",
+        .@";",
         .in,
-        .print,
         .ident,
         .int,
     };
 
-    try testing.expectEqualSlices(Tag, expected_tags, tags);
+    try testing.expectEqualSlices(Tag, expected_tags, tags.items);
 }
