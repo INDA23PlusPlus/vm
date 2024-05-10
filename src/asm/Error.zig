@@ -34,6 +34,8 @@ tag: enum {
     @"Unexpected token",
     /// Unexpected end of input stream
     @"Unexpected end of input",
+    /// Unmatched parenthesis
+    @"Unmatched parenthesis",
 },
 /// Location in source
 where: ?[]const u8 = null,

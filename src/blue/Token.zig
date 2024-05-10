@@ -20,13 +20,22 @@ pub const Tag = enum {
     @"or",
     print,
     @"=",
+    @"<",
+    @"<=",
+    @">",
+    @">=",
+    @"!",
+    @"!=",
     @"+",
+    @"++",
+    @"::",
     @"-",
     @"*",
     @"/",
     @"%",
     @"(",
     @")",
+    @"()",
     @"[",
     @"]",
     @"{",
@@ -57,6 +66,12 @@ pub const Lexer = struct {
     }
 
     pub fn take(self: *Lexer) !?Token {
+        const tok = try self.take_();
+        if (tok == null) return null;
+        return tok;
+    }
+
+    pub fn take_(self: *Lexer) !?Token {
         if (self.peeked) |peeked| {
             defer self.peeked = null;
             return peeked;
@@ -72,8 +87,14 @@ pub const Lexer = struct {
     }
 
     pub fn peek(self: *Lexer) !?Token {
+        const tok = try self.peek_();
+        if (tok == null) return null;
+        return tok;
+    }
+
+    pub fn peek_(self: *Lexer) !?Token {
         if (self.peeked == null) {
-            self.peeked = try self.take();
+            self.peeked = try self.take_();
         }
         return self.peeked;
     }
@@ -89,7 +110,7 @@ pub const Lexer = struct {
     // Returns true if at end of stream
     fn skipWhitespace(self: *Lexer) bool {
         while (self.curr()) |c| {
-            if (ascii.isWhitespace(c)) {
+            if (!ascii.isWhitespace(c)) {
                 return false;
             }
             self.adv();
@@ -100,12 +121,12 @@ pub const Lexer = struct {
     fn operator(self: *Lexer) ?Token {
         const tag: Tag = switch (self.curr().?) {
             '=' => .@"=",
-            '+' => .@"+",
+            '+' => return self.multiCharOperator(.@"+", .@"++", '+'),
             '-' => .@"-",
             '*' => .@"*",
             '/' => .@"/",
             '%' => .@"%",
-            '(' => .@"(",
+            '(' => return self.multiCharOperator(.@"(", .@"()", ')'),
             ')' => .@")",
             '[' => .@"[",
             ']' => .@"]",
@@ -114,9 +135,9 @@ pub const Lexer = struct {
             ';' => .@";",
             ',' => .@",",
             '.' => .@".",
-            '<' => return self.operatorEqual(.@"<", .@"<="),
-            '>' => return self.operatorEqual(.@">", .@">="),
-            '!' => return self.operatorEqual(.@"!", .@"!="),
+            '<' => return self.multiCharOperator(.@"<", .@"<=", '='),
+            '>' => return self.multiCharOperator(.@">", .@">=", '='),
+            '!' => return self.multiCharOperator(.@"!", .@"!=", '='),
             else => return null,
         };
 
@@ -125,13 +146,13 @@ pub const Lexer = struct {
         return tok;
     }
 
-    fn operatorEqual(self: *Lexer, single_tag: Tag, equal_tag: Tag) ?Token {
+    fn multiCharOperator(self: *Lexer, single_tag: Tag, multi_tag: Tag, second_char: u8) ?Token {
         const begin = self.pos;
         self.adv();
         var tag: Tag = undefined;
-        if (self.curr() != null and self.curr().? == '=') {
+        if (self.curr() != null and self.curr().? == second_char) {
             self.adv();
-            tag = equal_tag;
+            tag = multi_tag;
         } else tag = single_tag;
         const where = self.src[begin..self.pos];
         return .{ .tag = tag, .where = where };
@@ -152,11 +173,15 @@ pub const Lexer = struct {
 
             const where = self.src[begin..self.pos];
 
-            const tag: Tag = inline for (kws) |kw| blk: {
-                if (mem.eql(u8, where, @tagName(kw))) break :blk kw;
-            } else .ident;
+            var tag: Tag = .ident;
+            inline for (kws) |kw| {
+                if (mem.eql(u8, where, @tagName(kw))) {
+                    tag = kw;
+                    break;
+                }
+            }
 
-            return Tag{ .tag = tag, .where = where };
+            return .{ .tag = tag, .where = where };
         } else return null;
     }
 
@@ -195,7 +220,7 @@ pub const Lexer = struct {
             self.adv();
         }
 
-        const where = self.str[begin..self.pos];
+        const where = self.src[begin..self.pos];
         const tag: Tag = if (has_dot) .float else .int;
         return .{ .tag = tag, .where = where };
     }

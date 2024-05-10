@@ -24,7 +24,9 @@ const vm = @import("vm");
 const Context = vm.VMContext;
 const interpreter = vm.interpreter;
 
-const Extension = enum { vmd, mcl, vbf };
+const blue = @import("blue");
+
+const Extension = enum { vmd, mcl, vbf, blue };
 
 pub fn logFn(
     comptime level: std.log.Level,
@@ -174,6 +176,38 @@ pub fn main() !u8 {
 
             const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .vemod;
             program = try assembler.getProgram(allocator, src_opts);
+        },
+        .blue => {
+            const source = reader.readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+                try stderr.print(
+                    "error: unable to read file {s}: {s}\n",
+                    .{ input_filename, @errorName(err) },
+                );
+                return 1;
+            };
+            defer allocator.free(source);
+
+            var errors = ArrayList(AsmError).init(allocator);
+            defer errors.deinit();
+
+            var lexer = blue.Token.Lexer.init(source, &errors);
+            var ast = blue.Ast.init(allocator);
+            defer ast.deinit();
+
+            var parser = blue.Parser.init(&ast, &lexer, &errors);
+            defer parser.deinit();
+
+            try parser.parse();
+
+            if (errors.items.len > 0) {
+                for (errors.items) |err| {
+                    try err.print(source, stderr);
+                }
+                return 1;
+            }
+
+            try ast.print(stdout);
+            return 0;
         },
         .mcl => {
             try stderr.print("error: can't compile Melancolang yet\n", .{});
