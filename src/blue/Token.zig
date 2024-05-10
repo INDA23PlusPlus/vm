@@ -65,6 +65,11 @@ pub const Lexer = struct {
         return .{ .src = src, .errors = errors };
     }
 
+    pub fn deinit(self: *Lexer) void {
+        // nothing to do here
+        _ = self;
+    }
+
     pub fn take(self: *Lexer) !?Token {
         const tok = try self.take_();
         if (tok == null) return null;

@@ -70,7 +70,8 @@ fn usage(name: []const u8) !void {
         \\
         \\Options:
         \\    -c          Only compile.
-        \\    -o OUTPUT   Write output to file OUTPUT
+        \\    -t          Only transpile.
+        \\    -o OUTPUT   Write output to file OUTPUT.
         \\    -s          Don't include source information in compiled program.
         \\    -h          Show this help message and exit.
         \\
@@ -190,24 +191,26 @@ pub fn main() !u8 {
             var errors = ArrayList(AsmError).init(allocator);
             defer errors.deinit();
 
-            var lexer = blue.Token.Lexer.init(source, &errors);
-            var ast = blue.Ast.init(allocator);
-            defer ast.deinit();
-
-            var parser = blue.Parser.init(&ast, &lexer, &errors);
-            defer parser.deinit();
-
-            try parser.parse();
-
-            if (errors.items.len > 0) {
+            var compilation = blue.compile(source, allocator, &errors, false) catch {
                 for (errors.items) |err| {
                     try err.print(source, stderr);
                 }
                 return 1;
-            }
+            };
+            defer compilation.deinit();
 
-            try ast.print(stdout);
-            return 0;
+            var assembler = Asm.init(compilation.result, allocator, &errors);
+            defer assembler.deinit();
+
+            try assembler.assemble();
+
+            const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .{
+                .frontend = .{
+                    .tokens = compilation.tokens,
+                    .source = source,
+                },
+            };
+            program = try assembler.getProgram(allocator, src_opts);
         },
         .mcl => {
             try stderr.print("error: can't compile Melancolang yet\n", .{});

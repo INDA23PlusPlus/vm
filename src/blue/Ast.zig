@@ -13,13 +13,21 @@ pub const Node = union(enum) {
     unop: struct { opnd: usize, op: Token },
     if_expr: struct { cond: usize, then: usize, else_: usize },
     let_expr: struct { stmts: usize, in: usize },
-    let_entry: struct { name: []const u8, symid: usize = 0, params: ?usize, expr: usize, next: ?usize = null },
+    let_entry: struct {
+        name: []const u8,
+        symid: usize = 0,
+        params: ?usize,
+        expr: usize,
+        next: ?usize = null,
+        assign_where: []const u8,
+    },
     param: struct { name: []const u8, symid: usize = 0, next: ?usize },
     reference: struct { name: []const u8, symid: usize = 0, args: ?usize },
     arg: struct { expr: usize, next: ?usize },
     string: Token,
     number: Token,
     unit: Token,
+    print: usize,
 };
 
 nodes: ArrayList(Node),

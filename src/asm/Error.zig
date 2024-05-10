@@ -36,6 +36,10 @@ tag: enum {
     @"Unexpected end of input",
     /// Unmatched parenthesis
     @"Unmatched parenthesis",
+    /// Argument count mismatch
+    @"Argument count mismatch",
+    /// Variable reference outside function scope
+    @"Variable referenced outside function scope",
 },
 /// Location in source
 where: ?[]const u8 = null,

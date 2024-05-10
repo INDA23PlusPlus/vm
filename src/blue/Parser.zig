@@ -107,7 +107,7 @@ fn comp(p: *Parser) anyerror!usize {
 
     while (tok) |tok_| {
         switch (tok_.tag) {
-            .@"<", .@"<=", .@">", .@">=" => {
+            .@"=", .@"<", .@"<=", .@">", .@">=" => {
                 _ = try p.lx.take();
                 const rhs = try p.sum();
                 lhs = try p.ast.push(.{
@@ -182,6 +182,7 @@ fn fac(p: *Parser) anyerror!usize {
             .string => return p.ast.push(.{ .string = (try p.lx.take()).? }),
             .int, .float => return p.ast.push(.{ .number = (try p.lx.take()).? }),
             .ident => return p.ref(),
+            .print => return p.print(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
@@ -195,6 +196,11 @@ fn fac(p: *Parser) anyerror!usize {
         try p.errors.append(.{ .tag = .@"Unexpected end of input" });
         return error.ParseError;
     }
+}
+
+fn print(p: *Parser) anyerror!usize {
+    _ = try p.lx.take(); // print
+    return try p.ast.push(.{ .print = try p.expr() });
 }
 
 fn isFacBegin(tok: Token) bool {
@@ -269,15 +275,15 @@ fn letExpr(p: *Parser) !usize {
     var entry = try p.letEntry();
     const root = entry;
 
-    var tok = try p.expectSomething("expected definition in 'let' expression");
-    while (tok.tag != .in) {
+    var tok = try p.lx.peek();
+    while (tok != null and tok.?.tag != .in) {
         const next = try p.letEntry();
         p.getNode(entry).let_entry.next = next;
         entry = next;
-        tok = try p.expectSomething("expected next definition in 'let' expression");
+        tok = try p.lx.peek();
     }
 
-    _ = try p.lx.take(); // in
+    _ = try p.expect(.in, "expected 'in'");
     const expr_ = try p.expr();
 
     return p.ast.push(.{
@@ -291,7 +297,7 @@ fn letExpr(p: *Parser) !usize {
 fn letEntry(p: *Parser) !usize {
     const name = try p.expect(.ident, "expected identifier");
     const params_ = try p.params();
-    _ = try p.expect(.@"=", "expected '='");
+    const assign = try p.expect(.@"=", "expected '='");
     const expr_ = try p.expr();
     _ = try p.expect(.@";", "expected semicolon");
     return try p.ast.push(.{
@@ -299,6 +305,7 @@ fn letEntry(p: *Parser) !usize {
             .name = name.where,
             .params = params_,
             .expr = expr_,
+            .assign_where = assign.where,
         },
     });
 }

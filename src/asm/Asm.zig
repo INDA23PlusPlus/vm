@@ -115,10 +115,10 @@ pub const EmbeddedSourceOptions = union(enum) {
     none,
     /// Embedd assembly source and instruction tokens.
     vemod,
-    /// Provide source and tokens from Melancolang source.
+    /// Provide source and tokens from frontend source.
     /// Tokens and instructions are associated by having the same
     /// index in `tokens` and `code` respectively.
-    melancolang: struct {
+    frontend: struct {
         tokens: []const []const u8,
         source: []const u8,
     },
@@ -193,9 +193,9 @@ pub fn getProgram(
                 allocator,
             );
         },
-        .melancolang => |mlc| {
-            source = try allocator.dupe(u8, mlc.source);
-            tokens = try remapTokens(mlc.source, source.?, mlc.tokens, allocator);
+        .frontend => |fe| {
+            source = try allocator.dupe(u8, fe.source);
+            tokens = try remapTokens(fe.source, source.?, fe.tokens, allocator);
         },
     }
 
