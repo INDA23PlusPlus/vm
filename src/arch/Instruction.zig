@@ -127,3 +127,12 @@ pub fn listLoad() Self {
 pub fn listStore() Self {
     return .{ .op = .list_store };
 }
+pub fn listLength() Self {
+    return .{ .op = .list_length };
+}
+pub fn listAppend() Self {
+    return .{ .op = .list_append };
+}
+pub fn listConcat() Self {
+    return .{ .op = .list_concat };
+}

@@ -689,6 +689,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const list = l.asUnChecked(.list);
 
                 const len = take(ctxt, Type.from(list.length()));
+                defer drop(ctxt, len);
                 try push(ctxt, len);
             },
             .list_append => {
@@ -1043,6 +1044,39 @@ test "lists" {
         Instruction.equal(),
         Instruction.ret(),
     }, 0, &.{}, &.{}), "", 0);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.listAlloc(),
+
+        Instruction.load(0),
+        Instruction.push(0),
+        Instruction.push(42),
+        Instruction.listStore(),
+
+        Instruction.load(1),
+        Instruction.push(42),
+        Instruction.listAppend(),
+
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 1);
+
+    try testRun(Program.init(&.{
+        Instruction.listAlloc(),
+        Instruction.dup(),
+        Instruction.dup(),
+        Instruction.dup(),
+        Instruction.push(40),
+        Instruction.listAppend(),
+        Instruction.push(41),
+        Instruction.listAppend(),
+        Instruction.push(42),
+        Instruction.listAppend(),
+
+        Instruction.listLength(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}), "", 3);
 }
 
 test "arithmetic" {
