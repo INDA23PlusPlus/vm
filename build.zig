@@ -162,6 +162,7 @@ pub fn build(b: *std.Build) void {
     vmdls.root_module.addImport("compiler", compiler_mod);
     vmdls.root_module.addImport("asm", assembler_mod);
     vmdls.root_module.addImport("arch", arch_mod);
+    vmdls.root_module.addImport("blue", blue_mod);
     vemod.root_module.addImport("arch", arch_mod);
     vemod.root_module.addImport("vm", vm_mod);
     vemod.root_module.addImport("asm", assembler_mod);

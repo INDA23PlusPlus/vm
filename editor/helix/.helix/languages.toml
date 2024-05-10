@@ -17,3 +17,11 @@ comment-token = "#"
 language-id = "vemod"
 file-types = ["vmd"]
 language-servers = ["vmdls"]
+
+[[language]]
+name = "Blue"
+scope = "source.blue"
+roots = []
+language-id = "blue"
+file-types = ["blue"]
+language-servers = ["vmdls"]

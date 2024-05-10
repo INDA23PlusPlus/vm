@@ -9,6 +9,8 @@ pub const Tag = enum {
     melancolang,
     /// Assembly for VeMod
     vemod,
+    /// Blue source code
+    blue,
 
     pub const map = utils.TagNameMap(@This());
 };
