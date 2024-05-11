@@ -290,6 +290,11 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             try self.resolveNode(v.discard);
             try self.resolveNode(v.keep);
         },
+        .list => |v| if (v.items) |items| try self.resolveNode(items),
+        .item => |v| {
+            try self.resolveNode(v.expr);
+            if (v.next) |next| try self.resolveNode(next);
+        },
         // don't use 'else' prong, so newly added
         // node types aren't silentlty ignored
         .string,

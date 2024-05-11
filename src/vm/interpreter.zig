@@ -751,6 +751,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const list_2 = l_2.asUnChecked(.list);
 
                 try list_2.concat(&list_1);
+                try push(ctxt, Type.from(list_2));
             },
             .struct_alloc => {
                 const s = mem.alloc_struct();

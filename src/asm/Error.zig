@@ -36,6 +36,8 @@ tag: enum {
     @"Unexpected end of input",
     /// Unmatched parenthesis
     @"Unmatched parenthesis",
+    /// Unmatched bracket
+    @"Unmatched bracket",
     /// Argument count mismatch
     @"Argument count mismatch",
     /// Variable reference outside function scope

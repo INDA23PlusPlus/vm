@@ -205,6 +205,9 @@ pub fn main() !u8 {
             };
             defer compilation.deinit();
 
+            try compilation._ast.print(stdout);
+            try stdout.writeAll(compilation.result);
+
             var assembler = Asm.init(compilation.result, allocator, &errors);
             defer assembler.deinit();
 

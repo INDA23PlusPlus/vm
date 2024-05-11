@@ -195,6 +195,9 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
     switch (node.*) {
         .binop => |v| {
             try self.genNode(v.lhs);
+            if (v.op.tag == .@"::") {
+                try self.writeInstr(.dup, .none, self.placeholderToken());
+            }
             try self.genNode(v.rhs);
             const opcode: Opcode = switch (v.op.tag) {
                 .@"=" => .cmp_eq,
@@ -292,6 +295,16 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.genNode(v.discard);
             try self.writeInstr(.pop, .none, self.placeholderToken());
             try self.genNode(v.keep);
+        },
+        .list => |v| {
+            try self.writeInstr(.list_alloc, .none, self.placeholderToken());
+            if (v.items) |items| try self.genNode(items);
+        },
+        .item => |v| {
+            try self.writeInstr(.dup, .none, self.placeholderToken());
+            try self.genNode(v.expr);
+            try self.writeInstr(.list_append, .none, self.placeholderToken());
+            if (v.next) |next| try self.genNode(next);
         },
     }
 }

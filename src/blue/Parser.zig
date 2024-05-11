@@ -31,6 +31,10 @@ fn getNode(p: *Parser, i: usize) *Ast.Node {
     return &p.ast.nodes.items[i];
 }
 
+fn lastError(p: *Parser) *Error {
+    return &p.errors.items[p.errors.items.len - 1];
+}
+
 fn expectSomething(p: *Parser, extra: ?[]const u8) !Token {
     return try p.lx.take() orelse {
         try p.errors.append(.{
@@ -189,7 +193,7 @@ fn prod(p: *Parser) anyerror!usize {
 
     while (tok) |tok_| {
         switch (tok_.tag) {
-            .@"*", .@"/", .@"%" => {
+            .@"*", .@"/", .@"%", .@"::" => {
                 _ = try p.lx.take();
                 const rhs = try p.fac();
                 lhs = try p.ast.push(.{
@@ -217,11 +221,12 @@ fn fac(p: *Parser) anyerror!usize {
             .int, .float => return p.ast.push(.{ .number = (try p.lx.take()).? }),
             .ident => return p.ref(),
             .print => return p.print(),
+            .@"[" => return p.list(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
                     .where = tok.where,
-                    .extra = "expected beginning of atomic expression",
+                    .extra = "expected beginning of expression",
                 });
                 return error.ParseError;
             },
@@ -229,6 +234,38 @@ fn fac(p: *Parser) anyerror!usize {
     } else {
         try p.errors.append(.{ .tag = .@"Unexpected end of input" });
         return error.ParseError;
+    }
+}
+
+fn list(p: *Parser) anyerror!usize {
+    const right = (try p.lx.take()).?; // [
+    const items_ = try p.items();
+    _ = p.expect(.@"]", "missing closing bracket") catch {
+        p.lastError().related = right.where;
+        p.lastError().related_msg = "opening bracket here";
+        return error.ParseError;
+    };
+    return try p.ast.push(.{ .list = .{ .items = items_ } });
+}
+
+fn items(p: *Parser) anyerror!?usize {
+    const tok = try p.lx.peek() orelse return null;
+    if (tok.tag == .@"]") {
+        return null;
+    } else {
+        const expr_ = try p.expr();
+        const item = try p.ast.push(.{
+            .item = .{
+                .expr = expr_,
+                .next = null,
+            },
+        });
+        const next_tok = try p.lx.peek();
+        if (next_tok != null and next_tok.?.tag == .@",") {
+            _ = try p.lx.take(); // ,
+            p.ast.getNode(item).item.next = try p.items();
+        }
+        return item;
     }
 }
 
@@ -274,16 +311,13 @@ fn args(p: *Parser) anyerror!?usize {
 }
 
 fn paren(p: *Parser) anyerror!usize {
-    const left = try p.lx.take();
+    const left = (try p.lx.take()).?;
     const expr_ = try p.expr();
-    const right = try p.lx.take();
-    if (right == null or right.?.tag != .@")") {
-        try p.errors.append(.{
-            .tag = .@"Unmatched parenthesis",
-            .where = left.?.where,
-        });
+    _ = p.expect(.@")", "missing closing parenthesis") catch {
+        p.lastError().related = left.where;
+        p.lastError().related_msg = "opening parenthesis here";
         return error.ParseError;
-    }
+    };
     return expr_;
 }
 

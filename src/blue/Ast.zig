@@ -29,6 +29,8 @@ pub const Node = union(enum) {
     unit: Token,
     print: usize,
     compound: struct { discard: usize, keep: usize },
+    list: struct { items: ?usize },
+    item: struct { expr: usize, next: ?usize },
 };
 
 nodes: ArrayList(Node),
@@ -50,6 +52,10 @@ pub fn push(ast: *Ast, nd: Node) !usize {
 
 pub fn print(ast: *Ast, writer: anytype) !void {
     try printNode(ast, ast.root, writer);
+}
+
+pub fn getNode(ast: *Ast, id: usize) *Node {
+    return &ast.nodes.items[id];
 }
 
 fn printNode(ast: *Ast, id: usize, writer: anytype) !void {
