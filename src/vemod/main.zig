@@ -64,6 +64,7 @@ const Options = struct {
     extension: ?Extension = null,
     strip: bool = false,
     jit: bool = false,
+    output_asm: bool = false,
 };
 
 fn usage(name: []const u8) !void {
@@ -78,6 +79,7 @@ fn usage(name: []const u8) !void {
         \\    -s          Don't include source information in compiled program.
         \\    -j          Use experimental JIT recompiler.
         \\    -h          Show this help message and exit.
+        \\    -a          Write VeMod assembly to OUTPUT instead of compiled program (ignored if input is binary or VeMod assembly).
         \\
     , .{name});
 }
@@ -109,6 +111,8 @@ pub fn main() !u8 {
             options.strip = true;
         } else if (mem.eql(u8, arg, "-j")) {
             options.jit = true;
+        } else if (mem.eql(u8, arg, "-a")) {
+            options.output_asm = true;
         } else if (arg[0] == '-') {
             try stderr.print("error: unknown option '{s}'\n", .{arg});
             try usage(name);
@@ -204,6 +208,20 @@ pub fn main() !u8 {
                 return 1;
             };
             defer compilation.deinit();
+
+            if (options.output_asm) {
+                const filename = options.output_filename orelse "output.vmd";
+                var outfile = fs.cwd().createFile(filename, .{}) catch |err| {
+                    try stderr.print(
+                        "error: unable to create file {s}: {s}\n",
+                        .{ filename, @errorName(err) },
+                    );
+                    return 1;
+                };
+                defer outfile.close();
+                try outfile.writer().writeAll(compilation.result);
+                return 0;
+            }
 
             var assembler = Asm.init(compilation.result, allocator, &errors);
             defer assembler.deinit();
