@@ -7,7 +7,7 @@
 </div>
 
 VeMod is a virtual stack machine written in Zig, with an associated assembly language two high level
-languages: the functional *Blue* language, and the imperative *Melancolang*.
+languages: the functional **Blue** language, and the imperative **Melancolang**.
 
 ## Prerequisites:
 * Zig compiler (0.12.0)
@@ -41,7 +41,7 @@ vemod program.vbf
 
 Run a Blue expression supplied as a command line argument:
 ```bash
-vemod -p "print "Hello" . -> 0"
+vemod -p "print \"Hello\" . -> 0"
 ```
 
 To view all options, run

@@ -79,6 +79,7 @@ Lists are handled with the following oeprators:
 * **++** - Concatenation
 * **::** - Appending
 * **$** - Indexing
+
 Example:
 ```
 (([1, 2, 3] :: 4) ++ [5, 6]) $ 3
