@@ -1,0 +1,11 @@
+let
+	vec x y z = { x = x, y = y, z = z };
+	dot u v = {
+		x = u.x * v.x,
+		y = u.y * v.y,
+		z = u.z * v.z,
+	};
+	u = vec 2 3 4;
+	v = vec 4 5 1;
+in print (dot u . v) . -> 0
+	
