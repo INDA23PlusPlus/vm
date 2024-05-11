@@ -274,5 +274,10 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.writeInstr(.syscall, .{ .int = 0 }, self.placeholderToken());
             try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
         },
+        .compound => |v| {
+            try self.genNode(v.discard);
+            try self.writeInstr(.pop, .none, self.placeholderToken());
+            try self.genNode(v.keep);
+        },
     }
 }

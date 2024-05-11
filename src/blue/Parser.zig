@@ -73,8 +73,31 @@ fn expr(p: *Parser) anyerror!usize {
     return switch (tok.tag) {
         .@"if" => p.ifExpr(),
         .let => p.letExpr(),
-        else => p.logic(),
+        else => p.compound(),
     };
+}
+
+fn compound(p: *Parser) anyerror!usize {
+    var lhs = try p.logic();
+    var tok = try p.lx.peek();
+
+    while (tok) |tok_| {
+        switch (tok_.tag) {
+            .@"->" => {
+                _ = try p.lx.take();
+                const rhs = try p.logic();
+                lhs = try p.ast.push(.{
+                    .compound = .{
+                        .discard = lhs,
+                        .keep = rhs,
+                    },
+                });
+            },
+            else => return lhs,
+        }
+        tok = try p.lx.peek();
+    }
+    return lhs;
 }
 
 fn logic(p: *Parser) anyerror!usize {

@@ -28,6 +28,7 @@ pub const Node = union(enum) {
     number: Token,
     unit: Token,
     print: usize,
+    compound: struct { discard: usize, keep: usize },
 };
 
 nodes: ArrayList(Node),

@@ -5,6 +5,6 @@ let
 		else fib (n-1) + fib (n-2);
 	iter n =
 		if n < 20
-		then let discard = print fib n; in iter (n+1)
-		else 0;
-in iter 1
+		then (print fib n) -> iter (n+1)
+		else ();
+in iter 1 -> 0
