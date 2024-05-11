@@ -231,7 +231,7 @@ pub const Lexer = struct {
                 .tag = .@"Empty infix operator",
                 .where = where,
             });
-            return .{ .tag = .err, .where = where };
+            return error.LexicalError;
         }
     }
 
@@ -254,7 +254,7 @@ pub const Lexer = struct {
             .tag = .@"Unterminated string",
             .where = where,
         });
-        return .{ .tag = .err, .where = where };
+        return error.LexicalError;
     }
 
     fn number(self: *Lexer) ?Token {
