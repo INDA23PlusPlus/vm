@@ -44,6 +44,7 @@ pub const Tag = enum {
     @";",
     @",",
     @".",
+    @" .",
     string,
     int,
     float,
@@ -140,7 +141,7 @@ pub const Lexer = struct {
             '}' => .@"}",
             ';' => .@";",
             ',' => .@",",
-            '.' => .@".",
+            '.' => self.dot(),
             '<' => return self.multiCharOperator(.@"<", .@"<=", '='),
             '>' => return self.multiCharOperator(.@">", .@">=", '='),
             '!' => return self.multiCharOperator(.@"!", .@"!=", '='),
@@ -150,6 +151,12 @@ pub const Lexer = struct {
         const tok = Token{ .tag = tag, .where = self.src[self.pos .. self.pos + 1] };
         self.adv();
         return tok;
+    }
+
+    fn dot(self: *Lexer) Token.Tag {
+        if (self.pos > 0 and ascii.isWhitespace(self.src[self.pos - 1])) {
+            return .@" .";
+        } else return .@".";
     }
 
     fn multiCharOperator(self: *Lexer, single_tag: Tag, multi_tag: Tag, second_char: u8) ?Token {

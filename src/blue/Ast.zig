@@ -66,6 +66,7 @@ fn printNode(ast: *Ast, id: usize, writer: anytype) !void {
 
             switch (VarType) {
                 Token => try writer.writeAll(variant.where),
+                usize => try ast.printNode(variant, writer),
                 else => {
                     const var_info = @typeInfo(VarType);
                     inline for (var_info.Struct.fields, 0..) |varf, i| {

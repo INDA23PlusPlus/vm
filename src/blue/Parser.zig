@@ -70,11 +70,22 @@ fn expr(p: *Parser) anyerror!usize {
         return error.ParseError;
     };
 
-    return switch (tok.tag) {
+    const node = switch (tok.tag) {
         .@"if" => p.ifExpr(),
         .let => p.letExpr(),
+        .@" ." => {
+            _ = try p.lx.take();
+            return p.expr();
+        },
         else => p.compound(),
     };
+
+    const next = try p.lx.peek();
+    if (next != null and next.?.tag == .@" .") {
+        _ = try p.lx.take();
+    }
+
+    return node;
 }
 
 fn compound(p: *Parser) anyerror!usize {
@@ -226,7 +237,7 @@ fn print(p: *Parser) anyerror!usize {
     return try p.ast.push(.{ .print = try p.expr() });
 }
 
-fn isFacBegin(tok: Token) bool {
+fn isExprBegin(tok: Token) bool {
     return switch (tok.tag) {
         .@"(",
         .@"()",
@@ -252,10 +263,10 @@ fn ref(p: *Parser) anyerror!usize {
 
 fn args(p: *Parser) anyerror!?usize {
     const tok = try p.lx.peek();
-    if (tok != null and isFacBegin(tok.?)) {
+    if (tok != null and isExprBegin(tok.?)) {
         return try p.ast.push(.{
             .arg = .{
-                .expr = try p.fac(),
+                .expr = try p.expr(),
                 .next = try p.args(),
             },
         });
