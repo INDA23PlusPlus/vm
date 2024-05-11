@@ -246,7 +246,11 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             // Declare the symbol with number of params (may be zero).
             const nparams = self.countChildren(node_id);
             const kind: SymbolKind = if (nparams > 0) .{ .func = undefined } else .{ .local = self.nextLocalID() };
-            v.symid = try self.declare(v.name, nparams, kind);
+
+            // Only let symbol reference itself if it's a function
+            if (kind == .func) {
+                v.symid = try self.declare(v.name, nparams, kind);
+            }
 
             // Push new scope for params and expression,
             // as well as a marker if there are more than zero markers.
@@ -268,6 +272,12 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             // Exit scope, remove marker if it exists.
             self.popScope();
             if (nparams > 0) self.popMarker();
+
+            // If symbol is not a function, declare it after we've
+            // resolved it's definition.
+            if (kind != .func) {
+                v.symid = try self.declare(v.name, nparams, kind);
+            }
 
             // Resolve next entry in let expression.
             if (v.next) |next| try self.resolveNode(next);
