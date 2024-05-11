@@ -790,6 +790,16 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
+            .readln => {
+                const line = try ctxt.reader().readUntilDelimiterOrEofAlloc(mem.allocator, '\n', std.math.maxInt(usize));
+                if (line) |l| {
+                    const str = mem.allocStringFromExistingData(l);
+                    try push(ctxt, Type.from(str));
+                } else {
+                    const unit = Type.from(void{});
+                    push(ctxt, unit) catch unreachable;
+                }
+            },
             // else => std.debug.panic("unimplemented instruction {}\n", .{i}),
         }
     }

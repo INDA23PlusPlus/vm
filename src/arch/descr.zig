@@ -300,6 +300,14 @@ pub const text = blk: {
             \\the former.
             \\
         },
+        .{
+            .readln,
+            \\## Read line from input
+            \\
+            \\Reads a line from input and pushes it as a string reference to the stack.
+            \\Pushes a unit value if there are no more lines to read.
+            \\
+        },
     };
 
     for (entries) |entry| arr.set(entry.@"0", entry.@"1");

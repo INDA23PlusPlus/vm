@@ -52,6 +52,8 @@ pub const Opcode = enum(u8) {
     list_remove,
     list_concat,
 
+    readln,
+
     pub fn isArithmetic(self: Opcode) bool {
         return switch (self) {
             .add,
