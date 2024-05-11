@@ -367,8 +367,8 @@ fn items(p: *Parser) anyerror!?usize {
         _ = try p.expect(.@",", "expected ','");
         tok = try p.lx.peek() orelse return root;
         if (tok.tag == .@"]") return root;
-        const next = try p.field();
-        p.ast.getNode(item_).field_decl.next = next;
+        const next = try p.item();
+        p.ast.getNode(item_).item.next = next;
         item_ = next;
     }
 }
