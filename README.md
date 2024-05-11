@@ -6,8 +6,8 @@
 ![Tests](https://github.com/INDA23PlusPLus/vm/actions/workflows/zig.yml/badge.svg?event=push) ![Extension](https://github.com/INDA23PlusPLus/vm/actions/workflows/vscode.yml/badge.svg?event=push)
 </div>
 
-VeMod is a virtual stack machine written in Zig, with an associated assembly language and higher level
-language (Melancolang).
+VeMod is a virtual stack machine written in Zig, with an associated assembly language two high level
+languages: the functional *Blue* language, and the imperative *Melancolang*.
 
 ## Prerequisites:
 * Zig compiler (0.12.0)
@@ -39,12 +39,17 @@ Run a compiled program:
 vemod program.vbf
 ```
 
+Run a Blue expression supplied as a command line argument:
+```bash
+vemod -p "print "Hello" . -> 0"
+```
+
 To view all options, run
 ```bash
 vemod -h
 ```
 
-Syntax and instruction reference for VeMod assembly can be found in the [docs](docs/)
+Language references can be found in the [docs](docs/)
 directory. Code samples can be found in the [examples](examples/) directory.
 
 ## Language server
