@@ -714,7 +714,7 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
-    pub fn dec_rm64(self: *Self, rm: RM64) !void {
+    pub inline fn dec_rm64(self: *Self, rm: RM64) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
         instr.set_opcode(0xFF, null);
@@ -723,7 +723,7 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
-    pub fn inc_rm64(self: *Self, rm: RM64) !void {
+    pub inline fn inc_rm64(self: *Self, rm: RM64) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
         instr.set_opcode(0xFF, null);

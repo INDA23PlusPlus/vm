@@ -45,6 +45,12 @@ pub fn deinit(self: *Self) void {
     self.relocs.deinit();
 }
 
+inline fn reset(self: *Self) void {
+    self.as.reset();
+    self.insn_meta.clearRetainingCapacity();
+    self.relocs.clearRetainingCapacity();
+}
+
 inline fn imm_size(imm: i64) usize {
     if (imm < std.math.minInt(i32) or imm > std.math.maxInt(i32)) {
         return 8;
@@ -804,11 +810,9 @@ fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
 }
 
 pub fn compile_program(self: *Self, prog: arch.Program) !Function {
-    const as = &self.as;
-    as.reset();
+    self.reset();
 
-    self.insn_meta.clearRetainingCapacity();
-    self.relocs.clearRetainingCapacity();
+    const as = &self.as;
 
     // Function call thunk
     try self.dbg_break("start");
