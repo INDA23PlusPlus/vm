@@ -211,17 +211,43 @@ fn prod(p: *Parser) anyerror!usize {
     return lhs;
 }
 
+fn trailingOperators(p: *Parser, inner: usize) anyerror!usize {
+    var inner_ = inner;
+    var next_tok = try p.lx.peek() orelse return inner_;
+
+    while (true) {
+        switch (next_tok.tag) {
+            .@"$" => {
+                _ = try p.lx.take();
+                // TODO: should index be a whole expression instead of factor?
+                const index = try p.fac();
+                inner_ = try p.ast.push(.{
+                    .indexing = .{
+                        .list = inner_,
+                        .index = index,
+                        .where = next_tok.where,
+                    },
+                });
+            },
+            else => break,
+        }
+        next_tok = try p.lx.peek() orelse return inner_;
+    }
+
+    return inner_;
+}
+
 fn fac(p: *Parser) anyerror!usize {
     const tok_ = try p.lx.peek();
     if (tok_) |tok| {
-        switch (tok.tag) {
-            .@"(" => return p.paren(),
-            .@"()" => return p.ast.push(.{ .unit = (try p.lx.take()).? }),
-            .string => return p.ast.push(.{ .string = (try p.lx.take()).? }),
-            .int, .float => return p.ast.push(.{ .number = (try p.lx.take()).? }),
-            .ident => return p.ref(),
-            .print => return p.print(),
-            .@"[" => return p.list(),
+        const inner = switch (tok.tag) {
+            .@"(" => try p.paren(),
+            .@"()" => try p.ast.push(.{ .unit = (try p.lx.take()).? }),
+            .string => try p.ast.push(.{ .string = (try p.lx.take()).? }),
+            .int, .float => try p.ast.push(.{ .number = (try p.lx.take()).? }),
+            .ident => try p.ref(),
+            .print => try p.print(),
+            .@"[" => try p.list(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
@@ -230,7 +256,9 @@ fn fac(p: *Parser) anyerror!usize {
                 });
                 return error.ParseError;
             },
-        }
+        };
+
+        return p.trailingOperators(inner);
     } else {
         try p.errors.append(.{ .tag = .@"Unexpected end of input" });
         return error.ParseError;

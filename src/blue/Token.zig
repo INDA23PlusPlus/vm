@@ -46,6 +46,7 @@ pub const Tag = enum {
     @",",
     @".",
     @" .",
+    @"$",
     string,
     int,
     float,
@@ -147,6 +148,7 @@ pub const Lexer = struct {
             '<' => return self.multiCharOperator(.@"<", .@"<=", '='),
             '>' => return self.multiCharOperator(.@">", .@">=", '='),
             '!' => return self.multiCharOperator(.@"!", .@"!=", '='),
+            '$' => .@"$",
             else => return null,
         };
 

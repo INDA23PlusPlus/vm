@@ -306,5 +306,10 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.writeInstr(.list_append, .none, self.placeholderToken());
             if (v.next) |next| try self.genNode(next);
         },
+        .indexing => |v| {
+            try self.genNode(v.list);
+            try self.genNode(v.index);
+            try self.writeInstr(.list_load, .none, v.where);
+        },
     }
 }
