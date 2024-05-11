@@ -36,7 +36,7 @@ pub const ExecContext = extern struct {
         const uc: *std.os.linux.ucontext_t = @alignCast(@ptrCast(ucontext));
         const self: *Self = @ptrFromInt(uc.mcontext.gregs[std.os.linux.REG.R15]);
 
-        self.common.err = error.InvalidOperation;
+        self.common.err = error.RuntimeError;
 
         uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
     }
