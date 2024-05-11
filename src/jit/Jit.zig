@@ -63,6 +63,8 @@ inline fn opcode_cc(opcode: arch.Opcode) as_lib.CC {
     return switch (opcode) {
         .cmp_lt => as_lib.CC.L,
         .cmp_gt => as_lib.CC.G,
+        .cmp_le => as_lib.CC.LE,
+        .cmp_ge => as_lib.CC.GE,
         .cmp_eq => as_lib.CC.E,
         .cmp_ne => as_lib.CC.NE,
         else => unreachable,
@@ -552,7 +554,7 @@ fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
                     try ctxt.vstk_push(.unit);
                 }
             },
-            inline .cmp_lt, .cmp_gt, .cmp_eq, .cmp_ne => |cmp| insn: {
+            inline .cmp_lt, .cmp_gt, .cmp_le, .cmp_ge, .cmp_eq, .cmp_ne => |cmp| insn: {
                 var b = try ctxt.vstk_pop_asm(as);
                 var a = try ctxt.vstk_pop_asm(as);
                 var r = false;
@@ -783,6 +785,9 @@ fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
                             } else {
                                 try as.mov_rm64_imm32(rm, @intCast(imm));
                             }
+                        },
+                        .asm_reg => |reg| {
+                            try as.mov_rm64_r64(rm, reg);
                         },
                         else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v) }),
                     }
