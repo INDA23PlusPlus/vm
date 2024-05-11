@@ -98,6 +98,7 @@ pub fn main() !u8 {
     const name = args.next().?;
 
     const stdout = io.getStdOut().writer();
+    const stdin = io.getStdIn().reader();
     const stderr = io.getStdErr().writer();
 
     var gpa = heap.GeneralPurposeAllocator(.{}){};
@@ -301,7 +302,7 @@ pub fn main() !u8 {
                 };
                 return @intCast(ret);
             } else {
-                var context = Context.init(program, allocator, &stdout, &stderr, false);
+                var context = Context.init(program, allocator, &stdout, &stderr, &stdin, false);
                 defer context.deinit();
                 const ret = interpreter.run(&context) catch |err| {
                     if (context.rterror) |rterror| {

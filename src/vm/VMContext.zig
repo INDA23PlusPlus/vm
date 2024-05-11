@@ -23,6 +23,8 @@ write_ctxt: *const anyopaque,
 write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 stderr_write_ctxt: *const anyopaque,
 stderr_write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
+read_ctxt: *const anyopaque,
+read_fn: *const fn (context: *const anyopaque, bytes: []u8) anyerror!usize,
 debug_output: bool,
 rterror: ?RtError = null,
 jit_mask: std.DynamicBitSetUnmanaged,
@@ -92,7 +94,7 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
     return jitable;
 }
 
-pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_writer: anytype, debug_output: bool) Self {
+pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_writer: anytype, input_reader: anytype, debug_output: bool) Self {
     switch (@typeInfo(@TypeOf(output_writer))) {
         .Pointer => {},
         else => @compileError("output_writer has to be a pointer to a writer"),
@@ -114,6 +116,12 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         }
     }.write;
 
+    const read_fn = struct {
+        fn read(read_ctxt: *const anyopaque, data: []u8) anyerror!usize {
+            return @as(@TypeOf(input_reader), @ptrCast(@alignCast(read_ctxt))).read(data);
+        }
+    }.read;
+
     return .{
         .prog = prog,
         .pc = prog.entry,
@@ -125,6 +133,8 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .write_fn = write_fn,
         .stderr_write_ctxt = error_writer,
         .stderr_write_fn = stderr_write_fn,
+        .read_ctxt = input_reader,
+        .read_fn = read_fn,
         .debug_output = debug_output,
         .jit_mask = make_jit_mask(prog, alloc),
     };
@@ -148,11 +158,19 @@ pub fn writeStderr(self: *const Self, bytes: []const u8) anyerror!usize {
     return self.stderr_write_fn(self.stderr_write_ctxt, bytes);
 }
 
+pub fn read(self: *const Self, bytes: []u8) anyerror!usize {
+    return self.read_fn(self.read_ctxt, bytes);
+}
+
 pub fn writer(self: *const Self) std.io.Writer(*const Self, anyerror, write) {
     return .{ .context = self };
 }
 
 pub fn errWriter(self: *const Self) std.io.Writer(*const Self, anyerror, writeStderr) {
+    return .{ .context = self };
+}
+
+pub fn reader(self: *const Self) std.io.Reader(*const Self, anyerror, read) {
     return .{ .context = self };
 }
 
