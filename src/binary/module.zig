@@ -261,6 +261,13 @@ fn emitFloat(writer: anytype, f: f64) !void {
     try writer.writeInt(u64, int, .little);
 }
 
+fn dummyRead(context: void, data: []const u8) error{}!usize {
+    _ = context;
+    return data.len;
+}
+const NullReader = std.io.Reader(void, error{}, dummyRead);
+const null_reader: NullReader = .{ .context = {} };
+
 test {
     const testing = std.testing;
     const fs = std.fs;
@@ -336,7 +343,7 @@ test {
 
     const output_writer = output_buffer.writer();
 
-    var context = VMContext.init(program, testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
+    var context = VMContext.init(program, testing.allocator, &output_writer, &std.io.getStdErr().writer(), &null_reader, false);
     defer context.deinit();
 
     try testing.expectEqual(@as(i64, 0), try interpreter.run(&context));

@@ -834,6 +834,14 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
 
     return std.mem.join(allocator, " ", res.items);
 }
+
+fn dummyRead(context: void, data: []const u8) error{}!usize {
+    _ = context;
+    return data.len;
+}
+const NullReader = std.io.Reader(void, error{}, dummyRead);
+const null_reader: NullReader = .{ .context = {} };
+
 fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) !void {
     return testRunWithJittable(prog, expected_output, expected_exit_code, false);
 }
@@ -844,7 +852,7 @@ fn testRunWithJittable(prog: Program, expected_output: []const u8, expected_exit
     var output_stream = std.io.fixedBufferStream(output_buffer);
     const output_writer = output_stream.writer();
 
-    var ctxt = VMContext.init(prog, std.testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
+    var ctxt = VMContext.init(prog, std.testing.allocator, &output_writer, &std.io.getStdErr().writer(), &null_reader, false);
     defer ctxt.deinit();
     if (must_be_jitable) {
         try std.testing.expect(ctxt.jit_mask.isSet(prog.entry));
