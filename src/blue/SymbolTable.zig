@@ -321,6 +321,16 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             try self.resolveNode(v.expr);
             if (v.next) |next| try self.resolveNode(next);
         },
+        .match => |v| {
+            try self.resolveNode(v.expr);
+            try self.resolveNode(v.default);
+            if (v.prongs) |prongs| try self.resolveNode(prongs);
+        },
+        .prong => |v| {
+            try self.resolveNode(v.lhs);
+            try self.resolveNode(v.rhs);
+            if (v.next) |next| try self.resolveNode(next);
+        },
         // don't use 'else' prong, so newly added
         // node types aren't silentlty ignored
         .string,

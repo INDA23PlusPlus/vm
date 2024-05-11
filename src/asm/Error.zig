@@ -44,6 +44,10 @@ tag: enum {
     @"Variable referenced outside function scope",
     /// Empty infix operator
     @"Empty infix operator",
+    /// Missing default prong
+    @"Missing '_ => ...' prong",
+    /// Duplicate default prong
+    @"Duplicate '_ => ...' prong",
 },
 /// Location in source
 where: ?[]const u8 = null,

@@ -95,4 +95,19 @@ in print_name person . -> 0
 ```
 
 
+The **match** expression lets you match an expression with other
+runtime expressions:
+```
+let
+  correct = 4;
+  wrong = 3;
+in
+  match 2 + 2 with
+  | correct => 0
+  | wrong => 1
+  | _ => ()
+```
+The `_ => ...` prong is mandatory but can be set to `_ => ()` if you know that
+the match expression is exhaustive.
+
 See the [example directory](../examples/) for more examples.

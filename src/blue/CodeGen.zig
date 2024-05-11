@@ -34,6 +34,7 @@ errors: *ArrayList(Error),
 label_counter: usize,
 string_ids: ArrayList(usize),
 allocator: Allocator,
+prong_labels: ArrayList(usize),
 
 pub fn init(
     ast: *Ast,
@@ -55,6 +56,7 @@ pub fn init(
         .param_counts = ArrayList(usize).init(allocator),
         .local_counts = ArrayList(usize).init(allocator),
         .string_ids = ArrayList(usize).init(allocator),
+        .prong_labels = ArrayList(usize).init(allocator),
     };
 }
 
@@ -65,6 +67,7 @@ pub fn deinit(self: *CodeGen) void {
     self.param_counts.deinit();
     self.local_counts.deinit();
     self.string_ids.deinit();
+    self.prong_labels.deinit();
 }
 
 fn placeholderToken(self: *const CodeGen) []const u8 {
@@ -80,6 +83,16 @@ fn pushString(self: *CodeGen, node_id: usize) !usize {
     const index = self.string_ids.items.len;
     try self.string_ids.append(node_id);
     return index;
+}
+
+fn newProngLabel(self: *CodeGen) !usize {
+    const label = self.newLabel();
+    try self.prong_labels.append(label);
+    return label;
+}
+
+fn resetProngLabels(self: *CodeGen) void {
+    self.prong_labels.clearRetainingCapacity();
 }
 
 fn beginFunction(self: *CodeGen, symid: usize) !void {
@@ -344,5 +357,39 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.writeInstr(.push, .{ .int = 2 }, self.placeholderToken());
             try self.writeInstr(.call, .{ .function = v.symid }, v.name);
         },
+        .match => |v| {
+            try self.genNode(v.expr);
+            const done_label = self.newLabel();
+
+            var opt_prong_id = v.prongs;
+            while (opt_prong_id) |prong_id| {
+                const prong = self.ast.getNode(prong_id).prong;
+                try self.writeInstr(.dup, .none, self.placeholderToken());
+                try self.genNode(prong.lhs);
+                try self.writeInstr(.cmp_eq, .none, prong.where);
+                const label = try self.newProngLabel();
+                try self.writeInstr(.jmpnz, .{ .label = label }, self.placeholderToken());
+                opt_prong_id = prong.next;
+            }
+
+            try self.genNode(v.default);
+            try self.writeInstr(.jmp, .{ .label = done_label }, self.placeholderToken());
+
+            opt_prong_id = v.prongs;
+            var label_id: usize = 0;
+            while (opt_prong_id) |prong_id| {
+                const prong = self.ast.getNode(prong_id).prong;
+                const label = self.prong_labels.items[label_id];
+                try self.writeLabel(label);
+                try self.genNode(prong.rhs);
+                try self.writeInstr(.jmp, .{ .label = done_label }, self.placeholderToken());
+                label_id += 1;
+                opt_prong_id = prong.next;
+            }
+
+            try self.writeLabel(done_label);
+            self.resetProngLabels();
+        },
+        .prong => undefined, // handled in 'match'
     }
 }

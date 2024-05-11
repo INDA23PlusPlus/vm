@@ -1,0 +1,18 @@
+#!/usr/bin/env vemod
+
+let
+  printNum n =
+    match n with
+    | 1 => print "one"
+    | 2 => print "two"
+    | 3 => print "three"
+    | 4 => print "four"
+    | 5 => print "five"
+    | _ => print "it's too big!";
+  iter n =
+    let loop k n =
+      match k with
+      | n => ()
+      | _ => printNum k . -> loop k + 1 . n;
+    in loop 1 n;
+in iter 7 . -> 0

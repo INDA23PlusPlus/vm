@@ -287,6 +287,7 @@ fn fac(p: *Parser) anyerror!usize {
             .@"if" => try p.ifExpr(),
             .let => try p.letExpr(),
             .@"{" => try p.struct_(),
+            .match => try p.match(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
@@ -302,6 +303,93 @@ fn fac(p: *Parser) anyerror!usize {
         try p.errors.append(.{ .tag = .@"Unexpected end of input" });
         return error.ParseError;
     }
+}
+
+fn match(p: *Parser) anyerror!usize {
+    const match_tok = (try p.lx.take()).?;
+    const expr_ = try p.expr();
+    _ = try p.expect(.with, "expected 'with'");
+
+    const optional_pipe = try p.lx.peek() orelse {
+        try p.errors.append(.{
+            .tag = .@"Unexpected end of input",
+            .where = p.lx.src[p.lx.src.len - 1 .. p.lx.src.len],
+        });
+        return error.ParseError;
+    };
+    if (optional_pipe.tag == .@"|") {
+        _ = try p.lx.take();
+    }
+
+    var default: ?usize = null;
+    var first_default_where: []const u8 = undefined;
+
+    var root_prong: ?usize = null;
+    var curr_prong: usize = undefined;
+
+    while (true) {
+        const prong_begin = try p.lx.peek() orelse break;
+        if (prong_begin.tag == ._) {
+            _ = try p.lx.take(); // _
+            _ = try p.expect(.@"=>", "expected '=>'");
+            const def_expr = try p.expr();
+
+            if (default) |_| {
+                try p.errors.append(.{
+                    .tag = .@"Duplicate '_ => ...' prong",
+                    .where = prong_begin.where,
+                    .related = first_default_where,
+                    .related_msg = "first '_ => ...' prong appears here",
+                });
+            } else {
+                default = def_expr;
+                first_default_where = prong_begin.where;
+            }
+        } else {
+            const next_prong = try p.prong();
+            if (root_prong == null) {
+                root_prong = next_prong;
+                curr_prong = next_prong;
+            } else {
+                p.ast.getNode(curr_prong).prong.next = next_prong;
+                curr_prong = next_prong;
+            }
+        }
+
+        const maybe_pipe = try p.lx.peek() orelse break;
+        if (maybe_pipe.tag != .@"|") break;
+        _ = try p.lx.take(); // |
+    }
+
+    if (default == null) {
+        default = 0; // dummy value
+        try p.errors.append(.{
+            .tag = .@"Missing '_ => ...' prong",
+            .where = match_tok.where,
+        });
+    }
+
+    return p.ast.push(.{
+        .match = .{
+            .expr = expr_,
+            .prongs = root_prong,
+            .default = default.?,
+        },
+    });
+}
+
+fn prong(p: *Parser) anyerror!usize {
+    const lhs = try p.expr();
+    const arrow = try p.expect(.@"=>", "expected '=>'");
+    const rhs = try p.expr();
+    return p.ast.push(.{
+        .prong = .{
+            .lhs = lhs,
+            .rhs = rhs,
+            .next = null,
+            .where = arrow.where,
+        },
+    });
 }
 
 fn struct_(p: *Parser) anyerror!usize {
@@ -410,6 +498,7 @@ fn isExprBegin(tok: Token) bool {
         .@"[",
         .@"if",
         .@"{",
+        .match,
         => true,
         else => false,
     };

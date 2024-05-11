@@ -19,7 +19,9 @@ pub const Tag = enum {
     @"and",
     @"or",
     print,
+    @"_",
     @"=",
+    @"=>",
     @"<",
     @"<=",
     @">",
@@ -41,6 +43,7 @@ pub const Tag = enum {
     @"]",
     @"{",
     @"}",
+    @"|",
     @"->",
     @";",
     @",",
@@ -53,10 +56,12 @@ pub const Tag = enum {
     float,
     ident,
     infix,
+    match,
+    with,
     err,
 };
 
-const kws: []const Tag = &.{ .let, .in, .@"if", .then, .@"else", .print, .len };
+const kws: []const Tag = &.{ .let, .in, .@"if", .then, .@"else", .print, .len, .match, .with };
 
 tag: Tag,
 where: []const u8,
@@ -154,7 +159,7 @@ pub const Lexer = struct {
 
     fn operator(self: *Lexer) ?Token {
         const tag: Tag = switch (self.curr().?) {
-            '=' => .@"=",
+            '=' => return self.multiCharOperator(.@"=", .@"=>", '>'),
             '+' => return self.multiCharOperator(.@"+", .@"++", '+'),
             '-' => return self.multiCharOperator(.@"-", .@"->", '>'),
             '*' => .@"*",
@@ -174,6 +179,8 @@ pub const Lexer = struct {
             '>' => return self.multiCharOperator(.@">", .@">=", '='),
             '!' => return self.multiCharOperator(.@"!", .@"!=", '='),
             '$' => .@"$",
+            '_' => ._,
+            '|' => .@"|",
             else => return null,
         };
 

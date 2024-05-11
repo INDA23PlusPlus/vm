@@ -37,6 +37,8 @@ pub const Node = union(enum) {
     field_access: struct { struct_: usize, field: []const u8, dot: []const u8 },
     field_decl: struct { name: []const u8, expr: usize, next: ?usize },
     infix: struct { lhs: usize, rhs: usize, name: []const u8, symid: usize = 0 },
+    match: struct { expr: usize, prongs: ?usize, default: usize },
+    prong: struct { lhs: usize, rhs: usize, next: ?usize, where: []const u8 },
 };
 
 nodes: ArrayList(Node),
