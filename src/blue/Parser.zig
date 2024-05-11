@@ -333,25 +333,30 @@ fn field(p: *Parser) anyerror!usize {
 }
 
 fn items(p: *Parser) anyerror!?usize {
-    // TODO: make iterative
-    const tok = try p.lx.peek() orelse return null;
-    if (tok.tag == .@"]") {
-        return null;
-    } else {
-        const expr_ = try p.expr();
-        const item = try p.ast.push(.{
-            .item = .{
-                .expr = expr_,
-                .next = null,
-            },
-        });
-        const next_tok = try p.lx.peek();
-        if (next_tok != null and next_tok.?.tag == .@",") {
-            _ = try p.lx.take(); // ,
-            p.ast.getNode(item).item.next = try p.items();
-        }
-        return item;
+    var tok = try p.lx.peek() orelse return null;
+    if (tok.tag == .@"]") return null;
+    const root = try p.item();
+    var item_ = root;
+    while (true) {
+        tok = try p.lx.peek() orelse return root;
+        if (tok.tag == .@"]") return root;
+        _ = try p.expect(.@",", "expected ','");
+        tok = try p.lx.peek() orelse return root;
+        if (tok.tag == .@"]") return root;
+        const next = try p.field();
+        p.ast.getNode(item_).field_decl.next = next;
+        item_ = next;
     }
+}
+
+fn item(p: *Parser) anyerror!usize {
+    const expr_ = try p.expr();
+    return try p.ast.push(.{
+        .item = .{
+            .expr = expr_,
+            .next = null,
+        },
+    });
 }
 
 fn print(p: *Parser) anyerror!usize {
