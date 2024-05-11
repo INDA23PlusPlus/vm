@@ -85,6 +85,7 @@ fn pushString(self: *CodeGen, node_id: usize) !usize {
 fn beginFunction(self: *CodeGen, symid: usize) !void {
     try self.functions.append(ArrayList(u8).init(self.allocator));
     const writer = self.currentFunction().writer();
+    const symbol = self.symtab.getSymbol(symid);
     try writer.writeAll("-function ");
     try self.writeFuncName(symid, writer);
     try writer.print(
@@ -94,13 +95,15 @@ fn beginFunction(self: *CodeGen, symid: usize) !void {
     ,
         .{},
     );
-    try self.writeInstr(
-        .stack_alloc,
-        .{ .int = @intCast(self.symtab.getSymbol(symid).kind.func) },
-        self.placeholderToken(),
-    );
-    try self.param_counts.append(self.symtab.getSymbol(symid).nparams);
-    try self.local_counts.append(self.symtab.getSymbol(symid).kind.func);
+    if (symbol.kind.func > 0) {
+        try self.writeInstr(
+            .stack_alloc,
+            .{ .int = @intCast(symbol.kind.func) },
+            self.placeholderToken(),
+        );
+    }
+    try self.param_counts.append(symbol.nparams);
+    try self.local_counts.append(symbol.kind.func);
 }
 
 fn endFunction(self: *CodeGen) !void {
