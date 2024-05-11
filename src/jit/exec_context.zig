@@ -21,7 +21,7 @@ pub const ExecContext = extern struct {
 
     fn unwind() callconv(.Naked) noreturn {
         asm volatile (
-            \\mov (%r15), %rsp // ExecContext.unwind_sp
+            \\mov (%r15), %rsp    # ExecContext.unwind_sp
             \\pop %r15
             \\pop %rbx
             \\pop %rbp

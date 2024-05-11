@@ -73,7 +73,7 @@ inline fn opcode_cc(opcode: arch.Opcode) as_lib.CC {
         .cmp_ge => as_lib.CC.GE,
         .cmp_eq => as_lib.CC.E,
         .cmp_ne => as_lib.CC.NE,
-        else => unreachable,
+        else => std.debug.panic("Invalid opcode for opcode_cc: {s}.", .{@tagName(opcode)}),
     };
 }
 
@@ -308,7 +308,7 @@ const Context = struct {
                 .asm_reg => |reg| {
                     return .{ .val = .{ .reg = reg } };
                 },
-                .asm_cc => unreachable,
+                else => std.debug.panic("Unimplemented value type for vstk_pop_asm: {s}.", .{@tagName(v)}),
             }
         } else {
             return .{ .val = .top };
@@ -634,6 +634,8 @@ fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
                         const v = switch (cmp) {
                             .cmp_lt => a.val.imm < b.val.imm,
                             .cmp_gt => a.val.imm > b.val.imm,
+                            .cmp_le => a.val.imm <= b.val.imm,
+                            .cmp_ge => a.val.imm >= b.val.imm,
                             .cmp_eq => a.val.imm == b.val.imm,
                             .cmp_ne => a.val.imm != b.val.imm,
                             else => unreachable,
