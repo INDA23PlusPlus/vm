@@ -52,6 +52,7 @@ pub const Tag = enum {
     len,
     float,
     ident,
+    infix,
     err,
 };
 
@@ -92,6 +93,7 @@ pub const Lexer = struct {
         if (self.identOrKw()) |tok| return tok;
         if (try self.string()) |tok| return tok;
         if (self.number()) |tok| return tok;
+        if (try self.infix()) |tok| return tok;
 
         const where = self.src[self.pos .. self.pos + 1];
         try self.errors.append(.{
@@ -207,6 +209,30 @@ pub const Lexer = struct {
 
             return .{ .tag = tag, .where = where };
         } else return null;
+    }
+
+    fn infix(self: *Lexer) !?Token {
+        if (self.curr().? != '\'') return null;
+        self.adv();
+
+        if (self.curr() != null and ascii.isAlphabetic(self.curr().?)) {
+            const begin = self.pos;
+
+            while (self.curr()) |c| {
+                if (!isIdentCharContinue(c)) break;
+                self.adv();
+            }
+
+            const where = self.src[begin..self.pos];
+            return .{ .tag = .infix, .where = where };
+        } else {
+            const where = self.src[self.pos - 1 .. self.pos];
+            try self.errors.append(.{
+                .tag = .@"Empty infix operator",
+                .where = where,
+            });
+            return .{ .tag = .err, .where = where };
+        }
     }
 
     fn string(self: *Lexer) !?Token {

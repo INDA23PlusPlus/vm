@@ -335,5 +335,11 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.genNode(v.struct_);
             try self.writeInstr(.struct_load, .{ .field_name = v.field }, v.dot);
         },
+        .infix => |v| {
+            try self.genNode(v.lhs);
+            try self.genNode(v.rhs);
+            try self.writeInstr(.push, .{ .int = 2 }, self.placeholderToken());
+            try self.writeInstr(.call, .{ .function = v.symid }, v.name);
+        },
     }
 }

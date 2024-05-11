@@ -188,19 +188,43 @@ fn sum(p: *Parser) anyerror!usize {
 }
 
 fn prod(p: *Parser) anyerror!usize {
-    var lhs = try p.fac();
+    var lhs = try p.infix();
     var tok = try p.lx.peek();
 
     while (tok) |tok_| {
         switch (tok_.tag) {
             .@"*", .@"/", .@"%", .@"::" => {
                 _ = try p.lx.take();
-                const rhs = try p.fac();
+                const rhs = try p.infix();
                 lhs = try p.ast.push(.{
                     .binop = .{
                         .lhs = lhs,
                         .rhs = rhs,
                         .op = tok_,
+                    },
+                });
+            },
+            else => return lhs,
+        }
+        tok = try p.lx.peek();
+    }
+    return lhs;
+}
+
+fn infix(p: *Parser) anyerror!usize {
+    var lhs = try p.fac();
+    var tok = try p.lx.peek();
+
+    while (tok) |tok_| {
+        switch (tok_.tag) {
+            .infix => {
+                _ = try p.lx.take();
+                const rhs = try p.fac();
+                lhs = try p.ast.push(.{
+                    .infix = .{
+                        .lhs = lhs,
+                        .rhs = rhs,
+                        .name = tok_.where,
                     },
                 });
             },

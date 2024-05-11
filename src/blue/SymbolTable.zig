@@ -281,6 +281,11 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             v.symid = try self.reference(v.name, nparams);
             if (v.args) |args| try self.resolveNode(args);
         },
+        .infix => |*v| {
+            v.symid = try self.reference(v.name, 2);
+            try self.resolveNode(v.lhs);
+            try self.resolveNode(v.rhs);
+        },
         .arg => |*v| {
             try self.resolveNode(v.expr);
             if (v.next) |next| try self.resolveNode(next);

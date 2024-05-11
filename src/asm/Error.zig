@@ -42,6 +42,8 @@ tag: enum {
     @"Argument count mismatch",
     /// Variable reference outside function scope
     @"Variable referenced outside function scope",
+    /// Empty infix operator
+    @"Empty infix operator",
 },
 /// Location in source
 where: ?[]const u8 = null,
