@@ -437,7 +437,7 @@ fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
                         b.val = .{ .reg = .RCX };
                     },
                     .imm => |imm| {
-                        try as.mov_r64_imm64(.RCX , imm);
+                        try as.mov_r64_imm64(.RCX, imm);
                         b.val = .{ .reg = .RCX };
                     },
                     else => {},
