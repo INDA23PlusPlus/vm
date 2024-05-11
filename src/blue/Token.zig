@@ -88,7 +88,9 @@ pub const Lexer = struct {
             return peeked;
         }
 
-        if (self.skipWhitespace()) return null;
+        while (self.skipWhitespace() or self.skipComments()) {}
+        if (self.curr() == null) return null;
+
         if (self.operator()) |tok| return tok;
         if (self.identOrKw()) |tok| return tok;
         if (try self.string()) |tok| return tok;
@@ -125,15 +127,29 @@ pub const Lexer = struct {
         self.pos += 1;
     }
 
-    // Returns true if at end of stream
     fn skipWhitespace(self: *Lexer) bool {
+        var did_skip = false;
         while (self.curr()) |c| {
-            if (!ascii.isWhitespace(c)) {
-                return false;
-            }
+            if (!ascii.isWhitespace(c)) break;
             self.adv();
+            did_skip = true;
         }
-        return true;
+        return did_skip;
+    }
+
+    fn skipComments(self: *Lexer) bool {
+        if (self.curr()) |c| {
+            if (c != '#') return false;
+            self.adv();
+            while (self.curr()) |c_| {
+                if (c_ == '\n') {
+                    self.adv();
+                    break;
+                }
+                self.adv();
+            }
+            return true;
+        } else return false;
     }
 
     fn operator(self: *Lexer) ?Token {

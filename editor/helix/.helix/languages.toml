@@ -22,6 +22,7 @@ language-servers = ["vmdls"]
 name = "Blue"
 scope = "source.blue"
 roots = []
+comment-token = "#"
 language-id = "blue"
 file-types = ["blue"]
 language-servers = ["vmdls"]
