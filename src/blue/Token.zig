@@ -91,8 +91,14 @@ pub const Lexer = struct {
         if (self.identOrKw()) |tok| return tok;
         if (try self.string()) |tok| return tok;
         if (self.number()) |tok| return tok;
-        // TODO: invalid character error
-        return null;
+
+        const where = self.src[self.pos .. self.pos + 1];
+        try self.errors.append(.{
+            .tag = .@"Invalid character",
+            .where = where,
+        });
+        self.adv();
+        return .{ .tag = .err, .where = where };
     }
 
     pub fn peek(self: *Lexer) !?Token {
