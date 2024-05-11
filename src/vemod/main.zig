@@ -49,11 +49,12 @@ pub const std_options = std.Options{
     .logFn = logFn,
 };
 
-fn getExtension(filename: []const u8) ?Extension {
+fn getExtension(filename: []const u8, basename: *?[]const u8) ?Extension {
     if (filename.len == 0) return null;
     var iter = mem.tokenizeScalar(u8, filename, '.');
     var ext: []const u8 = undefined;
     while (iter.next()) |tok| ext = tok;
+    basename.* = filename[0 .. filename.len - ext.len - 1];
     return meta.stringToEnum(Extension, ext);
 }
 
@@ -61,6 +62,7 @@ const Options = struct {
     action: enum { compile, run } = .run,
     output_filename: ?[]const u8 = null,
     input_filename: ?[]const u8 = null,
+    input_basename: ?[]const u8 = null,
     extension: ?Extension = null,
     strip: bool = false,
     jit: bool = false,
@@ -102,6 +104,9 @@ pub fn main() !u8 {
     defer _ = gpa.deinit();
     var allocator = gpa.allocator();
 
+    var name_buffer = ArrayList(u8).init(allocator);
+    defer name_buffer.deinit();
+
     while (args.next()) |arg| {
         if (mem.eql(u8, arg, "-c")) {
             options.action = .compile;
@@ -141,7 +146,7 @@ pub fn main() !u8 {
             return 1;
         };
 
-        options.extension = getExtension(input_filename) orelse {
+        options.extension = getExtension(input_filename, &options.input_basename) orelse {
             try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
             try usage(name);
             return 1;
@@ -213,7 +218,11 @@ pub fn main() !u8 {
             defer compilation.deinit();
 
             if (options.output_asm) {
-                const filename = options.output_filename orelse "output.vmd";
+                const filename = options.output_filename orelse blk: {
+                    try name_buffer.writer().writeAll(options.input_basename orelse "output");
+                    try name_buffer.writer().writeAll(".vmd");
+                    break :blk name_buffer.items;
+                };
                 var outfile = fs.cwd().createFile(filename, .{}) catch |err| {
                     try stderr.print(
                         "error: unable to create file {s}: {s}\n",
@@ -256,7 +265,11 @@ pub fn main() !u8 {
 
     switch (options.action) {
         .compile => {
-            const output_filename = options.output_filename orelse "output.vbf";
+            const output_filename = options.output_filename orelse blk: {
+                try name_buffer.writer().writeAll(options.input_basename orelse "output");
+                try name_buffer.writer().writeAll(".vbf");
+                break :blk name_buffer.items;
+            };
             var outfile = fs.cwd().createFile(output_filename, .{}) catch |err| {
                 try stderr.print(
                     "error: unable to create file {s}: {s}\n",
