@@ -229,6 +229,17 @@ fn trailingOperators(p: *Parser, inner: usize) anyerror!usize {
                     },
                 });
             },
+            .@"." => {
+                _ = try p.lx.take();
+                const field_ = try p.expect(.ident, "expected field name");
+                inner_ = try p.ast.push(.{
+                    .field_access = .{
+                        .struct_ = inner_,
+                        .field = field_.where,
+                        .dot = next_tok.where,
+                    },
+                });
+            },
             else => break,
         }
         next_tok = try p.lx.peek() orelse return inner_;
@@ -251,6 +262,7 @@ fn fac(p: *Parser) anyerror!usize {
             .@"[" => try p.list(),
             .@"if" => try p.ifExpr(),
             .let => try p.letExpr(),
+            .@"{" => try p.struct_(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
@@ -268,18 +280,60 @@ fn fac(p: *Parser) anyerror!usize {
     }
 }
 
+fn struct_(p: *Parser) anyerror!usize {
+    const left = (try p.lx.take()).?; // {
+    const fields_ = try p.fields();
+    _ = p.expect(.@"}", "missing closing bracket") catch {
+        p.lastError().related = left.where;
+        p.lastError().related_msg = "opening bracket here";
+        return error.ParseError;
+    };
+    return try p.ast.push(.{ .struct_ = .{ .fields = fields_ } });
+}
+
 fn list(p: *Parser) anyerror!usize {
-    const right = (try p.lx.take()).?; // [
+    const left = (try p.lx.take()).?; // [
     const items_ = try p.items();
     _ = p.expect(.@"]", "missing closing bracket") catch {
-        p.lastError().related = right.where;
+        p.lastError().related = left.where;
         p.lastError().related_msg = "opening bracket here";
         return error.ParseError;
     };
     return try p.ast.push(.{ .list = .{ .items = items_ } });
 }
 
+fn fields(p: *Parser) anyerror!?usize {
+    var tok = try p.lx.peek() orelse return null;
+    if (tok.tag == .@"}") return null;
+    const root = try p.field();
+    var field_ = root;
+    while (true) {
+        tok = try p.lx.peek() orelse return root;
+        if (tok.tag == .@"}") return root;
+        _ = try p.expect(.@",", "expected ','");
+        tok = try p.lx.peek() orelse return root;
+        if (tok.tag == .@"}") return root;
+        const next = try p.field();
+        p.ast.getNode(field_).field_decl.next = next;
+        field_ = next;
+    }
+}
+
+fn field(p: *Parser) anyerror!usize {
+    const name = try p.expect(.ident, "expected field name");
+    _ = try p.expect(.@"=", "expected '='");
+    const expr_ = try p.expr();
+    return try p.ast.push(.{
+        .field_decl = .{
+            .name = name.where,
+            .expr = expr_,
+            .next = null,
+        },
+    });
+}
+
 fn items(p: *Parser) anyerror!?usize {
+    // TODO: make iterative
     const tok = try p.lx.peek() orelse return null;
     if (tok.tag == .@"]") {
         return null;
@@ -326,6 +380,7 @@ fn isExprBegin(tok: Token) bool {
         .len,
         .@"[",
         .@"if",
+        .@"{",
         => true,
         else => false,
     };

@@ -19,6 +19,7 @@ const Operand = union(enum) {
     label: usize,
     function: usize,
     string: usize,
+    field_name: []const u8,
 };
 
 ast: *Ast,
@@ -142,6 +143,7 @@ fn writeInstr(
         .label => |v| try writer.print(".L{d}", .{v}),
         .function => |v| try self.writeFuncName(v, writer),
         .string => |v| try writer.print("$~str{d}", .{v}),
+        .field_name => |v| try writer.print("${s}", .{v}),
         .none => {},
     }
     // try writer.print(" # {s}\n", .{token});
@@ -318,6 +320,20 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
         .len => |v| {
             try self.genNode(v.list);
             try self.writeInstr(.list_length, .none, v.where);
+        },
+        .struct_ => |v| {
+            try self.writeInstr(.struct_alloc, .none, self.placeholderToken());
+            if (v.fields) |fields| try self.genNode(fields);
+        },
+        .field_decl => |v| {
+            try self.writeInstr(.dup, .none, self.placeholderToken());
+            try self.genNode(v.expr);
+            try self.writeInstr(.struct_store, .{ .field_name = v.name }, v.name);
+            if (v.next) |next| try self.genNode(next);
+        },
+        .field_access => |v| {
+            try self.genNode(v.struct_);
+            try self.writeInstr(.struct_load, .{ .field_name = v.field }, v.dot);
         },
     }
 }

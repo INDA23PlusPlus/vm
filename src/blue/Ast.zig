@@ -33,6 +33,9 @@ pub const Node = union(enum) {
     item: struct { expr: usize, next: ?usize },
     indexing: struct { list: usize, index: usize, where: []const u8 },
     len: struct { list: usize, where: []const u8 },
+    struct_: struct { fields: ?usize },
+    field_access: struct { struct_: usize, field: []const u8, dot: []const u8 },
+    field_decl: struct { name: []const u8, expr: usize, next: ?usize },
 };
 
 nodes: ArrayList(Node),
