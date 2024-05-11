@@ -14,7 +14,7 @@ The usual mathematical operators are supported:
 ```
 
 
-Variables and functions are defined in *let*-expressions:
+Variables and functions are defined in **let**-expressions:
 ```
 let
   # Symbols without parameters are just variables
@@ -22,12 +22,12 @@ let
   # The function square takes a parameter x
   # Inside the function, the only available symbols from outside the function scope
   # are other functions. It is thus not possible to reference `num_to_square` inside `square`.
-  square x = x * x;
+  square x = x ** x;
 in square num_to_square
 ```
 
 
-The arrow operator (*->*) makes it possible to string
+The arrow operator (**->**) makes it possible to string
 together expressions and discard all results except for the last one.
 That means this program:
 ```
@@ -56,14 +56,14 @@ in (sum (x (y))
 ```
 
 
-(The *x* is interpreted as a function taking *y* as an argument).
-The dot operator (*.*) can be used to terminate the
-current expression at *x* and treat *y* as an argument to *sum*:
+(The **x** is interpreted as a function taking **y** as an argument).
+The dot operator (**.**) can be used to terminate the
+current expression at **x** and treat **y** as an argument to **sum**:
 ```
 # ...
 in sum x . y
 ```
-*Note*: the dot operator must be preceeded by atleast one whitespace,
+**Note**: the dot operator must be preceeded by atleast one whitespace,
 or else it's interpreted as field access.
 
 
@@ -76,9 +76,9 @@ in x 'sum y
 
 
 Lists are handled with the following oeprators:
-* *++* - Concatenation
-* *::* - Appending
-* *$* - Indexing
+* **++** - Concatenation
+* **::** - Appending
+* **$** - Indexing
 Example:
 ```
 (([1, 2, 3] :: 4) ++ [5, 6]) $ 3
