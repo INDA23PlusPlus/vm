@@ -4,7 +4,7 @@ zig build vemod || exit $?
 
 benchmark() {
 	if ! which hyperfine >/dev/null; then
-		echo 'Please install hyperfine'
+		echo "Please install hyperfine"
 		exit 1
 	fi
 
@@ -12,16 +12,16 @@ benchmark() {
 
 	if [ -z "${prog}" ]; then exit 0; fi
 
-	echo 'Running benchmarks on '"'${prog}'"
+	echo "Running benchmarks on '${prog}'"
 
-	benchmarks=('zig-out/bin/vemod -j '"'comparisons/${prog}.vmd'")
+	benchmarks=("zig-out/bin/vemod -j 'comparisons/${prog}.vmd'")
 
 	if which luajit >/dev/null; then
-		benchmarks[${#benchmarks[@]}]='luajit '"'comparisons/${prog}.lua'"
+		benchmarks[${#benchmarks[@]}]="luajit 'comparisons/${prog}.lua'"
 	fi
 
 	if which pypy >/dev/null; then
-		benchmarks[${#benchmarks[@]}]='pypy '"'comparisons/${prog}.py'"
+		benchmarks[${#benchmarks[@]}]="pypy 'comparisons/${prog}.py'"
 	fi
 
 	hyperfine --warmup 5 "${benchmarks[@]}"

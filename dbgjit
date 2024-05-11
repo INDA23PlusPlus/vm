@@ -1,10 +1,11 @@
 #!/bin/bash
 
 dbgjit="${DBGJIT:-start}"
-filename=''
+filename=""
+silence=""
 
 usage() {
-	echo 'usage: '"${0}"' [-b <break-instructions>] <script-file>'
+	echo "usage: ${0} [-b <break-instructions>] <script-file>"
 	exit 1
 }
 
@@ -14,6 +15,9 @@ while [ ! x"${1}" = x"" ]; do
 		shift
 		if [ x"${1}" = "" ]; then usage; fi
 		dbgjit="${1}"
+		;;
+	-s)
+		silence="-ex 'tty /dev/null'"
 		;;
 	*)
 		if [ ! x"${filename}" = x"" ]; then usage; fi
@@ -28,4 +32,4 @@ if [ x"${filename}" = x"" ]; then usage; fi
 DBGJIT="${DBGJIT}${DBGJIT:+,}${dbgjit}"
 export DBGJIT
 
-exec /bin/sh -c 'zig build vemod && gdb -q --tui -ex '"'"'layout asm'"'"' -ex '"'"'layout regs'"'"' -ex '"'"'r'"'"' --args zig-out/bin/vemod -j "'"${filename}"'"'
+exec /bin/sh -c "zig build vemod && gdb -q --tui ${silence} -ex 'layout asm' -ex 'layout regs' -ex 'r' --args zig-out/bin/vemod -j \"${filename}\""
