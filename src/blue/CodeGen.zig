@@ -344,5 +344,6 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.writeInstr(.push, .{ .int = 2 }, self.placeholderToken());
             try self.writeInstr(.call, .{ .function = v.symid }, v.name);
         },
+        .readln => |v| try self.writeInstr(.readln, .none, v),
     }
 }

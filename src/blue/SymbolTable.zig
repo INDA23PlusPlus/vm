@@ -326,6 +326,7 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
         .string,
         .number,
         .unit,
+        .readln,
         => {},
     }
 }

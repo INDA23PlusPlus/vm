@@ -282,6 +282,7 @@ fn fac(p: *Parser) anyerror!usize {
             .int, .float => try p.ast.push(.{ .number = (try p.lx.take()).? }),
             .ident => try p.ref(),
             .print => try p.print(),
+            .readln => try p.ast.push(.{ .readln = (try p.lx.take()).?.where }),
             .len => try p.len(),
             .@"[" => try p.list(),
             .@"if" => try p.ifExpr(),
@@ -410,6 +411,8 @@ fn isExprBegin(tok: Token) bool {
         .@"[",
         .@"if",
         .@"{",
+        .print,
+        .readln,
         => true,
         else => false,
     };
