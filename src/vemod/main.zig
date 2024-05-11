@@ -210,6 +210,13 @@ pub fn main() !u8 {
 
             try assembler.assemble();
 
+            if (errors.items.len > 0) {
+                for (errors.items) |err| {
+                    try err.print(source, stderr);
+                }
+                return 1;
+            }
+
             const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .{
                 .frontend = .{
                     .tokens = compilation.tokens,

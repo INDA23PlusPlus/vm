@@ -145,6 +145,19 @@ fn writeInstr(
     try self.instr_toks.append(token);
 }
 
+fn appendStringConstants(self: *CodeGen) !void {
+    for (self.string_ids.items, 0..) |nid, i| {
+        const node = self.ast.nodes.items[nid];
+        const str = node.string.where;
+        try self.code.writer().print(
+            \\-string $~str{d} "{s}"
+            \\
+        ,
+            .{ i, str },
+        );
+    }
+}
+
 fn newLabel(self: *CodeGen) usize {
     defer self.label_counter += 1;
     return self.label_counter;
@@ -174,6 +187,7 @@ pub fn gen(self: *CodeGen) !void {
     try self.param_counts.append(0);
     try self.genNode(self.ast.root);
     try self.endFunction();
+    try self.appendStringConstants();
 }
 
 pub fn genNode(self: *CodeGen, node_id: usize) !void {
