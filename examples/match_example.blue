@@ -13,6 +13,6 @@ let
     let loop k n =
       match k with
       | n => ()
-      | _ => printNum k . -> loop k + 1 . n;
+      | _ => printNum k . -> loop k + 1 n;
     in loop 1 n;
 in iter 7 . -> 0
