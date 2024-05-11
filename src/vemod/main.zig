@@ -65,6 +65,7 @@ const Options = struct {
     strip: bool = false,
     jit: bool = false,
     output_asm: bool = false,
+    cl_expr: ?[]const u8 = null,
 };
 
 fn usage(name: []const u8) !void {
@@ -80,6 +81,8 @@ fn usage(name: []const u8) !void {
         \\    -j          Use experimental JIT recompiler.
         \\    -h          Show this help message and exit.
         \\    -a          Write VeMod assembly to OUTPUT instead of compiled program (ignored if input is binary or VeMod assembly).
+        \\    -p "EXPR"   Parse Blue expression from command line, surrounded by quotes.
+        \\                Overrides any provided file input.
         \\
     , .{name});
 }
@@ -94,6 +97,10 @@ pub fn main() !u8 {
 
     const stdout = io.getStdOut().writer();
     const stderr = io.getStdErr().writer();
+
+    var gpa = heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var allocator = gpa.allocator();
 
     while (args.next()) |arg| {
         if (mem.eql(u8, arg, "-c")) {
@@ -113,6 +120,8 @@ pub fn main() !u8 {
             options.jit = true;
         } else if (mem.eql(u8, arg, "-a")) {
             options.output_asm = true;
+        } else if (mem.eql(u8, arg, "-p")) {
+            options.cl_expr = args.next();
         } else if (arg[0] == '-') {
             try stderr.print("error: unknown option '{s}'\n", .{arg});
             try usage(name);
@@ -122,54 +131,57 @@ pub fn main() !u8 {
         }
     }
 
-    const input_filename = options.input_filename orelse {
-        try stderr.print("error: missing input file name\n", .{});
-        try usage(name);
-        return 1;
+    const source = if (options.cl_expr) |cl_expr| cl_src: {
+        options.extension = .blue;
+        break :cl_src try allocator.dupe(u8, cl_expr);
+    } else file_src: {
+        const input_filename = options.input_filename orelse {
+            try stderr.print("error: missing input file name\n", .{});
+            try usage(name);
+            return 1;
+        };
+
+        options.extension = getExtension(input_filename) orelse {
+            try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
+            try usage(name);
+            return 1;
+        };
+
+        var infile = fs.cwd().openFile(options.input_filename.?, .{}) catch |err| {
+            try stderr.print(
+                "error: unable to open input file {s}: {s}\n",
+                .{ options.input_filename.?, @errorName(err) },
+            );
+            return 1;
+        };
+        defer infile.close();
+
+        var reader = infile.reader();
+        break :file_src reader.readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+            try stderr.print(
+                "error: unable to read file {s}: {s}\n",
+                .{ input_filename, @errorName(err) },
+            );
+            return 1;
+        };
     };
 
-    options.extension = getExtension(input_filename) orelse {
-        try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
-        try usage(name);
-        return 1;
-    };
-
-    var infile = fs.cwd().openFile(options.input_filename.?, .{}) catch |err| {
-        try stderr.print(
-            "error: unable to open input file {s}: {s}\n",
-            .{ options.input_filename.?, @errorName(err) },
-        );
-        return 1;
-    };
-    defer infile.close();
-
-    var reader = infile.reader();
-    var gpa = heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    var allocator = gpa.allocator();
+    defer allocator.free(source);
 
     var program: Program = undefined;
 
     switch (options.extension.?) {
         .vbf => {
-            program = binary.load(reader, allocator) catch |err| {
+            var binary_reader = io.fixedBufferStream(source);
+            program = binary.load(binary_reader.reader(), allocator) catch |err| {
                 try stderr.print(
                     "error: failed to read file {s}: {s}\n",
-                    .{ input_filename, @errorName(err) },
+                    .{ options.input_filename.?, @errorName(err) },
                 );
                 return 1;
             };
         },
         .vmd => {
-            const source = reader.readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
-                try stderr.print(
-                    "error: unable to read file {s}: {s}\n",
-                    .{ input_filename, @errorName(err) },
-                );
-                return 1;
-            };
-            defer allocator.free(source);
-
             var errors = ArrayList(AsmError).init(allocator);
             defer errors.deinit();
 
@@ -189,15 +201,6 @@ pub fn main() !u8 {
             program = try assembler.getProgram(allocator, src_opts);
         },
         .blue => {
-            const source = reader.readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
-                try stderr.print(
-                    "error: unable to read file {s}: {s}\n",
-                    .{ input_filename, @errorName(err) },
-                );
-                return 1;
-            };
-            defer allocator.free(source);
-
             var errors = ArrayList(AsmError).init(allocator);
             defer errors.deinit();
 
