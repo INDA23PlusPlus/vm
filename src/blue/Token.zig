@@ -49,12 +49,13 @@ pub const Tag = enum {
     @"$",
     string,
     int,
+    len,
     float,
     ident,
     err,
 };
 
-const kws: []const Tag = &.{ .let, .in, .@"if", .then, .@"else", .print };
+const kws: []const Tag = &.{ .let, .in, .@"if", .then, .@"else", .print, .len };
 
 tag: Tag,
 where: []const u8,

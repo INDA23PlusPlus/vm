@@ -32,6 +32,7 @@ pub const Node = union(enum) {
     list: struct { items: ?usize },
     item: struct { expr: usize, next: ?usize },
     indexing: struct { list: usize, index: usize, where: []const u8 },
+    len: struct { list: usize, where: []const u8 },
 };
 
 nodes: ArrayList(Node),

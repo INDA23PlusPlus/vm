@@ -53,6 +53,8 @@ pub const RtError = union(enum) {
     undefined_syscall: i64,
     /// The main function returned non-integer value
     non_int_main_ret_val: Type,
+    /// A list_length was performed on something else than a list
+    non_list_length: Type,
 
     pub fn print(rte: RtError, ctxt: *const VMContext) !void {
         switch (rte) {
@@ -105,6 +107,13 @@ pub const RtError = union(enum) {
                 try printErr(
                     ctxt,
                     "can't index in to type {s}\n",
+                    .{e.str()},
+                );
+            },
+            .non_list_length => |e| {
+                try printErr(
+                    ctxt,
+                    "can't get length of non-list type {s}\n",
                     .{e.str()},
                 );
             },

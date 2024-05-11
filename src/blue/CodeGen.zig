@@ -121,6 +121,10 @@ fn currentFunction(self: *CodeGen) *ArrayList(u8) {
     return &self.functions.items[self.functions.items.len - 1];
 }
 
+fn currentParamCount(self: *CodeGen) usize {
+    return self.param_counts.getLast();
+}
+
 fn writeInstr(
     self: *CodeGen,
     opcode: Opcode,
@@ -258,15 +262,15 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             switch (symbol.kind) {
                 .func => {
                     try self.genNode(v.args.?);
-                    try self.writeInstr(.push, .{ .int = @intCast(symbol.nparams) }, symbol.decl_loc);
-                    try self.writeInstr(.call, .{ .function = v.symid }, symbol.decl_loc);
+                    try self.writeInstr(.push, .{ .int = @intCast(symbol.nparams) }, self.placeholderToken());
+                    try self.writeInstr(.call, .{ .function = v.symid }, v.name);
                 },
                 .local => |offset| {
-                    try self.writeInstr(.load, .{ .int = @intCast(offset) }, symbol.decl_loc);
+                    try self.writeInstr(.load, .{ .int = @intCast(offset) }, v.name);
                 },
                 .param => |index| {
-                    const offset = @as(i64, @intCast(index)) - 4;
-                    try self.writeInstr(.load, .{ .int = offset }, symbol.decl_loc);
+                    const offset = @as(i64, @intCast(index)) - 3 - @as(i64, @intCast(self.currentParamCount()));
+                    try self.writeInstr(.load, .{ .int = offset }, v.name);
                 },
             }
         },
@@ -310,6 +314,10 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.genNode(v.list);
             try self.genNode(v.index);
             try self.writeInstr(.list_load, .none, v.where);
+        },
+        .len => |v| {
+            try self.genNode(v.list);
+            try self.writeInstr(.list_length, .none, v.where);
         },
     }
 }

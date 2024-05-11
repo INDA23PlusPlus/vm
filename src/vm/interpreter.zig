@@ -679,7 +679,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .list_length => {
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    ctxt.rterror = RtError{ .non_list_length = l };
                     return error.RuntimeError;
                 }
 

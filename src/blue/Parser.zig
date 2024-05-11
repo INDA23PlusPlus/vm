@@ -247,7 +247,10 @@ fn fac(p: *Parser) anyerror!usize {
             .int, .float => try p.ast.push(.{ .number = (try p.lx.take()).? }),
             .ident => try p.ref(),
             .print => try p.print(),
+            .len => try p.len(),
             .@"[" => try p.list(),
+            .@"if" => try p.ifExpr(),
+            .let => try p.letExpr(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
@@ -302,6 +305,16 @@ fn print(p: *Parser) anyerror!usize {
     return try p.ast.push(.{ .print = try p.expr() });
 }
 
+fn len(p: *Parser) anyerror!usize {
+    const tok = (try p.lx.take()).?; // print
+    return try p.ast.push(.{
+        .len = .{
+            .list = try p.expr(),
+            .where = tok.where,
+        },
+    });
+}
+
 fn isExprBegin(tok: Token) bool {
     return switch (tok.tag) {
         .@"(",
@@ -310,6 +323,9 @@ fn isExprBegin(tok: Token) bool {
         .int,
         .float,
         .string,
+        .len,
+        .@"[",
+        .@"if",
         => true,
         else => false,
     };
