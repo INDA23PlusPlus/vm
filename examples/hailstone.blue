@@ -1,0 +1,16 @@
+#!/usr/bin/env vemod
+
+# Print the hailstone sequence starting from 27
+
+let
+	n = 27;
+	hailstone' l n =
+		if n = 1
+		then l :: 1
+		else
+			let
+				l = l :: n;
+				n = if n % 2 = 0 then n / 2 else 3 * n + 1;
+			in hailstone' l . n;
+	hailstone n = hailstone' [] n;
+in print hailstone n . . -> 0
