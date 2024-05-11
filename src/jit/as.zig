@@ -17,6 +17,17 @@ pub const CC = enum(u4) {
     GE = 0xD, // Greater or Equal
     LE = 0xE, // Less or Equal
     G = 0xF, // Greater
+
+    pub inline fn negate(cc: CC) CC {
+        return @enumFromInt(@intFromEnum(cc) ^ 1);
+    }
+
+    pub inline fn reverse(cc: CC) CC {
+        return switch (cc) {
+            .B, .AE, .BE, .A, .L, .GE, .LE, .G => negate(cc),
+            else => cc,
+        };
+    }
 };
 
 pub const R8 = enum(u8) {
@@ -472,6 +483,10 @@ pub const As = struct {
         self.code_array.deinit();
     }
 
+    pub fn reset(self: *Self) void {
+        self.code_array.clearRetainingCapacity();
+    }
+
     pub inline fn code(self: *Self) []u8 {
         return self.code_array.items;
     }
@@ -636,6 +651,16 @@ pub const As = struct {
         instr.set_opcode(0x01, null);
         instr.set_modrm_reg(reg);
         instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn and_rm64_imm8(self: *Self, rm: RM64, imm: i8) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0x83, null);
+        instr.set_modrm_ext(4);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm8 = imm });
         try self.emit_instr(instr);
     }
 
