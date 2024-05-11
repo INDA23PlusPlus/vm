@@ -1,0 +1,20 @@
+#!/usr/bin/env vemod
+
+let
+  build n =
+    if n = 2
+    then [0, 1]
+    else
+      let
+        prev = build n - 1;
+        a = prev $ (len prev . - 1);
+        b = prev $ (len prev . - 2);
+      in prev :: (a + b);
+  printeach l =
+    let 
+      loop k l =
+        if k = len l
+        then ()        
+        else print l $ k . -> loop k + 1 l;
+    in loop 0 l;
+in printeach build 20 . . -> 0
