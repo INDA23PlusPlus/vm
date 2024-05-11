@@ -328,10 +328,6 @@ const Context = struct {
     }
 };
 
-fn syscall_0(exec_ctxt: *ExecContext, v: i64) callconv(.C) void {
-    exec_ctxt.common.output_writer.print("{}\n", .{v}) catch {};
-}
-
 fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
     const as = &self.as;
 
@@ -673,11 +669,11 @@ fn compile_slice(self: *Self, code: []const arch.Instruction) !void {
                     0 => {
                         try as.mov_r64_rm64(.RDI, .{ .reg = .R15 });
                         try as.mov_r64_rm64(.RSI, .{ .mem = .{ .base = .RSP } });
-                        try as.mov_r64_imm64(.RAX, @bitCast(@intFromPtr(&syscall_0)));
                         try as.lea_r64(.RBX, .{ .base = .RSP, .disp = 8 });
                         try as.and_rm64_imm8(.{ .reg = .RSP }, -0x10);
                         try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RBX);
-                        try as.call_rm64(.{ .reg = .RAX });
+                        // ExecContext.syscall_tbl[0]
+                        try as.call_rm64(.{ .mem = .{ .base = .R15, .disp = 8 } });
                         try self.dbg_break("syscall_ret");
                         try as.pop_r64(.RSP);
                     },
@@ -814,13 +810,13 @@ pub fn compile_program(self: *Self, prog: arch.Program) !Function {
     self.insn_meta.clearRetainingCapacity();
     self.relocs.clearRetainingCapacity();
 
-    // function call thunk
+    // Function call thunk
     try self.dbg_break("start");
     try as.push_r64(.RBP);
     try as.push_r64(.RBX);
     try as.push_r64(.R15);
     try as.mov_r64_rm64(.R15, .{ .reg = .RDI });
-    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15 } }, .RSP);
+    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15 } }, .RSP); // Set ExecContext.unwind_sp
     try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
     try self.call_loc(prog.entry);
     try self.dbg_break("end");

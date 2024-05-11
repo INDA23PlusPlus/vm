@@ -11,15 +11,17 @@ pub const ExecContext = extern struct {
         output_writer: std.fs.File.Writer = undefined,
     };
 
-    unwind_sp: u64,
+    unwind_sp: u64 = undefined,
 
-    old_sigfpe_handler: std.os.linux.Sigaction,
+    syscall_tbl: [1]*const anyopaque = .{&syscall_0},
 
-    common: *Common,
+    old_sigfpe_handler: std.os.linux.Sigaction = undefined,
+
+    common: *Common = undefined,
 
     fn unwind() callconv(.Naked) noreturn {
         asm volatile (
-            \\mov (%r15), %rsp
+            \\mov (%r15), %rsp // ExecContext.unwind_sp
             \\pop %r15
             \\pop %rbx
             \\pop %rbp
@@ -39,8 +41,12 @@ pub const ExecContext = extern struct {
         uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
     }
 
+    fn syscall_0(exec_ctxt: *ExecContext, v: i64) callconv(.C) void {
+        exec_ctxt.common.output_writer.print("{}\n", .{v}) catch {};
+    }
+
     pub fn init(common: *Common) Self {
-        var self: Self = undefined;
+        var self = Self{};
 
         _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &.{ .handler = .{ .sigaction = &sigfpe_handler }, .mask = .{0} ** 32, .flags = std.os.linux.SA.SIGINFO }, &self.old_sigfpe_handler);
 
