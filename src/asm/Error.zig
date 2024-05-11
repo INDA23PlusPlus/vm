@@ -68,4 +68,14 @@ pub fn print(self: Self, source: []const u8, writer: anytype) !void {
     if (self.where) |_| {
         try ref.print(writer);
     }
+
+    if (self.related_msg) |msg| {
+        try writer.print("Related info: {s}", .{msg});
+    }
+
+    if (self.related) |rel| {
+        ref = try SourceRef.init(source, rel);
+        try writer.print(" (line {d}):\n", .{ref.line_num});
+        try ref.print(writer);
+    } else try writer.print("\n", .{});
 }
