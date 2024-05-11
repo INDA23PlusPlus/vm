@@ -3,10 +3,12 @@ const std = @import("std");
 const APITypes = @import("APITypes.zig");
 const ObjectRef = APITypes.ObjectRef;
 const ListRef = APITypes.ListRef;
+const StringRef = APITypes.StringRef;
 const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
 const Stack = std.ArrayList(APITypes.Type);
+const String = types.String;
 
 fn UnmanagedObjectList(comptime T: type) type {
     return std.ArrayListUnmanaged(*T);
@@ -15,6 +17,7 @@ fn UnmanagedObjectList(comptime T: type) type {
 allocator: std.mem.Allocator,
 allObjects: UnmanagedObjectList(Object),
 allLists: UnmanagedObjectList(List),
+allStrings: UnmanagedObjectList(String),
 stack: *Stack,
 
 pub fn init(allocator: std.mem.Allocator, stack: *Stack) !Self {
@@ -22,6 +25,7 @@ pub fn init(allocator: std.mem.Allocator, stack: *Stack) !Self {
         .allocator = allocator,
         .allObjects = try UnmanagedObjectList(Object).initCapacity(allocator, 0),
         .allLists = try UnmanagedObjectList(List).initCapacity(allocator, 0),
+        .allStrings = try UnmanagedObjectList(String).initCapacity(allocator, 0),
         .stack = stack,
     };
 }
@@ -35,8 +39,13 @@ pub fn deinit(self: *Self) void {
         value.deinit();
         self.allocator.destroy(value);
     }
+    for (self.allStrings.items) |value| {
+        value.deinit();
+        self.allocator.destroy(value);
+    }
     self.allObjects.deinit(self.allocator);
     self.allLists.deinit(self.allocator);
+    self.allStrings.deinit(self.allocator);
 }
 
 pub fn alloc_struct(self: *Self) ObjectRef {
@@ -83,6 +92,52 @@ pub fn alloc_list(self: *Self) ListRef {
     self.maybe_gc();
 
     return listRef;
+}
+
+pub fn allocString(self: *Self) StringRef {
+    var string_ref = StringRef.init(self.allocator) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block StringRef.init(self.allocator) catch |e| {
+            std.debug.panic("out of memory {}", .{e});
+        };
+    };
+
+    self.allStrings.append(self.allocator, string_ref.ref) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block self.allStrings.append(self.allocator, string_ref.ref) catch |e| {
+            string_ref.deinit();
+            std.debug.panic("out of memory {}", .{e});
+        };
+    };
+
+    self.maybe_gc();
+
+    return string_ref;
+}
+
+pub fn allocStringFromExistingData(self: *Self, data: []u8) StringRef {
+    var string_ref = StringRef.fromExistingData(self.allocator, data) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block StringRef.fromExistingData(self.allocator, data) catch |e| {
+            std.debug.panic("out of memory {}", .{e});
+        };
+    };
+
+    self.allStrings.append(self.allocator, string_ref.ref) catch block: {
+        // gc then try again
+        self.gc_pass();
+        break :block self.allStrings.append(self.allocator, string_ref.ref) catch |e| {
+            string_ref.deinit();
+            std.debug.panic("out of memory {}", .{e});
+        };
+    };
+
+    self.maybe_gc();
+
+    return string_ref;
 }
 
 fn maybe_gc(self: *Self) void {

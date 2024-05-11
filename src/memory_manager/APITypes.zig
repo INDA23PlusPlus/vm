@@ -5,6 +5,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
+const String = types.String;
 
 pub const ListRef = struct {
     const Self = @This();
@@ -132,9 +133,26 @@ pub const ObjectRef = struct {
 };
 
 const StringLit = *const []const u8;
-const StringRef = struct {
-    // TODO: memory_manager.APITypes.StringRef
+pub const StringRef = struct {
     const Self = @This();
+    ref: *String,
+
+    // Initialize the string
+    pub fn init(allocator: std.mem.Allocator) !Self {
+        const str = try allocator.create(String);
+        str.* = String.init(allocator);
+        return .{ .ref = str };
+    }
+
+    pub fn fromExistingData(allocator: std.mem.Allocator, data: []u8) !Self {
+        const str = try allocator.create(String);
+        str.* = String.fromExistingData(allocator, data);
+        return .{ .ref = str };
+    }
+
+    pub fn deinit(self: *const Self) void {
+        _ = self;
+    }
 
     pub fn incr(self: *const Self) void {
         _ = self;
@@ -145,8 +163,7 @@ const StringRef = struct {
     }
 
     pub fn get(self: *const Self) []const u8 {
-        _ = self;
-        return "";
+        return self.ref.content.items;
     }
 };
 
