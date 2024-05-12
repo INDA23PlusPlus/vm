@@ -584,7 +584,11 @@ fn letEntry(p: *Parser) !usize {
     const params_ = try p.params();
     const assign = try p.expect(.@"=", "expected '='");
     const expr_ = try p.expr();
-    _ = try p.expect(.@";", "expected semicolon");
+    _ = p.expect(.@";", "expected semicolon") catch {
+        p.lastError().related = assign.where;
+        p.lastError().related_msg = "expression following this '=' needs to be terminated with ';'";
+        return error.ParseError;
+    };
     return try p.ast.push(.{
         .let_entry = .{
             .name = name.where,
