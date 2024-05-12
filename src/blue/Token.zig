@@ -208,7 +208,7 @@ pub const Lexer = struct {
     }
 
     fn isIdentCharContinue(c: u8) bool {
-        return ascii.isAlphabetic(c) or c == '_' or c == '\'';
+        return ascii.isAlphabetic(c) or ascii.isDigit(c) or c == '_' or c == '\'';
     }
 
     fn identOrKw(self: *Lexer) ?Token {
