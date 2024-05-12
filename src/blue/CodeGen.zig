@@ -130,7 +130,7 @@ fn beginFunction(self: *CodeGen, symid: usize) !void {
 
 fn endFunction(self: *CodeGen) !void {
     const writer = self.currentFunction().writer();
-    try self.writeInstr(.ret, .none, self.placeholderToken());
+    try self.writeInstr(.ret, .none, self.source[self.source.len - 1 .. self.source.len]);
     try writer.writeAll(
         \\-end
         \\
