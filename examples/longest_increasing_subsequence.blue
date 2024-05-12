@@ -1,0 +1,66 @@
+#!/usr/bin/env vemod
+
+let
+  lis' prev seq =
+    let
+      loop i max prev seq =
+        if i = len prev
+        then max
+        else
+          let max' = 1 + prev $ i; in
+          if max' > max and seq $ i < seq $ len prev
+          then loop i + 1 max' . prev . seq
+          else loop i + 1 max . prev . seq;
+      in loop 0 1 prev . seq;
+
+  max start list =
+    if start = len list . - 1
+    then list $ start
+    else
+      let next = max start + 1 list; in
+      if next > list $ start
+      then next
+      else list $ start;
+
+  loop prev seq =
+    if len prev . = len seq
+    then max 0 prev
+    else let next = lis' prev . seq; in loop prev :: next . seq;
+
+  lis seq = loop [1] seq;
+
+  tests = [
+    { seq = [10, 9, 2, 5, 3, 7, 101, 18], res = 4 },
+    { seq = [0, 1, 0, 3, 2, 3], res = 4 },
+    { seq = [7, 7, 7, 7, 7, 7, 7], res = 1 },
+    { seq = [3, 10, 2, 1, 20], res = 3 },
+    { seq = [3, 2], res = 1 },
+    { seq = [50, 3, 10, 7, 40, 80], res = 4 },
+  ];
+
+  run_test test =
+    let
+      expected = test.res;
+      actual = lis test.seq;
+    in
+      if expected != actual
+      then
+        print "Test failed:" . ->
+        print "Sequence:" . ->
+        print test.seq . ->
+        print "Expected:" . ->
+        print expected . ->
+        print "Actual:" . ->
+        print actual . ->
+        1
+      else 0;
+
+  run_all_tests start tests =
+    if start = len tests
+    then print "All tests passed!" . -> 0
+    else
+      if run_test tests $ start
+      then 1
+      else run_all_tests start + 1 tests;
+
+in run_all_tests 0 tests;
