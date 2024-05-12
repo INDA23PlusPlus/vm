@@ -34,7 +34,7 @@ errors: *ArrayList(Error),
 label_counter: usize,
 string_ids: ArrayList(usize),
 allocator: Allocator,
-prong_labels: ArrayList(usize),
+prong_labels: ArrayList(ArrayList(usize)),
 
 pub fn init(
     ast: *Ast,
@@ -56,7 +56,7 @@ pub fn init(
         .param_counts = ArrayList(usize).init(allocator),
         .local_counts = ArrayList(usize).init(allocator),
         .string_ids = ArrayList(usize).init(allocator),
-        .prong_labels = ArrayList(usize).init(allocator),
+        .prong_labels = ArrayList(ArrayList(usize)).init(allocator),
     };
 }
 
@@ -85,14 +85,23 @@ fn pushString(self: *CodeGen, node_id: usize) !usize {
     return index;
 }
 
+fn currentProngLabels(self: *CodeGen) *ArrayList(usize) {
+    return &self.prong_labels.items[self.prong_labels.items.len - 1];
+}
+
 fn newProngLabel(self: *CodeGen) !usize {
     const label = self.newLabel();
-    try self.prong_labels.append(label);
+    try self.currentProngLabels().append(label);
     return label;
 }
 
-fn resetProngLabels(self: *CodeGen) void {
-    self.prong_labels.clearRetainingCapacity();
+fn pushProngLabels(self: *CodeGen) !void {
+    try self.prong_labels.append(ArrayList(usize).init(self.allocator));
+}
+
+fn popProngLabels(self: *CodeGen) void {
+    self.currentProngLabels().deinit();
+    _ = self.prong_labels.pop();
 }
 
 fn beginFunction(self: *CodeGen, symid: usize) !void {
@@ -361,6 +370,8 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.genNode(v.expr);
             const done_label = self.newLabel();
 
+            try self.pushProngLabels();
+
             var opt_prong_id = v.prongs;
             while (opt_prong_id) |prong_id| {
                 const prong = self.ast.getNode(prong_id).prong;
@@ -379,7 +390,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             var label_id: usize = 0;
             while (opt_prong_id) |prong_id| {
                 const prong = self.ast.getNode(prong_id).prong;
-                const label = self.prong_labels.items[label_id];
+                const label = self.currentProngLabels().items[label_id];
                 try self.writeLabel(label);
                 try self.genNode(prong.rhs);
 
@@ -392,7 +403,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             }
 
             try self.writeLabel(done_label);
-            self.resetProngLabels();
+            self.popProngLabels();
         },
         .prong => undefined, // handled in 'match'
     }
