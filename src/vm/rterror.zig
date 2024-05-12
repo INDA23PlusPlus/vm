@@ -5,7 +5,7 @@
 const memman = @import("memory_manager");
 const arch = @import("arch");
 const VMContext = @import("VMContext.zig");
-const Type = memman.APITypes.Type;
+const Value = memman.APITypes.Value;
 const Opcode = arch.Opcode;
 const Instruction = arch.Instruction;
 const SourceRef = @import("asm").SourceRef;
@@ -32,29 +32,29 @@ pub noinline fn printErr(ctxt: *const VMContext, comptime fmt: []const u8, args:
 pub const RtError = union(enum) {
     /// Invalid unary operator
     invalid_unop: struct {
-        v: Type,
+        v: Value,
         op: Opcode,
     },
     /// Invalid binary operation
     invalid_binop: struct {
-        l: Type,
+        l: Value,
         op: Opcode,
-        r: Type,
+        r: Value,
     },
     /// Division by zero
     division_by_zero,
     /// A struct_store/load was performed on a non-struct type
-    non_struct_field_access: Type,
+    non_struct_field_access: Value,
     /// A list_store/load was performed on a non-list type
-    non_list_indexing: Type,
+    non_list_indexing: Value,
     /// A list_store/load was performed with index being not of type int
-    invalid_index_type: Type,
+    invalid_index_type: Value,
     /// Undefined syscall
     undefined_syscall: i64,
     /// The main function returned non-integer value
-    non_int_main_ret_val: Type,
+    non_int_main_ret_val: Value,
     /// A list_length was performed on something else than a list
-    non_list_length: Type,
+    non_list_length: Value,
 
     pub fn print(rte: RtError, ctxt: *const VMContext) !void {
         switch (rte) {

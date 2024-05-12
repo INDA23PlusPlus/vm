@@ -7,8 +7,8 @@ const Allocator = std.mem.Allocator;
 const arch = @import("arch");
 const Instruction = arch.Instruction;
 const Program = arch.Program;
-const Type = @import("memory_manager").APITypes.Type;
-const Stack = std.ArrayList(Type);
+const Value = @import("memory_manager").APITypes.Value;
+const Stack = std.ArrayList(Value);
 const RtError = @import("rterror.zig").RtError;
 
 const Self = @This();

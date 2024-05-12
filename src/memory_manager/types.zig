@@ -22,12 +22,12 @@ pub const HeapType = struct {
 
 pub const List = struct {
     const Self = @This();
-    items: std.ArrayList(APITypes.Type),
+    items: std.ArrayList(APITypes.Value),
     refs: HeapType,
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .items = std.ArrayList(APITypes.Type).init(allocator),
+            .items = std.ArrayList(APITypes.Value).init(allocator),
             .refs = HeapType.init(),
         };
     }
@@ -41,12 +41,12 @@ pub const List = struct {
 pub const Object = struct {
     const Self = @This();
     // TODO Maybe use AutoHashMapUnmanaged
-    map: std.AutoHashMap(usize, APITypes.Type),
+    map: std.AutoHashMap(usize, APITypes.Value),
     refs: HeapType,
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .map = std.AutoHashMap(usize, APITypes.Type).init(allocator),
+            .map = std.AutoHashMap(usize, APITypes.Value).init(allocator),
             .refs = HeapType.init(),
         };
     }

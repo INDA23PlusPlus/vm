@@ -187,6 +187,7 @@ pub fn build(b: *std.Build) void {
     //
     // Module-module dependencies
     //
+    memory_manager_mod.addImport("arch", arch_mod);
     vm_mod.addImport("arch", arch_mod);
     vm_mod.addImport("memory_manager", memory_manager_mod);
     vm_mod.addImport("asm", assembler_mod);
@@ -202,6 +203,7 @@ pub fn build(b: *std.Build) void {
     //
     assembler_tests.root_module.addImport("arch", arch_mod);
     assembler_tests.root_module.addImport("vm", vm_mod);
+    memory_manager_tests.root_module.addImport("arch", arch_mod);
     vm_tests.root_module.addImport("arch", arch_mod);
     vm_tests.root_module.addImport("memory_manager", memory_manager_mod);
     vm_tests.root_module.addImport("asm", assembler_mod);

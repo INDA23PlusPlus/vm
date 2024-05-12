@@ -9,7 +9,7 @@ const Opcode = arch.Opcode;
 const Instruction = arch.Instruction;
 const Program = arch.Program;
 const Mem = @import("memory_manager");
-const Type = Mem.APITypes.Type;
+const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
 const RtError = @import("rterror.zig").RtError;
 
@@ -19,35 +19,35 @@ fn assert(b: bool) !void {
     }
 }
 
-inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContext) !Type {
+inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContext) !Value {
     return switch (op) {
-        .add => if (T == Type.GetRepr(.int)) Type.from(a +% b) else Type.from(a + b),
-        .sub => if (T == Type.GetRepr(.int)) Type.from(a -% b) else Type.from(a - b),
-        .mul => if (T == Type.GetRepr(.int)) Type.from(a *% b) else Type.from(a * b),
+        .add => if (T == Value.GetRepr(.int)) Value.from(a +% b) else Value.from(a + b),
+        .sub => if (T == Value.GetRepr(.int)) Value.from(a -% b) else Value.from(a - b),
+        .mul => if (T == Value.GetRepr(.int)) Value.from(a *% b) else Value.from(a * b),
         .div => blk: {
-            if (T == Type.GetRepr(.int)) {
+            if (T == Value.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
                     ctxt.rterror = RtError.division_by_zero;
                     return error.RuntimeError;
                 }
             }
-            break :blk Type.from(@divTrunc(a, b));
+            break :blk Value.from(@divTrunc(a, b));
         },
         .mod => blk: {
-            if (T == Type.GetRepr(.int)) {
+            if (T == Value.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
                     ctxt.rterror = RtError.division_by_zero;
                     return error.RuntimeError;
                 }
             }
-            break :blk Type.from(a - b * @divTrunc(a, b));
+            break :blk Value.from(a - b * @divTrunc(a, b));
         },
-        .cmp_eq => Type.from(a == b),
-        .cmp_ne => Type.from(a != b),
-        .cmp_lt => Type.from(a < b),
-        .cmp_le => Type.from(a <= b),
-        .cmp_gt => Type.from(a > b),
-        .cmp_ge => Type.from(a >= b),
+        .cmp_eq => Value.from(a == b),
+        .cmp_ne => Value.from(a != b),
+        .cmp_lt => Value.from(a < b),
+        .cmp_le => Value.from(a <= b),
+        .cmp_gt => Value.from(a > b),
+        .cmp_ge => Value.from(a >= b),
         else => unreachable,
     };
 }
@@ -64,7 +64,7 @@ fn doComparison(comptime T: type, a: T, op: Opcode, b: T) i64 {
     });
 }
 
-fn listEq(a: Type, b: Type) bool {
+fn listEq(a: Value, b: Value) bool {
     const l = a.list;
     const r = b.list;
     if (l.ref == r.ref) {
@@ -81,7 +81,7 @@ fn listEq(a: Type, b: Type) bool {
     return true;
 }
 
-fn objectEq(a: Type, b: Type) bool {
+fn objectEq(a: Value, b: Value) bool {
     const l = a.object;
     const r = b.object;
     if (l.ref == r.ref) {
@@ -101,19 +101,19 @@ fn objectEq(a: Type, b: Type) bool {
     return true;
 }
 
-fn getstr(a: Type) []const u8 {
-    assert(a.is(.string_lit) or a.is(.string_ref)) catch {
+fn getstr(a: Value) []const u8 {
+    assert(a == .string) catch {
         debug_log("internal error: called getstr on non string\n", .{});
     };
-    return if (a.is(.string_lit)) a.string_lit.* else a.string_ref.get();
+    return if (a.string == .string_lit) a.string.string_lit.* else a.string.string_ref.get();
 }
 
-fn stringOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
+fn stringOperation(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
     const lhs = getstr(a);
     const rhs = getstr(b);
 
     const order = std.mem.order(u8, lhs, rhs);
-    return Type.from(@intFromBool(switch (op) {
+    return Value.from(@intFromBool(switch (op) {
         .cmp_eq => order == .eq,
         .cmp_ne => order != .eq,
 
@@ -132,7 +132,7 @@ fn stringOperation(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     }));
 }
 
-fn compareEq(a: Type, b: Type) bool {
+fn compareEq(a: Value, b: Value) bool {
     if (a.tag() != b.tag()) {
         const af = floatValue(a) catch unreachable;
         const bf = floatValue(b) catch unreachable;
@@ -143,22 +143,21 @@ fn compareEq(a: Type, b: Type) bool {
         .unit => true,
         .int => a.as(.int).? == b.as(.int).?,
         .float => a.as(.float).? == b.as(.float).?,
-        .string_lit, .string_ref => std.mem.order(u8, getstr(a), getstr(b)) == .eq,
+        .string => std.mem.order(u8, getstr(a), getstr(b)) == .eq,
         .list => listEq(a, b),
         .object => objectEq(a, b),
     };
 }
 
-fn doBinaryOpSameType(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
+fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
     return switch (a.tag()) {
-        .unit => Type.tryFrom(doArithmetic(Type.GetRepr(.int), 0, op, 0, ctxt)),
-        .int => Type.tryFrom(doArithmetic(Type.GetRepr(.int), a.int, op, b.int, ctxt)),
-        .float => Type.tryFrom(doArithmetic(Type.GetRepr(.float), a.float, op, b.float, ctxt)),
-        .string_lit => stringOperation(a, op, b, ctxt),
-        .string_ref => stringOperation(a, op, b, ctxt),
+        .unit => Value.tryFrom(doArithmetic(Value.GetRepr(.int), 0, op, 0, ctxt)),
+        .int => Value.tryFrom(doArithmetic(Value.GetRepr(.int), a.int, op, b.int, ctxt)),
+        .float => Value.tryFrom(doArithmetic(Value.GetRepr(.float), a.float, op, b.float, ctxt)),
+        .string => stringOperation(a, op, b, ctxt),
         .list => switch (op) {
-            .cmp_eq => Type.from(listEq(a, b)),
-            .cmp_ne => Type.from(!listEq(a, b)),
+            .cmp_eq => Value.from(listEq(a, b)),
+            .cmp_ne => Value.from(!listEq(a, b)),
             else => err: {
                 ctxt.rterror = RtError{
                     .invalid_binop = .{
@@ -171,8 +170,8 @@ fn doBinaryOpSameType(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
             },
         },
         .object => switch (op) {
-            .cmp_eq => Type.from(objectEq(a, b)),
-            .cmp_ne => Type.from(!objectEq(a, b)),
+            .cmp_eq => Value.from(objectEq(a, b)),
+            .cmp_ne => Value.from(!objectEq(a, b)),
             else => err: {
                 ctxt.rterror = RtError{
                     .invalid_binop = .{
@@ -187,7 +186,7 @@ fn doBinaryOpSameType(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     };
 }
 
-inline fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
+inline fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
     if (a.tag() == b.tag()) {
         return doBinaryOpSameType(a, op, b, ctxt);
     }
@@ -199,17 +198,17 @@ inline fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     }
 
     // only valid types from here on out, could still be invalid if you try to add lists for example
-    const float = Type.GetRepr(.float);
+    const float = Value.GetRepr(.float);
     if (a.as(.int)) |ai| {
         const af: float = @floatFromInt(ai);
         const bf: float = b.float;
-        return Type.tryFrom(doArithmetic(float, af, op, bf, ctxt));
+        return Value.tryFrom(doArithmetic(float, af, op, bf, ctxt));
     }
 
     if (b.as(.int)) |bi| {
         const af: float = a.float;
         const bf: float = @floatFromInt(bi);
-        return Type.tryFrom(doArithmetic(float, af, op, bf, ctxt));
+        return Value.tryFrom(doArithmetic(float, af, op, bf, ctxt));
     }
 
     if ((@intFromEnum(a) | @intFromEnum(b)) ^ 0b10000 < 2) {
@@ -219,7 +218,7 @@ inline fn doBinaryOp(a: Type, op: Opcode, b: Type, ctxt: *VMContext) !Type {
     return error.RuntimeError;
 }
 
-fn take(ctxt: *VMContext, v: Type) Type {
+fn take(ctxt: *VMContext, v: Value) Value {
     if (std.debug.runtime_safety) {
         ctxt.refc = ctxt.refc + 1;
     }
@@ -228,7 +227,7 @@ fn take(ctxt: *VMContext, v: Type) Type {
     return v;
 }
 
-fn drop(ctxt: *VMContext, v: Type) void {
+fn drop(ctxt: *VMContext, v: Value) void {
     if (std.debug.runtime_safety) {
         ctxt.refc = ctxt.refc - 1;
     }
@@ -237,7 +236,7 @@ fn drop(ctxt: *VMContext, v: Type) void {
     _ = v;
 }
 
-inline fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Type {
+inline fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Value {
     const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
     const idx: usize = if (pos < 0)
         base - @as(usize, @intCast(-pos))
@@ -263,7 +262,7 @@ inline fn likely(a: bool) bool {
     return !unlikely(!a);
 }
 
-inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
+inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Value) !void {
     const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
     const idx: usize = if (pos < 0)
         base - @as(usize, @intCast(-pos))
@@ -280,14 +279,14 @@ inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Type) !void {
     ctxt.stack.items[idx] = take(ctxt, v);
 }
 
-fn push(ctxt: *VMContext, v: Type) !void {
+fn push(ctxt: *VMContext, v: Value) !void {
     if (unlikely(ctxt.stack.capacity == ctxt.stack.items.len)) {
         try ctxt.stack.ensureTotalCapacityPrecise(ctxt.stack.items.len * 4);
     }
     ctxt.stack.appendAssumeCapacity(take(ctxt, v));
 }
 
-fn pop(ctxt: *VMContext) !Type {
+fn pop(ctxt: *VMContext) !Value {
     assert(ctxt.stack.items.len != 0) catch |e| {
         std.debug.print("stack contents: {any}\n", .{ctxt.stack.items});
         return e;
@@ -321,21 +320,21 @@ fn floatValue(x: anytype) !f64 {
 
     return error.InvalidOperation;
 }
-fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
+
+fn printImpl(x: *Value, ctxt: *VMContext) anyerror!void {
     const writer = ctxt.writer();
     switch (x.*) {
         .unit => try writer.print("()", .{}),
         .int => |i| try writer.print("{}", .{i}),
         .float => |f| try writer.print("{d}", .{f}),
-        .string_lit => |s| try writer.print("{s}", .{s.*}),
-        .string_ref => |*s| try writer.print("{s}", .{s.get()}),
+        .string => try writer.print("{s}", .{getstr(x.*)}),
         .list => |*l| {
             const len = l.length();
 
             _ = try writer.write("[");
             for (0..len) |i| {
                 if (i > 0) _ = try writer.write(", ");
-                var tmp: Type = l.get(i);
+                var tmp: Value = l.get(i);
                 try printImpl(&tmp, ctxt);
             }
             _ = try writer.write("]");
@@ -363,7 +362,7 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
             for (fields.items) |k| {
                 if (!first) _ = try writer.write(", ");
                 first = false;
-                var tmp: Type = o.get(k).?;
+                var tmp: Value = o.get(k).?;
                 try writer.print("{s}: ", .{ctxt.prog.field_names[k]});
                 try printImpl(&tmp, ctxt);
             }
@@ -372,7 +371,7 @@ fn printImpl(x: *Type, ctxt: *VMContext) anyerror!void {
     }
 }
 
-fn print(x: *Type, ctxt: *VMContext) !void {
+fn print(x: *Value, ctxt: *VMContext) !void {
     try printImpl(x, ctxt);
     _ = try ctxt.write("\n");
 }
@@ -408,14 +407,14 @@ pub fn run(ctxt: *VMContext) !i64 {
             } else if (i.op == .dec) {
                 stack_items[stack_len - 1].int -= 1;
                 continue;
-            } else if ((stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Type.int))) {
+            } else if ((stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Value.int))) {
                 const lhs = stack_items[stack_len - 2];
                 const rhs = stack_items[stack_len - 1];
                 try assert(lhs.is(.int));
                 try assert(rhs.is(.int));
                 const a = lhs.int;
                 const b = rhs.int;
-                stack_items[stack_len - 2] = try doArithmetic(Type.GetRepr(.int), a, i.op, b, ctxt);
+                stack_items[stack_len - 2] = try doArithmetic(Value.GetRepr(.int), a, i.op, b, ctxt);
                 drop(ctxt, try pop(ctxt));
                 continue;
             }
@@ -479,13 +478,13 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
                 ctxt.stack.items[ctxt.stack.items.len - 1].int -= 1;
             },
-            .push => try push(ctxt, Type.from(i.operand.int)),
-            .pushf => try push(ctxt, Type.from(i.operand.float)),
+            .push => try push(ctxt, Value.from(i.operand.int)),
+            .pushf => try push(ctxt, Value.from(i.operand.float)),
             .pushs => {
                 const p = i.operand.location;
                 try assert(p < ctxt.prog.strings.len);
 
-                const v = take(ctxt, Type.from(&ctxt.prog.strings[p]));
+                const v = take(ctxt, Value.from(&ctxt.prog.strings[p]));
                 defer drop(ctxt, v);
 
                 try push(ctxt, v);
@@ -528,8 +527,8 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
             .call => {
                 const loc = i.operand.location;
-                const ra = Type.from(ctxt.pc);
-                const bp = Type.from(ctxt.bp);
+                const ra = Value.from(ctxt.pc);
+                const bp = Value.from(ctxt.bp);
 
                 try push(ctxt, bp);
                 try push(ctxt, ra);
@@ -605,7 +604,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
             },
             .stack_alloc => {
-                const v = Type.from(void{});
+                const v = Value.from(void{});
 
                 const n: usize = @intCast(i.operand.int);
                 try assert(n >= 0);
@@ -619,7 +618,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const s = mem.alloc_list();
                 defer s.deinit();
 
-                const v = take(ctxt, Type.from(s));
+                const v = take(ctxt, Value.from(s));
                 defer drop(ctxt, v);
 
                 try push(ctxt, v);
@@ -671,7 +670,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, s);
                 const list = s.asUnChecked(.list);
 
-                const v = take(ctxt, Type.from(list.get(index)));
+                const v = take(ctxt, Value.from(list.get(index)));
                 defer drop(ctxt, v);
 
                 try push(ctxt, v);
@@ -686,7 +685,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, l);
                 const list = l.asUnChecked(.list);
 
-                const len = take(ctxt, Type.from(list.length()));
+                const len = take(ctxt, Value.from(list.length()));
                 defer drop(ctxt, len);
                 try push(ctxt, len);
             },
@@ -751,12 +750,12 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const list_2 = l_2.asUnChecked(.list);
 
                 try list_2.concat(&list_1);
-                try push(ctxt, Type.from(list_2));
+                try push(ctxt, Value.from(list_2));
             },
             .struct_alloc => {
                 const s = mem.alloc_struct();
 
-                try push(ctxt, Type.from(s));
+                try push(ctxt, Value.from(s));
             },
             .struct_store => {
                 const v = try pop(ctxt);
@@ -786,7 +785,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
 
                 const obj = s.asUnChecked(.object);
-                const v = Type.from(obj.get(f));
+                const v = Value.from(obj.get(f));
 
                 try push(ctxt, v);
             },
@@ -794,7 +793,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
     }
 
-    var r: Type.GetRepr(.int) = undefined;
+    var r: Value.GetRepr(.int) = undefined;
     {
         const rv = try pop(ctxt);
         defer drop(ctxt, rv);

@@ -2,6 +2,7 @@
 //! Exposed types from memory manager for use in VM
 //!
 const std = @import("std");
+const Type = @import("arch").Type;
 const types = @import("types.zig");
 const Object = types.Object;
 const List = types.List;
@@ -35,18 +36,18 @@ pub const ListRef = struct {
         return self.ref.items.items.len;
     }
 
-    pub fn get(self: *const Self, index: usize) Type {
+    pub fn get(self: *const Self, index: usize) Value {
         if (index >= self.length()) {
-            return Type.from(UnitType.init());
+            return Value.from(Unit.init());
         } else {
             return self.ref.items.items[index];
         }
     }
 
-    pub fn set(self: *const Self, index: usize, value: Type) void {
+    pub fn set(self: *const Self, index: usize, value: Value) void {
         if (index >= self.ref.items.items.len) {
             for (0..index - self.ref.items.items.len) |_| {
-                self.ref.items.append(Type.from(UnitType.init())) catch |err| {
+                self.ref.items.append(Value.from(Unit.init())) catch |err| {
                     std.debug.print("Error on list set: {}\n", .{err});
                     return;
                 };
@@ -60,11 +61,11 @@ pub const ListRef = struct {
         self.ref.items.items[index] = value;
     }
 
-    pub fn push(self: *const Self, value: Type) !void {
+    pub fn push(self: *const Self, value: Value) !void {
         try self.ref.items.append(value);
     }
 
-    pub fn pop(self: *const Self) Type {
+    pub fn pop(self: *const Self) Value {
         return self.ref.items.pop();
     }
 
@@ -106,7 +107,7 @@ pub const ObjectRef = struct {
         _ = self;
     }
 
-    pub fn get(self: *const Self, key: usize) ?Type {
+    pub fn get(self: *const Self, key: usize) ?Value {
         const val = self.ref.map.get(key);
         if (val == null) {
             return null;
@@ -114,7 +115,7 @@ pub const ObjectRef = struct {
         return val;
     }
 
-    pub fn set(self: *const Self, key: usize, value: Type) !void {
+    pub fn set(self: *const Self, key: usize, value: Value) !void {
         try self.ref.map.put(key, value);
     }
 
@@ -132,8 +133,8 @@ pub const ObjectRef = struct {
 };
 
 const StringLit = *const []const u8;
+
 const StringRef = struct {
-    // TODO: memory_manager.APITypes.StringRef
     const Self = @This();
 
     pub fn incr(self: *const Self) void {
@@ -150,7 +151,12 @@ const StringRef = struct {
     }
 };
 
-pub const UnitType = struct {
+const String = union(enum) {
+    string_lit: StringLit,
+    string_ref: StringRef,
+};
+
+pub const Unit = struct {
     const Self = @This();
 
     pub fn init() Self {
@@ -158,38 +164,21 @@ pub const UnitType = struct {
     }
 };
 
-pub const TypeEnum = enum(u8) {
-    // zig fmt: off
-    unit       = 0b0010,
-
-    int        = 0b0000,
-    float      = 0b0001,
-
-    string_lit = 0b10000,
-    string_ref = 0b10001,
-
-    list       = 0b1010,
-    object     = 0b1100,
-    // zig fmt: on
-};
-
 // assert that @intFromEnum(e1) ^ @intFromEnum(e2) is equivalent to checking if comparisons are allowed between these types
 comptime {
-    for ([_]TypeEnum{
+    for ([_]Type{
         .int,
         .float,
         .unit,
-        .string_lit,
-        .string_ref,
+        .string,
         .list,
         .object,
     }) |e1| {
-        for ([_]TypeEnum{
+        for ([_]Type{
             .int,
             .float,
             .unit,
-            .string_lit,
-            .string_ref,
+            .string,
             .list,
             .object,
         }) |e2| {
@@ -198,43 +187,39 @@ comptime {
                 // should only be valid if one is int and one is float, or both are some kind of string
                 if (e1 != e2) {
                     const int_float = (e1 == .int and e2 == .float) or (e1 == .float and e2 == .int);
-                    const strings = (e1 == .string_lit and e2 == .string_ref) or (e1 == .string_ref and e2 == .string_lit);
-                    std.debug.assert(int_float or strings);
+                    std.debug.assert(int_float);
                 }
             }
         }
     }
 }
 
-pub const Type = union(TypeEnum) {
+pub const Value = union(Type) {
     const Self = @This();
     const Tag = std.meta.Tag(Self);
 
-    unit: UnitType,
+    unit: Unit,
     int: i64,
     float: f64,
-    string_lit: StringLit,
-    string_ref: StringRef,
+    string: String,
     list: ListRef,
     object: ObjectRef,
 
     pub fn str(self: *const Self) []const u8 {
         return switch (self.tag()) {
             .int => "integer",
-            .string_lit => "string literal",
-            .string_ref => "string",
+            .string => "string",
             .object => "struct",
             else => @tagName(self.tag()),
         };
     }
 
-    pub fn GetRepr(comptime E: Type.Tag) type {
+    pub fn GetRepr(comptime E: Value.Tag) type {
         return switch (E) {
-            .unit => UnitType,
+            .unit => Unit,
             .int => i64,
             .float => f64,
-            .string_lit => StringLit,
-            .string_ref => StringRef,
+            .string => String,
             .list => ListRef,
             .object => ObjectRef,
         };
@@ -243,7 +228,12 @@ pub const Type = union(TypeEnum) {
     pub fn incr(self: *const Self) void {
         @setCold(true);
         switch (self.*) {
-            .string_ref => |*m| m.incr(),
+            .string => |string| {
+                switch (string) {
+                    .string_ref => |*m| m.incr(),
+                    else => {},
+                }
+            },
             .list => |*m| m.incr(),
             .object => |*m| m.incr(),
             else => {},
@@ -253,7 +243,12 @@ pub const Type = union(TypeEnum) {
     pub fn decr(self: *const Self) void {
         @setCold(true);
         switch (self.*) {
-            .string_ref => |*m| m.decr(),
+            .string => |string| {
+                switch (string) {
+                    .string_ref => |*m| m.decr(),
+                    else => {},
+                }
+            },
             .list => |*m| m.decr(),
             .object => |*m| m.decr(),
             else => {},
@@ -281,19 +276,20 @@ pub const Type = union(TypeEnum) {
         const T = @TypeOf(x);
 
         return switch (T) {
-            Type => x,
-            StringLit => return .{ .string_lit = x },
-            StringRef => return .{ .string_ref = x },
+            Value => x,
+            String => return .{ .string = x },
+            StringLit => return .{ .string = .{ .string_lit = x } },
+            StringRef => return .{ .string = .{ .string_ref = x } },
             ListRef => .{ .list = x },
             ObjectRef => .{ .object = x },
-            UnitType => .{ .unit = x },
+            Unit => .{ .unit = x },
             void => .{ .unit = .{} },
             else => switch (@typeInfo(T)) {
                 .Bool => .{ .int = @intFromBool(x) },
                 .Int, .ComptimeInt => .{ .int = @intCast(x) },
                 .Float, .ComptimeFloat => .{ .float = @floatCast(x) },
                 else => @compileError(std.fmt.comptimePrint(
-                    "'{s}' not convertible to Type\n",
+                    "'{s}' not convertible to Value\n",
                     .{@typeName(T)},
                 )),
             },
@@ -344,8 +340,7 @@ pub const Type = union(TypeEnum) {
             .unit => |c| if (T == .unit) c else unreachable,
             .int => |c| if (T == .int) c else unreachable,
             .float => |c| if (T == .float) c else unreachable,
-            .string_lit => |c| if (T == .string_lit) c else unreachable,
-            .string_ref => |c| if (T == .string_ref) c else unreachable,
+            .string => |c| if (T == .string) c else unreachable,
             .list => |c| if (T == .list) c else unreachable,
             .object => |c| if (T == .object) c else unreachable,
         };
@@ -354,19 +349,19 @@ pub const Type = union(TypeEnum) {
 
 test "casting" {
     try std.testing.expect(
-        Type.from(0).as(.int).? == 0,
+        Value.from(0).as(.int).? == 0,
     );
     try std.testing.expect(
-        Type.from(0.0).as(.float).? == 0.0,
+        Value.from(0.0).as(.float).? == 0.0,
     );
     try std.testing.expect(
-        Type.from(0).as(.float) == null,
+        Value.from(0).as(.float) == null,
     );
     try std.testing.expect(
-        Type.from(0.0).as(.int) == null,
+        Value.from(0.0).as(.int) == null,
     );
     try std.testing.expectEqual(
-        UnitType.init(),
-        Type.from(UnitType.init()).as(.unit),
+        Unit.init(),
+        Value.from(Unit.init()).as(.unit),
     );
 }

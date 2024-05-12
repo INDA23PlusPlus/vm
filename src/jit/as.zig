@@ -171,9 +171,9 @@ const Instr = struct {
         if (ext != null) {
             switch (ext.?) {
                 inline .r8, .r64 => |reg| {
-                    if (@intFromEnum(reg) >= 16) {
+                    if (@intFromEnum(reg) >= 0x10) {
                         @panic("Invalid register.");
-                    } else if (@intFromEnum(reg) >= 8) {
+                    } else if (@intFromEnum(reg) >= 0x8) {
                         if (self.rex) |*rex| {
                             rex.B = true;
                         } else {
@@ -212,9 +212,9 @@ const Instr = struct {
     }
 
     pub inline fn set_modrm_reg(self: *Self, reg: anytype) void {
-        if (@intFromEnum(reg) >= 16) {
+        if (@intFromEnum(reg) >= 0x10) {
             @panic("Invalid register.");
-        } else if (@intFromEnum(reg) >= 8) {
+        } else if (@intFromEnum(reg) >= 0x8) {
             if (self.rex) |*rex| {
                 rex.R = true;
             } else {
@@ -239,9 +239,9 @@ const Instr = struct {
             else => @compileError("Incompatible type for reg."),
         };
 
-        if (@intFromEnum(reg) >= 16) {
+        if (@intFromEnum(reg) >= 0x10) {
             @panic("Invalid register.");
-        } else if (@intFromEnum(reg) >= 8) {
+        } else if (@intFromEnum(reg) >= 0x8) {
             if (self.rex) |*rex| {
                 rex.B = true;
             } else {
@@ -261,9 +261,9 @@ const Instr = struct {
     }
 
     pub inline fn set_sib_base(self: *Self, reg: R64) void {
-        if (@intFromEnum(reg) >= 16) {
+        if (@intFromEnum(reg) >= 0x10) {
             @panic("Invalid register.");
-        } else if (@intFromEnum(reg) >= 8) {
+        } else if (@intFromEnum(reg) >= 0x8) {
             if (self.rex) |*rex| {
                 rex.B = true;
             } else {
@@ -293,9 +293,9 @@ const Instr = struct {
             },
         };
 
-        if (@intFromEnum(reg) >= 16) {
+        if (@intFromEnum(reg) >= 0x10) {
             @panic("Invalid register.");
-        } else if (@intFromEnum(reg) >= 8) {
+        } else if (@intFromEnum(reg) >= 0x8) {
             if (self.rex) |*rex| {
                 rex.X = true;
             } else {
