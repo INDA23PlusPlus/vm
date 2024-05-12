@@ -13,10 +13,12 @@ const ArrayList = std.ArrayList;
 
 const arch = @import("arch");
 const Program = arch.Program;
+const RtError = arch.err.RtError;
 
 const asm_ = @import("asm");
 const Asm = asm_.Asm;
 const AsmError = asm_.Error;
+const SourceRef = asm_.SourceRef;
 
 const binary = @import("binary");
 
@@ -87,6 +89,22 @@ fn usage(name: []const u8) !void {
         \\                Overrides any provided file input.
         \\
     , .{name});
+}
+
+fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
+    if (prog.tokens == null) {
+        _ = try writer.write("Runtime error: ");
+        try rte.err.print(writer);
+        return;
+    }
+
+    const source = prog.deinit_data.?.source.?;
+    const token = prog.tokens.?[rte.pc];
+    const ref = try SourceRef.init(source, token);
+
+    try writer.print("Runtime error (line {d}): ", .{ref.line_num});
+    try rte.err.print(writer);
+    try ref.print(writer);
 }
 
 pub fn main() !u8 {
@@ -305,7 +323,7 @@ pub fn main() !u8 {
                 defer context.deinit();
                 const ret = interpreter.run(&context) catch |err| {
                     if (context.rterror) |rterror| {
-                        try vm.rterror.print(&context, rterror);
+                        try print_rterror(program, rterror, stderr);
                     } else {
                         try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
                     }
