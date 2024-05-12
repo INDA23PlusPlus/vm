@@ -305,7 +305,7 @@ pub fn main() !u8 {
                 defer context.deinit();
                 const ret = interpreter.run(&context) catch |err| {
                     if (context.rterror) |rterror| {
-                        try rterror.print(&context);
+                        try vm.rterror.print(&context, rterror);
                     } else {
                         try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
                     }

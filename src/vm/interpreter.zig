@@ -8,10 +8,10 @@ const arch = @import("arch");
 const Opcode = arch.Opcode;
 const Instruction = arch.Instruction;
 const Program = arch.Program;
+const RtError = arch.err.RtError;
 const Mem = @import("memory_manager");
 const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
-const RtError = @import("rterror.zig").RtError;
 
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
@@ -27,7 +27,7 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContex
         .div => blk: {
             if (T == Value.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
-                    ctxt.rterror = RtError.division_by_zero;
+                    ctxt.rterror = .{ .pc = ctxt.pc - 1, .err = .division_by_zero };
                     return error.RuntimeError;
                 }
             }
@@ -36,7 +36,7 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContex
         .mod => blk: {
             if (T == Value.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
-                    ctxt.rterror = RtError.division_by_zero;
+                    ctxt.rterror = .{ .pc = ctxt.pc - 1, .err = .division_by_zero };
                     return error.RuntimeError;
                 }
             }
@@ -124,10 +124,11 @@ fn stringOperation(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
         .cmp_lt => order == .lt,
 
         else => {
-            ctxt.rterror = RtError{
-                .invalid_binop = .{ .l = a, .op = op, .r = b },
+            ctxt.rterror = .{
+                .pc = ctxt.pc - 1,
+                .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
             };
-            return error.InvalidOperation;
+            !return error.RuntimeError;
         },
     }));
 }
@@ -159,12 +160,9 @@ fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
             .cmp_eq => Value.from(listEq(a, b)),
             .cmp_ne => Value.from(!listEq(a, b)),
             else => err: {
-                ctxt.rterror = RtError{
-                    .invalid_binop = .{
-                        .l = a,
-                        .op = op,
-                        .r = b,
-                    },
+                ctxt.rterror = .{
+                    .pc = ctxt.pc - 1,
+                    .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
                 };
                 break :err error.RuntimeError;
             },
@@ -173,12 +171,9 @@ fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
             .cmp_eq => Value.from(objectEq(a, b)),
             .cmp_ne => Value.from(!objectEq(a, b)),
             else => err: {
-                ctxt.rterror = RtError{
-                    .invalid_binop = .{
-                        .l = a,
-                        .op = op,
-                        .r = b,
-                    },
+                ctxt.rterror = .{
+                    .pc = ctxt.pc - 1,
+                    .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
                 };
                 break :err error.RuntimeError;
             },
@@ -193,7 +188,10 @@ inline fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
 
     // if a and b are different type and theyre not `int` and `float` or `string_lit` and `string_ref` it's invalid and should end up triggering this
     if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
-        ctxt.rterror = RtError{ .invalid_binop = .{ .l = a, .op = op, .r = b } };
+        ctxt.rterror = .{
+            .pc = ctxt.pc - 1,
+            .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
+        };
         return error.RuntimeError;
     }
 
@@ -455,10 +453,8 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const v = ctxt.stack.getLast();
                 if (v.tag() != .int) {
                     ctxt.rterror = .{
-                        .invalid_unop = .{
-                            .v = v,
-                            .op = i.op,
-                        },
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = i.op } },
                     };
                     return error.RuntimeError;
                 }
@@ -469,10 +465,8 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const v = ctxt.stack.getLast();
                 if (v.tag() != .int) {
                     ctxt.rterror = .{
-                        .invalid_unop = .{
-                            .v = v,
-                            .op = i.op,
-                        },
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = i.op } },
                     };
                     return error.RuntimeError;
                 }
@@ -520,7 +514,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                         try print(&v, ctxt);
                     },
                     else => |c| {
-                        ctxt.rterror = .{ .undefined_syscall = c };
+                        ctxt.rterror = .{
+                            .pc = ctxt.pc - 1,
+                            .err = .{ .undefined_syscall = c },
+                        };
                         return error.RuntimeError;
                     },
                 }
@@ -631,7 +628,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, idx);
 
                 if (idx.tag() != .int) {
-                    ctxt.rterror = RtError{ .invalid_index_type = idx };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .invalid_index_type = idx },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -641,7 +641,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, s);
 
                 if (s.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_indexing = s };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_list_indexing = s.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -654,7 +657,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, idx);
 
                 if (idx.tag() != .int) {
-                    ctxt.rterror = RtError{ .invalid_index_type = idx };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .invalid_index_type = idx.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -663,7 +669,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const s = try pop(ctxt);
 
                 if (s.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_indexing = s };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_list_indexing = s.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -678,7 +687,10 @@ pub fn run(ctxt: *VMContext) !i64 {
             .list_length => {
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_length = l };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_list_length = l.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -695,7 +707,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_list_indexing = l.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -707,7 +722,10 @@ pub fn run(ctxt: *VMContext) !i64 {
             .list_pop => {
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_list_indexing = l.tag() },
+                    };
                     return error.RuntimeError;
                 }
                 defer drop(ctxt, l);
@@ -723,7 +741,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = RtError{ .non_list_indexing = l };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_list_indexing = l.tag() },
+                    };
                     return error.RuntimeError;
                 }
                 defer drop(ctxt, l);
@@ -735,11 +756,16 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const l_1 = try pop(ctxt);
                 const l_2 = try pop(ctxt);
                 if (l_1.tag() != .list or l_2.tag() != .list) {
-                    ctxt.rterror = RtError{ .invalid_binop = .{
-                        .l = l_1,
-                        .op = i.op,
-                        .r = l_2,
-                    } };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{
+                            .invalid_binop = .{
+                                .lt = l_1.tag(),
+                                .op = i.op,
+                                .rt = l_2.tag(),
+                            },
+                        },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -766,7 +792,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, s);
 
                 if (s.tag() != .object) {
-                    ctxt.rterror = RtError{ .non_struct_field_access = s };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_struct_field_access = s.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -780,7 +809,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, s);
 
                 if (s.tag() != .object) {
-                    ctxt.rterror = RtError{ .non_struct_field_access = s };
+                    ctxt.rterror = .{
+                        .pc = ctxt.pc - 1,
+                        .err = .{ .non_struct_field_access = s.tag() },
+                    };
                     return error.RuntimeError;
                 }
 
@@ -799,7 +831,10 @@ pub fn run(ctxt: *VMContext) !i64 {
         defer drop(ctxt, rv);
 
         r = rv.as(.int) orelse {
-            ctxt.rterror = .{ .non_int_main_ret_val = rv };
+            ctxt.rterror = .{
+                .pc = ctxt.pc - 1,
+                .err = .{ .non_int_main_ret_val = rv.tag() },
+            };
             return error.RuntimeError;
         };
     }

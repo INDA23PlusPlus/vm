@@ -1,0 +1,6 @@
+-function $main
+-begin
+	push %1
+	push %0
+	div
+-end

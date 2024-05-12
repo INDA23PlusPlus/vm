@@ -205,15 +205,6 @@ pub const Value = union(Type) {
     list: ListRef,
     object: ObjectRef,
 
-    pub fn str(self: *const Self) []const u8 {
-        return switch (self.tag()) {
-            .int => "integer",
-            .string => "string",
-            .object => "struct",
-            else => @tagName(self.tag()),
-        };
-    }
-
     pub fn GetRepr(comptime E: Value.Tag) type {
         return switch (E) {
             .unit => Unit,
