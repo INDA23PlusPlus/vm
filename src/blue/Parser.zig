@@ -145,7 +145,7 @@ fn comp(p: *Parser) anyerror!usize {
 
     while (tok) |tok_| {
         switch (tok_.tag) {
-            .@"=", .@"<", .@"<=", .@">", .@">=" => {
+            .@"=", .@"!=", .@"<", .@"<=", .@">", .@">=" => {
                 _ = try p.lx.take();
                 const rhs = try p.sum();
                 lhs = try p.ast.push(.{
