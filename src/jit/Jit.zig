@@ -835,5 +835,11 @@ pub fn compile_program(self: *Self, prog: arch.Program) !Function {
 
     self.relocate_all();
 
-    return Function.init(self.as.code());
+    const pc_map = try self.alloc.alloc(usize, self.insn_meta.items.len + 1);
+    for (0.., self.insn_meta.items) |i, m| {
+        pc_map[i] = m.offset;
+    }
+    pc_map[self.insn_meta.items.len] = self.as.offset();
+
+    return Function.init(self.alloc, self.as.code(), pc_map);
 }

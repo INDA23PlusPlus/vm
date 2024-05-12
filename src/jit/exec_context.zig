@@ -17,6 +17,8 @@ pub const ExecContext = extern struct {
 
     syscall_tbl: [1]*const anyopaque = .{&syscall_0},
 
+    err_pc: usize = undefined,
+
     old_sigfpe_handler: std.os.linux.Sigaction = undefined,
 
     common: *Common = undefined,
@@ -40,6 +42,7 @@ pub const ExecContext = extern struct {
 
         self.common.err = error.RuntimeError;
         self.common.rterror = .{ .pc = null, .err = .division_by_zero };
+        self.err_pc = uc.mcontext.gregs[std.os.linux.REG.RIP];
 
         uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
     }
