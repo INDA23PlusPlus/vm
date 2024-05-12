@@ -237,14 +237,13 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                 .@">" => .cmp_gt,
                 .@">=" => .cmp_ge,
                 .@"!=" => .cmp_ne,
-                .@"+" => .add,
+                .@"+", .@"or" => .add,
                 .@"++" => .list_concat,
                 .@"::" => .list_append,
                 .@"-" => .sub,
-                .@"*" => .mul,
+                .@"*", .@"and" => .mul,
                 .@"/" => .div,
                 .@"%" => .mod,
-                .@"and", .@"or" => std.debug.panic("no logical operators supported", .{}),
                 else => unreachable,
             };
             try self.writeInstr(opcode, .none, v.op.where);

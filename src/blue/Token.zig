@@ -61,7 +61,7 @@ pub const Tag = enum {
     err,
 };
 
-const kws: []const Tag = &.{ .let, .in, .@"if", .then, .@"else", .print, .len, .match, .with };
+const kws: []const Tag = &.{ .let, .in, .@"if", .then, .@"else", .print, .len, .match, .with, .@"and", .@"or" };
 
 tag: Tag,
 where: []const u8,
