@@ -382,9 +382,13 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                 const label = self.prong_labels.items[label_id];
                 try self.writeLabel(label);
                 try self.genNode(prong.rhs);
-                try self.writeInstr(.jmp, .{ .label = done_label }, self.placeholderToken());
-                label_id += 1;
+
                 opt_prong_id = prong.next;
+                label_id += 1;
+
+                if (opt_prong_id) |_| {
+                    try self.writeInstr(.jmp, .{ .label = done_label }, self.placeholderToken());
+                }
             }
 
             try self.writeLabel(done_label);
