@@ -1,0 +1,43 @@
+#!/usr/bin/env vemod
+
+let
+  primes n =
+    let
+      p = [2];
+      k = 3;
+      is_prime n p =
+        let loop k n p =
+          if k = len p
+          then 1
+          else
+            if n % p $ k = 0
+            then 0
+            else loop k + 1 n . p;
+        in loop 0 n . p;
+      loop k n p =
+        if k = n
+        then p
+        else
+          if is_prime k . p
+          then loop k + 1 n . p :: k
+          else loop k + 1 n . p;
+      in loop k . n . p;
+  factorize n =
+    let
+      f = [];
+      p = primes n;
+      loop' n f p =
+          match n with
+          | 1 => f
+          | _ => 
+            let
+              loop k n f p = 
+                match k with
+                | len p => [n]
+                | _ => let p' = p $ k; in
+                  if n % p' = 0
+                  then loop' n / p' . f :: p' . p
+                  else loop k + 1 n . f . p;
+            in loop 0 n . f . p;
+    in loop' n . f . p;
+in print factorize 15120 . . -> 0
