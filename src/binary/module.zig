@@ -195,8 +195,6 @@ fn loadInstruction(reader: anytype) !Instruction {
         .jmp,
         .jmpnz,
         .call,
-        .list_load,
-        .list_store,
         => .{ .location = try leb.readULEB128(u64, reader) },
 
         .struct_load,
@@ -232,8 +230,6 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
         .jmp,
         .jmpnz,
         .call,
-        .list_load,
-        .list_store,
         => try leb.writeULEB128(writer, operand.location),
 
         .struct_load,
