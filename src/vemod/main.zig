@@ -92,14 +92,14 @@ fn usage(name: []const u8) !void {
 }
 
 fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
-    if (prog.tokens == null) {
+    if (prog.tokens == null or rte.pc == null) {
         _ = try writer.write("Runtime error: ");
         try rte.err.print(writer);
         return;
     }
 
     const source = prog.deinit_data.?.source.?;
-    const token = prog.tokens.?[rte.pc];
+    const token = prog.tokens.?[rte.pc.?];
     const ref = try SourceRef.init(source, token);
 
     try writer.print("Runtime error (line {d}): ", .{ref.line_num});
@@ -314,7 +314,11 @@ pub fn main() !u8 {
                 defer jit_fn.deinit();
 
                 const ret = jit_fn.execute() catch |err| {
-                    try stderr.print("error: {s}\n", .{@errorName(err)});
+                    if (jit_fn.rterror) |rterror| {
+                        try print_rterror(program, rterror, stderr);
+                    } else {
+                        try stderr.print("error: {s}\n", .{@errorName(err)});
+                    }
                     return 1;
                 };
                 return @intCast(ret);

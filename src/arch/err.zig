@@ -111,6 +111,6 @@ pub const ErrorSpecifier = union(enum) {
 };
 
 pub const RtError = struct {
-    pc: usize,
+    pc: ?usize,
     err: ErrorSpecifier,
 };

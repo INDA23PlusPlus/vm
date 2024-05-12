@@ -9,6 +9,8 @@ pub const ExecContext = extern struct {
 
         output_stream: std.fs.File = undefined,
         output_writer: std.fs.File.Writer = undefined,
+
+        rterror: ?arch.err.RtError = undefined,
     };
 
     unwind_sp: u64 = undefined,
@@ -37,6 +39,7 @@ pub const ExecContext = extern struct {
         const self: *Self = @ptrFromInt(uc.mcontext.gregs[std.os.linux.REG.R15]);
 
         self.common.err = error.RuntimeError;
+        self.common.rterror = .{ .pc = null, .err = .division_by_zero };
 
         uc.mcontext.gregs[std.os.linux.REG.RIP] = @intFromPtr(&unwind);
     }
@@ -51,6 +54,7 @@ pub const ExecContext = extern struct {
         _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &.{ .handler = .{ .sigaction = &sigfpe_handler }, .mask = .{0} ** 32, .flags = std.os.linux.SA.SIGINFO }, &self.old_sigfpe_handler);
 
         common.err = null;
+        common.rterror = null;
 
         common.output_stream = std.io.getStdOut();
         common.output_writer = common.output_stream.writer();

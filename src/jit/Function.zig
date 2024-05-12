@@ -6,6 +6,7 @@ const Self = @This();
 
 code: []const u8,
 fn_ptr: *fn (*ExecContext) callconv(.C) i64,
+rterror: ?arch.err.RtError = null,
 
 pub fn init(image: []const u8) !Self {
     const size = image.len;
@@ -32,6 +33,8 @@ pub fn execute(self: *Self) !i64 {
     defer exec_ctxt.deinit();
 
     const ret = self.fn_ptr(&exec_ctxt);
+
+    self.rterror = exec_common.rterror;
 
     return exec_ctxt.common.err orelse ret;
 }
