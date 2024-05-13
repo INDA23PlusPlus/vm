@@ -31,7 +31,7 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContex
                     return error.RuntimeError;
                 }
             }
-            break :blk Value.from(@divTrunc(a, b));
+            break :blk if (T == Value.GetRepr(.int)) Value.from(@divTrunc(a, b)) else Value.from(a / b);
         },
         .mod => blk: {
             if (T == Value.GetRepr(.int)) {
