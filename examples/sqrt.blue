@@ -1,0 +1,17 @@
+#!/usr/bin/env vemod
+
+let
+  x = 2.0;
+  newton x x' = (x' + x / x') / 2;
+  sqrt x =
+    let
+      n = 10;
+      x' = x / 2;
+      loop n x x' = if n = 0 then x' else loop n - 1 x . newton x . x';
+    in loop n . x . x';
+in
+  print "The square root of" . ->
+  print x . ->
+  print "is" . ->
+  print sqrt x . . ->
+  0
