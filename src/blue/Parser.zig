@@ -433,15 +433,52 @@ fn fields(p: *Parser) anyerror!?usize {
 
 fn field(p: *Parser) anyerror!usize {
     const name = try p.expect(.ident, "expected field name");
-    _ = try p.expect(.@"=", "expected '='");
-    const expr_ = try p.expr();
-    return try p.ast.push(.{
-        .field_decl = .{
-            .name = name.where,
-            .expr = expr_,
-            .next = null,
+
+    const next_tok = try p.lx.peek() orelse {
+        try p.errors.append(.{
+            .tag = .@"Unexpected end of input",
+            .where = p.lx.src[p.lx.src.len - 1 .. p.lx.src.len],
+            .extra = "expected '}'",
+        });
+        return error.ParseError;
+    };
+
+    switch (next_tok.tag) {
+        .@"=" => {
+            _ = try p.lx.take(); // =
+            const expr_ = try p.expr();
+            return try p.ast.push(.{
+                .field_decl = .{
+                    .name = name.where,
+                    .expr = expr_,
+                    .next = null,
+                },
+            });
         },
-    });
+        .@",", .@"}" => {
+            const ref_ = try p.ast.push(.{
+                .reference = .{
+                    .name = name.where,
+                    .args = null,
+                },
+            });
+            return try p.ast.push(.{
+                .field_decl = .{
+                    .name = name.where,
+                    .expr = ref_,
+                    .next = null,
+                },
+            });
+        },
+        else => {
+            try p.errors.append(.{
+                .tag = .@"Unexpected token",
+                .where = next_tok.where,
+                .extra = "expected '=', ',' or '}'",
+            });
+            return error.ParseError;
+        },
+    }
 }
 
 fn items(p: *Parser) anyerror!?usize {
