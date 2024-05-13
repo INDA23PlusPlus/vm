@@ -31,7 +31,7 @@ pub fn produceDiagnostics(doc: *Document, alloc: std.mem.Allocator) !void {
     defer errors.deinit();
 
     var success = true;
-    var comp = blue.compile(doc.text, alloc, &errors, true) catch blk: {
+    var comp = blue.compile(doc.text, alloc, &errors, true, null) catch blk: {
         success = false;
         break :blk undefined;
     };

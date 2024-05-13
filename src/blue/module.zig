@@ -38,6 +38,7 @@ pub fn compile(
     allocator: Allocator,
     errors: *ArrayList(Error),
     only_check: bool,
+    comptime ast_overlay: ?fn (*Ast) anyerror!void,
 ) !Compilation {
     var comp: Compilation = undefined;
     comp.source = source;
@@ -48,6 +49,7 @@ pub fn compile(
     errdefer comp._ast.deinit();
     errdefer comp._parser.deinit();
     try comp._parser.parse();
+    if (ast_overlay) |overlay| try overlay(&comp._ast);
     if (errors.items.len > 0) return error.CompilationError;
     comp._symtab = try SymbolTable.init(allocator, &comp._ast, errors);
     errdefer comp._symtab.deinit();

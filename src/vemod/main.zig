@@ -227,7 +227,7 @@ pub fn main() !u8 {
             var errors = ArrayList(AsmError).init(allocator);
             defer errors.deinit();
 
-            var compilation = blue.compile(source, allocator, &errors, false) catch {
+            var compilation = blue.compile(source, allocator, &errors, false, null) catch {
                 for (errors.items) |err| {
                     try err.print(source, stderr);
                 }
