@@ -77,19 +77,20 @@ const Options = struct {
 fn usage(name: []const u8) !void {
     try io.getStdOut().writer().print(
         \\Usage:
-        \\    {s} [-c | -h] INPUT [-o OUTPUT]
+        \\    {s} INPUT [OPTIONS...]
         \\
         \\Options:
-        \\    -c          Only compile.
-        \\    -t          Only transpile.
-        \\    -o OUTPUT   Write output to file OUTPUT.
-        \\    -s          Don't include source information in compiled program.
-        \\    -j          Use experimental JIT recompiler.
-        \\    -h          Show this help message and exit.
-        \\    -a          Write VeMod assembly to OUTPUT instead of compiled program (ignored if input is binary or VeMod assembly).
-        \\    -p "EXPR"   Parse Blue expression from command line, surrounded by quotes.
-        \\                Overrides any provided file input.
-        \\    -b          Run the Blue REPL.
+        \\    -c, --compile            Only compile.
+        \\    -t, --transpile          Only transpile.
+        \\    -o, --output OUTPUT      Write output to file OUTPUT.
+        \\    -s, --strip              Don't include source information in compiled program.
+        \\    -j, --jit                Use experimental JIT recompiler.
+        \\    -h, --help               Show this help message and exit.
+        \\    -a, --assemble           Write VeMod assembly to OUTPUT instead of compiled program.
+        \\                             Ignored if input is binary or VeMod assembly.
+        \\    -p, --parse "EXPR"       Parse Blue expression from command line, surrounded by double quotes.
+        \\                             Overrides any provided file input.
+        \\    -r, --repl               Run the Blue REPL.
         \\
     , .{name});
 }
@@ -130,26 +131,26 @@ pub fn main() !u8 {
     defer name_buffer.deinit();
 
     while (args.next()) |arg| {
-        if (mem.eql(u8, arg, "-c")) {
+        if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
             options.action = .compile;
-        } else if (mem.eql(u8, arg, "-o")) {
+        } else if (mem.eql(u8, arg, "-o") or mem.eql(u8, arg, "--output")) {
             options.output_filename = args.next() orelse {
                 try stderr.print("error: missing output file name\n", .{});
                 try usage(name);
                 return 1;
             };
-        } else if (mem.eql(u8, arg, "-h")) {
+        } else if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
             try usage(name);
             return 0;
-        } else if (mem.eql(u8, arg, "-s")) {
+        } else if (mem.eql(u8, arg, "-s") or mem.eql(u8, arg, "--strip")) {
             options.strip = true;
-        } else if (mem.eql(u8, arg, "-j")) {
+        } else if (mem.eql(u8, arg, "-j") or mem.eql(u8, arg, "--jit")) {
             options.jit = true;
-        } else if (mem.eql(u8, arg, "-a")) {
+        } else if (mem.eql(u8, arg, "-a") or mem.eql(u8, arg, "--assemble")) {
             options.output_asm = true;
-        } else if (mem.eql(u8, arg, "-p")) {
+        } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
             options.cl_expr = args.next();
-        } else if (mem.eql(u8, arg, "-b")) {
+        } else if (mem.eql(u8, arg, "-r") or mem.eql(u8, arg, "--repl")) {
             repl.main(allocator, stdout, stdin, stderr) catch |err| {
                 try stderr.print(
                     "Unhandled runtime error in REPL: {s}\n",
