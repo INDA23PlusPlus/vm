@@ -1201,7 +1201,13 @@ test "arithmetic" {
                     const lhsf: f64 = @floatFromInt(lhs);
                     const rhsf: f64 = @floatFromInt(rhs);
 
-                    const resf: f64 = @floatFromInt(res);
+                    const resf: f64 = switch (op) {
+                        .add => lhsf + rhsf,
+                        .sub => lhsf - rhsf,
+                        .mul => lhsf * rhsf,
+                        .div => lhsf / rhsf,
+                        else => return,
+                    };
 
                     try testRun(
                         Program.init(&.{
