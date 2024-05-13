@@ -95,6 +95,19 @@ in print_name person . -> 0
 ```
 
 
+If a variable is assigned to a struct field with the same name,
+the '=' can be omitted:
+```
+let
+  x = 2;
+  y = 3;
+  u = { x, y };
+in print u . -> 0
+
+# Will print "{x: 2, y: 3}"
+```
+
+
 The **match** expression lets you match an expression with other
 runtime expressions:
 ```
