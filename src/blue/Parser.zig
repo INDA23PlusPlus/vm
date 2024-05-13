@@ -60,7 +60,10 @@ fn expect(p: *Parser, tag: Token.Tag, extra: ?[]const u8) !Token {
 
 pub fn parse(p: *Parser) anyerror!void {
     p.ast.root = p.expr() catch |err| switch (err) {
-        error.ParseError => 0,
+        error.ParseError => {
+            p.ast.root = 0;
+            return;
+        },
         else => return err,
     };
 
