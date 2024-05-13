@@ -81,15 +81,17 @@ fn usage(name: []const u8) !void {
         \\
         \\Options:
         \\    -c, --compile            Only compile.
+        \\                              Writes program to binary file specified by OUTPUT.
         \\    -t, --transpile          Only transpile.
+        \\                              Write generated VeMod assembly to OUTPUT instead of compiled program.
+        \\                              Ignored if input is binary or VeMod assembly.
         \\    -o, --output OUTPUT      Write output to file OUTPUT.
+        \\                              If omitted, output filename is inferred from input filename.
         \\    -s, --strip              Don't include source information in compiled program.
         \\    -j, --jit                Use experimental JIT recompiler.
         \\    -h, --help               Show this help message and exit.
-        \\    -a, --assemble           Write VeMod assembly to OUTPUT instead of compiled program.
-        \\                             Ignored if input is binary or VeMod assembly.
         \\    -p, --parse "EXPR"       Parse Blue expression from command line, surrounded by double quotes.
-        \\                             Overrides any provided file input.
+        \\                              Overrides any provided file input.
         \\    -r, --repl               Run the Blue REPL.
         \\
     , .{name});
@@ -146,7 +148,7 @@ pub fn main() !u8 {
             options.strip = true;
         } else if (mem.eql(u8, arg, "-j") or mem.eql(u8, arg, "--jit")) {
             options.jit = true;
-        } else if (mem.eql(u8, arg, "-a") or mem.eql(u8, arg, "--assemble")) {
+        } else if (mem.eql(u8, arg, "-t") or mem.eql(u8, arg, "--transpile")) {
             options.output_asm = true;
         } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
             options.cl_expr = args.next();
