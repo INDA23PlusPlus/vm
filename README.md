@@ -13,10 +13,10 @@ languages: the functional **Blue** language, and the imperative **Melancolang**.
 * Zig compiler (0.12.0)
 
 ## Installation
-```bash
-git clone https://github.com/INDA23PlusPlus/vm
-cd vm
-zig build vemod --prefix <installation path>
+```shellsession
+foo@bar:~$ git clone https://github.com/INDA23PlusPlus/vm
+foo@bar:~$ cd vm
+foo@bar:~$ zig build vemod --prefix <installation path>
 ```
 
 ## Usage
@@ -25,28 +25,39 @@ Binary Format) with the -c flag.
 
 ## Examples
 Run a program written in VeMod assembly:
-```bash
-vemod program.vmd
+```shellsession
+foo@bar:~$ vemod program.vmd
 ```
 
 Compile a program written in VeMod assembly:
-```bash
-vemod -c program.vmd -o program.vbf
+```shellsession
+foo@bar:~$ vemod -c program.vmd -o program.vbf
 ```
 
 Run a compiled program:
-```bash
-vemod program.vbf
+```shellsession
+foo@bar:~$ vemod program.vbf
 ```
 
 Run a Blue expression supplied as a command line argument:
-```bash
-vemod -p "print \"Hello\" . -> 0"
+```shellsession
+foo@bar:~$ vemod -p "print \"Hello\" . -> 0"
+```
+
+Run the Blue REPL:
+```shellsession
+foo@bar:~$ vemod --repl
+>>> let
+        square x = x * x;
+    in square 5
+
+25
+>>>
 ```
 
 To view all options, run
-```bash
-vemod -h
+```shellsession
+foo@bar:~$ vemod -h
 ```
 
 Language references can be found in the [docs](docs/)
@@ -54,15 +65,15 @@ directory. Code samples can be found in the [examples](examples/) directory.
 
 ## Language server
 The VeMod language server (vmdls) can be installed with the command
-```bash
-zig build vmdls --prefix <installation path>
+```shellsession
+foo@bar:~$ zig build vmdls --prefix <installation path>
 ```
 
 For integration with various editors, see the [editor](editor/) folder.
 vmdls can produce diagnostics, completions and hover information
 for VeMod assembly. Too view available options, run
-```bash
-vmdls --help
+```shellsession
+foo@bar:~$ vmdls --help
 ```
 
 ### Visual Studio Code
