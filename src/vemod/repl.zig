@@ -61,7 +61,10 @@ pub fn main(
         while (true) {
             // keep reading until we receive empty line, or terminate REPL on EOF
             const buffer_len_before_input_line = input_buffer.items.len;
-            stdin.streamUntilDelimiter(input_buffer.writer(), '\n', null) catch return;
+            stdin.streamUntilDelimiter(input_buffer.writer(), '\n', null) catch {
+                try stdout.writeByte('\n');
+                return;
+            };
             if (input_buffer.items.len == buffer_len_before_input_line) break;
             try input_buffer.append('\n');
 
