@@ -135,8 +135,8 @@ pub fn main() !u8 {
             options.action = .compile;
         } else if (mem.eql(u8, arg, "-o") or mem.eql(u8, arg, "--output")) {
             options.output_filename = args.next() orelse {
-                try stderr.print("error: missing output file name\n", .{});
                 try usage(name);
+                try stderr.print("error: missing output file name\n", .{});
                 return 1;
             };
         } else if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
@@ -160,8 +160,8 @@ pub fn main() !u8 {
             };
             return 0;
         } else if (arg[0] == '-') {
-            try stderr.print("error: unknown option '{s}'\n", .{arg});
             try usage(name);
+            try stderr.print("error: unknown option '{s}'\n", .{arg});
             return 1;
         } else {
             options.input_filename = arg;
@@ -173,14 +173,14 @@ pub fn main() !u8 {
         break :cl_src try allocator.dupe(u8, cl_expr);
     } else file_src: {
         const input_filename = options.input_filename orelse {
-            try stderr.print("error: missing input file name\n", .{});
             try usage(name);
+            try stderr.print("error: missing input file name\n", .{});
             return 1;
         };
 
         options.extension = getExtension(input_filename, &options.input_basename) orelse {
-            try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
             try usage(name);
+            try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
             return 1;
         };
 
