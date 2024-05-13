@@ -30,6 +30,8 @@ const blue = @import("blue");
 
 const Jit = @import("jit").Jit;
 
+const repl = @import("repl.zig");
+
 const Extension = enum { vmd, mcl, vbf, blue };
 
 pub fn logFn(
@@ -87,11 +89,12 @@ fn usage(name: []const u8) !void {
         \\    -a          Write VeMod assembly to OUTPUT instead of compiled program (ignored if input is binary or VeMod assembly).
         \\    -p "EXPR"   Parse Blue expression from command line, surrounded by quotes.
         \\                Overrides any provided file input.
+        \\    -b          Run the Blue REPL.
         \\
     , .{name});
 }
 
-fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
+pub fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
     if (prog.tokens == null or rte.pc == null) {
         _ = try writer.write("Runtime error: ");
         try rte.err.print(writer);
@@ -115,6 +118,7 @@ pub fn main() !u8 {
     var args = process.args();
     const name = args.next().?;
 
+    const stdin = io.getStdIn().reader();
     const stdout = io.getStdOut().writer();
     const stderr = io.getStdErr().writer();
 
@@ -145,6 +149,15 @@ pub fn main() !u8 {
             options.output_asm = true;
         } else if (mem.eql(u8, arg, "-p")) {
             options.cl_expr = args.next();
+        } else if (mem.eql(u8, arg, "-b")) {
+            repl.main(allocator, stdout, stdin, stderr) catch |err| {
+                try stderr.print(
+                    "Unhandled runtime error in REPL: {s}\n",
+                    .{@errorName(err)},
+                );
+                return 1;
+            };
+            return 0;
         } else if (arg[0] == '-') {
             try stderr.print("error: unknown option '{s}'\n", .{arg});
             try usage(name);
