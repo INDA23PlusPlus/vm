@@ -63,6 +63,13 @@ pub fn parse(p: *Parser) anyerror!void {
         error.ParseError => 0,
         else => return err,
     };
+
+    if (try p.lx.peek()) |trail| {
+        try p.errors.append(.{
+            .tag = .@"Trailing token(s)",
+            .where = trail.where,
+        });
+    }
 }
 
 fn expr(p: *Parser) anyerror!usize {

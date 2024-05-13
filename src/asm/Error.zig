@@ -48,6 +48,8 @@ tag: enum {
     @"Missing '_ => ...' prong",
     /// Duplicate default prong
     @"Duplicate '_ => ...' prong",
+    /// Trailing token(s)
+    @"Trailing token(s)",
 },
 /// Location in source
 where: ?[]const u8 = null,
