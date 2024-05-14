@@ -14,15 +14,13 @@ The usual mathematical operators are supported:
 ```
 
 
-Variables and functions are defined in **let**-expressions:
+Variables, constants and functions are defined in **let**-expressions:
 ```
 let
-  # Symbols without parameters are just variables
   num_to_square = 5;
-  # The function square takes a parameter x
-  # Inside the function, the only available symbols from outside the function scope
-  # are other functions. It is thus not possible to reference `num_to_square` inside `square`.
   square x = x * x;
+  const k = 2;
+  scale_by_k x = k * x;
 in square num_to_square
 ```
 
