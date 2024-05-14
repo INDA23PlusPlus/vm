@@ -5,7 +5,7 @@ VeMod is dynamically typed and garbage collected.
 The basic types are unit, integers, strings, floats, lists and structs.
 Lists can contain different types of objects.
 Struct fields are created dynamically, with the 
-`struct_store` instructions. Unit, integers and floats are value types,
+`struct_store` instruction. Unit, integers and floats are value types,
 while strings, lists and structs are reference types.
 
 ## Syntax
@@ -27,7 +27,7 @@ The syntax for a string constant is
 ```
 
 If multiple strings are provided following the string identifier,
-they are concatenated together (as in C). A multi line string can thus 
+they are concatenated together (as in C). A multi-line string can thus 
 be written as such:
 ```
 -string $multiline-string
@@ -44,7 +44,7 @@ The syntax for function definitions is
 ```
 
 ## Stack layout and calling convention
-Functions are called by pushing it's arguments, in order, followed by the number
+Functions are called by pushing their arguments, in order, followed by the number
 of arguments and the `call` instruction. For example, calling a function with
 two parameters can be done like this:
 ```
@@ -60,11 +60,11 @@ current call frames base pointer, using the instructions `load` and
 first local variable is done with `load %0`, etc.
 
 Note that local variables must be allocated at the beginning of a function
-with the `stack_alloc` instruction, which takes a number of objects to be allocated.
+with the `stack_alloc` instruction, which takes the number of objects to be allocated.
 
 
 Arguments are placed 3 slots below the base pointer. For example, if a function
-takes 2 parameters, argument 1 and 2 are accessed with `load %-5` and 
+takes 2 parameters, arguments 1 and 2 are accessed with `load %-5` and 
 `load %-4` respectively.
 
 
@@ -104,7 +104,7 @@ All comparisons push 1 if the comparison is true, and 0 otherwise.
 | Syntax | Description |
 |------|-------------|
 | jmp .label | Unconditional jump to .label |
-| jmpnz .label | Pops top element, jumps to .label if result is non-zero |
+| jmpnz .label | Pops top element, jumps to .label if it was non-zero |
 
 ### Stack operations
 | Syntax | Description |
@@ -120,7 +120,7 @@ All comparisons push 1 if the comparison is true, and 0 otherwise.
 | Syntax | Description |
 |--------|-------------|
 | struct_alloc | Creates an empty struct and pushes it to the stack |
-| struct_load $field | [ ..., S ] -> [ ... ] Pops S and pushes the value of $field in S, or unit if it doesn't exits. |
+| struct_load $field | [ ..., S ] -> [ ... ] Pops S and pushes the value of $field in S, or unit if it doesn't exist. |
 | struct_store $field | [ ..., S, V ] -> [ ... ] | Inserts/updates $field in struct S with value V. |
 | list_alloc | Creates an empty list and pushes it to the stack |
 | list_store | [ ..., L, I, V ] -> [ ..., L ] Stores value V at index I in list L |
@@ -130,7 +130,7 @@ All comparisons push 1 if the comparison is true, and 0 otherwise.
 | Syntax | Description |
 |--------|-------------|
 | syscall %0 | Performs a "syscall", such as printing |
-| call $func | Pops arguments from stack and jumps to function $func |
+| call $func | Pops arguments from the stack and jumps to function $func |
 | ret | Pops return value from stack and returns from current function |
 
 ### Syscalls
