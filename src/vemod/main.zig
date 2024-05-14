@@ -276,6 +276,10 @@ pub fn main() !u8 {
             var assembler = Asm.init(compilation.result, allocator, &diagnostics);
             defer assembler.deinit();
 
+            // reset diagnostics
+            diagnostics.deinit();
+            diagnostics = DiagnosticList.init(allocator, source);
+
             try assembler.assemble();
 
             if (diagnostics.hasDiagnosticsMinSeverity(.Error)) {
