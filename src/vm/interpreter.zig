@@ -12,6 +12,7 @@ const RtError = arch.err.RtError;
 const Mem = @import("memory_manager");
 const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
+const jit_mod = @import("jit");
 
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
@@ -295,6 +296,69 @@ fn pop(ctxt: *VMContext) !Value {
     return ctxt.stack.pop();
 }
 
+fn jit_compile_full(ctxt: *VMContext) !void {
+    if (ctxt.jit_fn) |*jit_fn| {
+        jit_fn.deinit();
+    }
+
+    var jit = jit_mod.Jit.init(ctxt.alloc);
+    defer jit.deinit();
+
+    var jit_fn = try jit.compile_program(ctxt.prog);
+    jit_fn.set_writer(@as(*const VMContext, ctxt));
+
+    ctxt.jit_fn = jit_fn;
+}
+
+fn jit_compile_partial(ctxt: *VMContext) !void {
+    if (ctxt.jit_fn) |*jit_fn| {
+        jit_fn.deinit();
+    }
+
+    var jit = jit_mod.Jit.init(ctxt.alloc);
+    defer jit.deinit();
+
+    var fns = std.ArrayList([]const Instruction).init(ctxt.alloc);
+    defer fns.deinit();
+
+    if (ctxt.prog.fn_tbl) |fn_tbl| {
+        for (fn_tbl.items) |sym| {
+            if (ctxt.jit_mask.isSet(sym.addr)) {
+                try fns.append(ctxt.prog.code[sym.addr..(sym.addr + sym.size)]);
+            }
+        }
+    }
+
+    var jit_fn = try jit.compile_partial(ctxt.prog, fns.items);
+    jit_fn.set_writer(@as(*const VMContext, ctxt));
+
+    ctxt.jit_fn = jit_fn;
+}
+
+fn is_jitable_call(ctxt: *VMContext) bool {
+    if (ctxt.stack.items.len == 0) {
+        return false;
+    }
+
+    const N_val = ctxt.stack.items[ctxt.stack.items.len - 1];
+    if (N_val != .int) {
+        return false;
+    }
+    const N: usize = @intCast(N_val.int);
+
+    if (N + 1 > ctxt.stack.items.len) {
+        return false;
+    }
+
+    for (0..N) |i| {
+        if (ctxt.stack.items[ctxt.stack.items.len - 2 - i] != .int) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 fn opcodeToString(op: Opcode) []const u8 {
     return switch (op) {
         .add => "+",
@@ -384,6 +448,19 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
+    if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) {
+        if (ctxt.jit_fn == null) {
+            try jit_compile_full(ctxt);
+        }
+        if (ctxt.debug_output) {
+            debug_log("Running whole program compiled\n", .{});
+        }
+        return ctxt.jit_fn.?.execute() catch |e| {
+            ctxt.rterror = ctxt.jit_fn.?.rterror;
+            return e;
+        };
+    }
+
     try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
     var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
     defer mem.deinit();
@@ -391,20 +468,20 @@ pub fn run(ctxt: *VMContext) !i64 {
         if (ctxt.pc >= ctxt.prog.code.len) {
             return error.InvalidProgramCounter;
         }
-        const i = ctxt.prog.code[ctxt.pc];
+        const insn = ctxt.prog.code[ctxt.pc];
         if (ctxt.debug_output) {
-            debug_log("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(i.op), ctxt.stack.items.len, ctxt.bp });
+            debug_log("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(insn.op), ctxt.stack.items.len, ctxt.bp });
         }
 
         ctxt.pc += 1;
         // fastpath for integer math
-        if (@intFromEnum(i.op) < @intFromEnum(arch.Opcode.div)) {
+        if (@intFromEnum(insn.op) < @intFromEnum(arch.Opcode.div)) {
             const stack_items = ctxt.stack.items;
             const stack_len = stack_items.len;
-            if (i.op == .inc) {
+            if (insn.op == .inc) {
                 stack_items[stack_len - 1].int += 1;
                 continue;
-            } else if (i.op == .dec) {
+            } else if (insn.op == .dec) {
                 stack_items[stack_len - 1].int -= 1;
                 continue;
             } else if ((stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Value.int))) {
@@ -414,12 +491,12 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(rhs.is(.int));
                 const a = lhs.int;
                 const b = rhs.int;
-                stack_items[stack_len - 2] = try doArithmetic(Value.GetRepr(.int), a, i.op, b, ctxt);
+                stack_items[stack_len - 2] = try doArithmetic(Value.GetRepr(.int), a, insn.op, b, ctxt);
                 drop(ctxt, try pop(ctxt));
                 continue;
             }
         }
-        switch (i.op) {
+        switch (insn.op) {
             .add,
             .sub,
             .mul,
@@ -456,7 +533,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 if (v.tag() != .int) {
                     ctxt.rterror = .{
                         .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = i.op } },
+                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
                     };
                     return error.RuntimeError;
                 }
@@ -468,16 +545,16 @@ pub fn run(ctxt: *VMContext) !i64 {
                 if (v.tag() != .int) {
                     ctxt.rterror = .{
                         .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = i.op } },
+                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
                     };
                     return error.RuntimeError;
                 }
                 ctxt.stack.items[ctxt.stack.items.len - 1].int -= 1;
             },
-            .push => try push(ctxt, Value.from(i.operand.int)),
-            .pushf => try push(ctxt, Value.from(i.operand.float)),
+            .push => try push(ctxt, Value.from(insn.operand.int)),
+            .pushf => try push(ctxt, Value.from(insn.operand.float)),
             .pushs => {
-                const p = i.operand.location;
+                const p = insn.operand.location;
                 try assert(p < ctxt.prog.strings.len);
 
                 const v = take(ctxt, Value.from(&ctxt.prog.strings[p]));
@@ -498,17 +575,17 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try push(ctxt, v);
             },
             .load => {
-                const v = try get(ctxt, true, i.operand.int);
+                const v = try get(ctxt, true, insn.operand.int);
                 try push(ctxt, v);
             },
             .store => {
                 const v = try pop(ctxt);
                 defer drop(ctxt, v);
 
-                try set(ctxt, true, i.operand.int, v);
+                try set(ctxt, true, insn.operand.int, v);
             },
             .syscall => {
-                switch (i.operand.int) {
+                switch (insn.operand.int) {
                     0 => {
                         var v = try pop(ctxt);
                         defer drop(ctxt, v);
@@ -525,15 +602,50 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
             },
             .call => {
-                const loc = i.operand.location;
-                const ra = Value.from(ctxt.pc);
-                const bp = Value.from(ctxt.bp);
+                const loc = insn.operand.location;
 
-                try push(ctxt, bp);
-                try push(ctxt, ra);
+                if (ctxt.jit_enabled and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) {
+                    const N_val = try pop(ctxt);
+                    defer drop(ctxt, N_val);
 
-                ctxt.bp = ctxt.stack.items.len;
-                ctxt.pc = loc;
+                    try assert(N_val.tag() == .int);
+                    const N: usize = @intCast(N_val.int);
+
+                    try ctxt.jit_args.resize(N);
+
+                    if (ctxt.debug_output) {
+                        debug_log("popping {} items, sp: {}, bp: {}\n", .{ N_val, ctxt.stack.items.len, ctxt.bp });
+                    }
+
+                    for (0..N) |i| {
+                        const v = try pop(ctxt);
+                        ctxt.jit_args.items[N - 1 - i] = v.int;
+                        drop(ctxt, v);
+                    }
+
+                    if (ctxt.jit_fn == null) {
+                        try jit_compile_partial(ctxt);
+                    }
+
+                    if (ctxt.debug_output) {
+                        debug_log("Running compiled function at {}.\n", .{loc});
+                    }
+                    const r = ctxt.jit_fn.?.execute_sub(loc, ctxt.jit_args.items) catch |e| {
+                        ctxt.rterror = ctxt.jit_fn.?.rterror;
+                        return e;
+                    };
+
+                    try push(ctxt, Value.from(r));
+                } else {
+                    const ra = Value.from(ctxt.pc);
+                    const bp = Value.from(ctxt.bp);
+
+                    try push(ctxt, bp);
+                    try push(ctxt, ra);
+
+                    ctxt.bp = ctxt.stack.items.len;
+                    ctxt.pc = loc;
+                }
             },
             .ret => {
                 const r = try pop(ctxt);
@@ -578,7 +690,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
             },
             .jmp => {
-                const loc = i.operand.location;
+                const loc = insn.operand.location;
 
                 if (ctxt.debug_output) {
                     debug_log("jumping to: {}\n", .{loc});
@@ -587,7 +699,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 ctxt.pc = loc;
             },
             .jmpnz => {
-                const loc = i.operand.location;
+                const loc = insn.operand.location;
                 const v = try pop(ctxt);
                 defer drop(ctxt, v);
 
@@ -605,7 +717,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .stack_alloc => {
                 const v = Value.from(void{});
 
-                const n: usize = @intCast(i.operand.int);
+                const n: usize = @intCast(insn.operand.int);
                 try assert(n >= 0);
 
                 try ctxt.stack.ensureTotalCapacity(ctxt.stack.items.len + n);
@@ -763,7 +875,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                         .err = .{
                             .invalid_binop = .{
                                 .lt = l_1.tag(),
-                                .op = i.op,
+                                .op = insn.op,
                                 .rt = l_2.tag(),
                             },
                         },
@@ -789,7 +901,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const v = try pop(ctxt);
                 defer drop(ctxt, v);
 
-                const f = i.operand.field_id;
+                const f = insn.operand.field_id;
                 const s = try pop(ctxt);
                 defer drop(ctxt, s);
 
@@ -805,7 +917,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try obj.set(f, v);
             },
             .struct_load => {
-                const f = i.operand.field_id;
+                const f = insn.operand.field_id;
 
                 const s = try pop(ctxt);
                 defer drop(ctxt, s);
@@ -823,7 +935,6 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
-            // else => std.debug.panic("unimplemented instruction {}\n", .{i}),
         }
     }
 
@@ -860,20 +971,23 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
 
     return std.mem.join(allocator, " ", res.items);
 }
+
 fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) !void {
-    return testRunWithJittable(prog, expected_output, expected_exit_code, false);
+    return testRunWithJitable(prog, expected_output, expected_exit_code, false);
 }
 
-fn testRunWithJittable(prog: Program, expected_output: []const u8, expected_exit_code: i64, must_be_jitable: bool) !void {
+fn testRunWithJitable(prog: Program, expected_output: []const u8, expected_exit_code: i64, must_be_jitable: bool) !void {
     const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2 + 1024);
     defer std.testing.allocator.free(output_buffer);
     var output_stream = std.io.fixedBufferStream(output_buffer);
     const output_writer = output_stream.writer();
 
-    var ctxt = VMContext.init(prog, std.testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
+    var ctxt = try VMContext.init(prog, std.testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
     defer ctxt.deinit();
     if (must_be_jitable) {
         try std.testing.expect(ctxt.jit_mask.isSet(prog.entry));
+    } else {
+        ctxt.jit_enabled = false;
     }
 
     try std.testing.expectEqual(expected_exit_code, try run(&ctxt));
@@ -1325,7 +1439,7 @@ test "fibonacci" {
         Instruction.push(0),
         Instruction.ret(),
     }, 0, &.{}, &.{});
-    try testRunWithJittable(prog,
+    try testRunWithJitable(prog,
         \\0
         \\1
         \\1
@@ -1391,7 +1505,7 @@ test "recursive fibonacci" {
     var program = try asm_.getProgram(std.testing.allocator, .none);
     defer program.deinit();
 
-    try testRunWithJittable(program, "", 55, true);
+    try testRunWithJitable(program, "", 55, true);
 }
 
 test "hello world" {

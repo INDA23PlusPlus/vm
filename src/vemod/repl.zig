@@ -112,7 +112,7 @@ pub fn main(
             var program = try assembler.getProgram(allocator, src_opts);
             defer program.deinit();
 
-            var context = VMContext.init(program, allocator, &stdout, &stdout, false);
+            var context = try VMContext.init(program, allocator, &stdout, &stdout, false);
             defer context.deinit();
 
             _ = interpreter.run(&context) catch |err| {

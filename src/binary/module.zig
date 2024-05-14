@@ -332,7 +332,7 @@ test {
 
     const output_writer = output_buffer.writer();
 
-    var context = VMContext.init(program, testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
+    var context = try VMContext.init(program, testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
     defer context.deinit();
 
     try testing.expectEqual(@as(i64, 0), try interpreter.run(&context));

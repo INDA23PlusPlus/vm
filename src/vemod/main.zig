@@ -71,9 +71,10 @@ const Options = struct {
     input_basename: ?[]const u8 = null,
     extension: ?Extension = null,
     strip: bool = false,
-    jit: bool = false,
+    jit: enum { full, auto, off } = .auto,
     output_asm: bool = false,
     cl_expr: ?[]const u8 = null,
+    debug: bool = false,
 };
 
 fn usage(name: []const u8) !void {
@@ -90,11 +91,15 @@ fn usage(name: []const u8) !void {
         \\    -o, --output OUTPUT      Write output to file OUTPUT.
         \\                              If omitted, output filename is inferred from input filename.
         \\    -s, --strip              Don't include source information in compiled program.
-        \\    -j, --jit                Use experimental JIT recompiler.
+        \\    -j, --jit <jit-opt>      Set experimental JIT recompiler mode.
+        \\                              full: Use only JIT, no interpreter.
+        \\                              auto: Use JIT where possible. Default.
+        \\                              off: Turn off JIT.
         \\    -h, --help               Show this help message and exit.
         \\    -p, --parse "EXPR"       Parse Blue expression from command line, surrounded by double quotes.
         \\                              Overrides any provided file input.
         \\    -r, --repl               Run the Blue REPL.
+        \\    -d, --debug              Print debug information.
         \\
     , .{name});
 }
@@ -149,7 +154,22 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-s") or mem.eql(u8, arg, "--strip")) {
             options.strip = true;
         } else if (mem.eql(u8, arg, "-j") or mem.eql(u8, arg, "--jit")) {
-            options.jit = true;
+            const mode = args.next() orelse {
+                try usage(name);
+                try stderr.print("error: missing option parameter\n", .{});
+                return 1;
+            };
+            if (mem.eql(u8, mode, "full")) {
+                options.jit = .full;
+            } else if (mem.eql(u8, mode, "auto")) {
+                options.jit = .auto;
+            } else if (mem.eql(u8, mode, "off")) {
+                options.jit = .off;
+            } else {
+                try usage(name);
+                try stderr.print("error: unknown jit setting '{s}'\n", .{mode});
+                return 1;
+            }
         } else if (mem.eql(u8, arg, "-t") or mem.eql(u8, arg, "--transpile")) {
             options.output_asm = true;
         } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
@@ -163,6 +183,8 @@ pub fn main() !u8 {
                 return 1;
             };
             return 0;
+        } else if (mem.eql(u8, arg, "-d") or mem.eql(u8, arg, "--debug")) {
+            options.debug = true;
         } else if (arg[0] == '-') {
             try usage(name);
             try stderr.print("error: unknown option '{s}'\n", .{arg});
@@ -330,12 +352,14 @@ pub fn main() !u8 {
             };
         },
         .run => {
-            if (options.jit) {
+            if (options.jit == .full) {
                 var jit = Jit.init(allocator);
                 defer jit.deinit();
 
                 var jit_fn = try jit.compile_program(program);
                 defer jit_fn.deinit();
+
+                jit_fn.set_writer(&stdout);
 
                 const ret = jit_fn.execute() catch |err| {
                     if (jit_fn.rterror) |rterror| {
@@ -347,8 +371,13 @@ pub fn main() !u8 {
                 };
                 return @intCast(ret);
             } else {
-                var context = Context.init(program, allocator, &stdout, &stderr, false);
+                var context = try Context.init(program, allocator, &stdout, &stderr, options.debug);
                 defer context.deinit();
+
+                if (options.jit == .off) {
+                    context.jit_enabled = false;
+                }
+
                 const ret = interpreter.run(&context) catch |err| {
                     if (context.rterror) |rterror| {
                         try print_rterror(program, rterror, stderr);

@@ -5,15 +5,20 @@
 const std = @import("std");
 const Instruction = @import("Instruction.zig");
 const Allocator = std.mem.Allocator;
-pub const FnLenMap = std.AutoArrayHashMap(usize, usize);
 
 const Self = @This();
+
+pub const Symbol = struct {
+    name: ?[]const u8, // Currently unused
+    addr: usize,
+    size: usize,
+};
 
 code: []const Instruction,
 entry: usize,
 strings: []const []const u8,
 field_names: []const []const u8,
-fn_len_map: ?FnLenMap = null,
+fn_tbl: ?std.ArrayList(Symbol) = null,
 tokens: ?[]const []const u8 = null,
 // This field is used if a program is constructed from
 // Asm.zig or binary.zig.
@@ -39,5 +44,7 @@ pub fn deinit(self: *Self) void {
         data.allocator.free(data.field_names);
         if (data.source) |source| data.allocator.free(source);
     }
-    if (self.fn_len_map) |*map| map.deinit();
+    if (self.fn_tbl) |*fn_tbl| {
+        fn_tbl.deinit();
+    }
 }

@@ -10,6 +10,7 @@ const Program = arch.Program;
 const RtError = arch.err.RtError;
 const Value = @import("memory_manager").APITypes.Value;
 const Stack = std.ArrayList(Value);
+const jit_mod = @import("jit");
 
 const Self = @This();
 
@@ -25,7 +26,10 @@ stderr_write_ctxt: *const anyopaque,
 stderr_write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 debug_output: bool,
 rterror: ?RtError = null,
+jit_enabled: bool,
 jit_mask: std.DynamicBitSetUnmanaged,
+jit_args: std.ArrayList(i64),
+jit_fn: ?jit_mod.Function,
 
 fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged {
     var visited = std.DynamicBitSet.initEmpty(alloc, program.code.len) catch @panic("oom");
@@ -44,12 +48,15 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
                 .sub,
                 .mul,
                 .mod,
+                .div,
                 .inc,
                 .dec,
                 .dup,
                 .stack_alloc,
                 .cmp_lt,
                 .cmp_gt,
+                .cmp_le,
+                .cmp_ge,
                 .cmp_eq,
                 .cmp_ne,
                 .syscall,
@@ -68,13 +75,13 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
                     return res;
                 },
 
-                // if we recurse or call another jittable function
+                // if we recurse or call another jitable function
                 .jmp,
                 .call,
                 => {
                     const dest = prog[i].operand.location;
-                    const res = prog[i].operand.location == fn_start or
-                        dfs(prog[i].operand.location, prog, prog[i].operand.location, vis, jit);
+                    const res = (prog[i].operand.location == fn_start or
+                        dfs(prog[i].operand.location, prog, prog[i].operand.location, vis, jit)) and dfs(fn_start, prog, i + 1, vis, jit);
                     jit.setValue(dest, res);
                     return res;
                 },
@@ -92,7 +99,7 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
     return jitable;
 }
 
-pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_writer: anytype, debug_output: bool) Self {
+pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_writer: anytype, debug_output: bool) !Self {
     switch (@typeInfo(@TypeOf(output_writer))) {
         .Pointer => {},
         else => @compileError("output_writer has to be a pointer to a writer"),
@@ -126,7 +133,10 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .stderr_write_ctxt = error_writer,
         .stderr_write_fn = stderr_write_fn,
         .debug_output = debug_output,
+        .jit_enabled = true,
         .jit_mask = make_jit_mask(prog, alloc),
+        .jit_args = std.ArrayList(i64).init(alloc),
+        .jit_fn = null,
     };
 }
 
@@ -159,4 +169,8 @@ pub fn errWriter(self: *const Self) std.io.Writer(*const Self, anyerror, writeSt
 pub fn deinit(self: *Self) void {
     self.stack.deinit();
     self.jit_mask.deinit(self.alloc);
+    if (self.jit_fn) |*jit_fn| {
+        jit_fn.deinit();
+    }
+    self.jit_args.deinit();
 }

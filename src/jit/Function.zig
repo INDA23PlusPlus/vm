@@ -7,8 +7,9 @@ const Self = @This();
 alloc: std.mem.Allocator,
 code: []const u8,
 pc_map: ?[]const usize,
-fn_ptr: *fn (*ExecContext) callconv(.C) i64,
 rterror: ?arch.err.RtError = null,
+write_ctxt: *const anyopaque = undefined,
+write_fn: ?*const fn (*const anyopaque, []const u8) anyerror!usize = null,
 
 pub fn init(alloc: std.mem.Allocator, image: []const u8, pc_map: ?[]const usize) !Self {
     const size = image.len;
@@ -22,7 +23,7 @@ pub fn init(alloc: std.mem.Allocator, image: []const u8, pc_map: ?[]const usize)
         return error.AccessDenied;
     }
 
-    return .{ .alloc = alloc, .code = ptr[0..size], .pc_map = pc_map, .fn_ptr = @ptrCast(ptr) };
+    return .{ .alloc = alloc, .code = ptr[0..size], .pc_map = pc_map };
 }
 
 pub fn deinit(self: *Self) void {
@@ -30,6 +31,16 @@ pub fn deinit(self: *Self) void {
         self.alloc.free(pc_map);
     }
     _ = std.os.linux.munmap(@ptrCast(self.code), self.code.len);
+}
+
+pub fn set_writer(self: *Self, writer: anytype) void {
+    self.write_ctxt = writer;
+    self.write_fn = struct {
+        fn write(write_ctxt: *const anyopaque, bytes: []const u8) anyerror!usize {
+            const typed_ctxt: @TypeOf(writer) = @alignCast(@ptrCast(write_ctxt));
+            return typed_ctxt.write(bytes);
+        }
+    }.write;
 }
 
 fn map_pc(self: *const Self, err_pc: usize) ?usize {
@@ -47,7 +58,7 @@ fn map_pc(self: *const Self, err_pc: usize) ?usize {
             return null;
         }
 
-        while (pc_map[vm_pc + 1] < offset) {
+        while (pc_map[vm_pc] == 0 or (pc_map[vm_pc + 1] != 0 and pc_map[vm_pc + 1] < offset)) {
             vm_pc += 1;
         }
 
@@ -58,11 +69,33 @@ fn map_pc(self: *const Self, err_pc: usize) ?usize {
 }
 
 pub fn execute(self: *Self) !i64 {
+    return self.execute_as(fn () i64, .{});
+}
+
+pub fn execute_as(self: *Self, fn_type: type, args: anytype) @Type(std.builtin.Type{
+    .ErrorUnion = .{
+        .error_set = anyerror,
+        .payload = @typeInfo(fn_type).Fn.return_type.?,
+    },
+}) {
+    comptime var fn_typeinfo = @typeInfo(fn_type);
+    fn_typeinfo.Fn.calling_convention = .C;
+    fn_typeinfo.Fn.params = [_]std.builtin.Type.Fn.Param{.{ .is_generic = false, .is_noalias = false, .type = *ExecContext }} ++ fn_typeinfo.Fn.params;
+
+    comptime var fn_ptr_typeinfo = @typeInfo(*const fn (*ExecContext) callconv(.C) i64);
+    fn_ptr_typeinfo.Pointer.child = @Type(fn_typeinfo);
+
     var exec_common = ExecContext.Common{};
+
+    if (self.write_fn) |write_fn| {
+        exec_common.write_ctxt = self.write_ctxt;
+        exec_common.write_fn = write_fn;
+    }
+
     var exec_ctxt = ExecContext.init(&exec_common);
     defer exec_ctxt.deinit();
 
-    const ret = self.fn_ptr(&exec_ctxt);
+    const ret = @call(.auto, @as(@Type(fn_ptr_typeinfo), @ptrCast(self.code)), .{&exec_ctxt} ++ args);
 
     self.rterror = exec_common.rterror;
 
@@ -71,4 +104,12 @@ pub fn execute(self: *Self) !i64 {
     }
 
     return exec_ctxt.common.err orelse ret;
+}
+
+pub fn execute_sub(self: *Self, pc: usize, args: []const i64) !i64 {
+    if (self.pc_map == null or self.pc_map.?[pc] == 0) {
+        return error.NotCompiled;
+    } else {
+        return self.execute_as(fn ([*]const i64, usize, usize) i64, .{ args.ptr, args.len, @intFromPtr(self.code.ptr) + self.pc_map.?[pc] });
+    }
 }

@@ -816,6 +816,13 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn movsq(self: *Self) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0xA5, null);
+        try self.emit_instr(instr);
+    }
+
     pub inline fn movzx_r64_rm8(self: *Self, reg: R64, rm: RM8) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
@@ -863,10 +870,23 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn push_imm8(self: *Self, imm: i8) !void {
+        var instr = Instr{};
+        instr.set_opcode(0x6A, null);
+        instr.set_imm(.{ .imm8 = imm });
+        try self.emit_instr(instr);
+    }
+
     pub inline fn push_imm32(self: *Self, imm: i32) !void {
         var instr = Instr{};
         instr.set_opcode(0x68, null);
         instr.set_imm(.{ .imm32 = imm });
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn rep(self: *Self) !void {
+        var instr = Instr{};
+        instr.set_opcode(0xF3, null);
         try self.emit_instr(instr);
     }
 
@@ -881,6 +901,12 @@ pub const As = struct {
         instr.set_esc(&.{0x0F});
         instr.set_opcode(0x90, .{ .cc = cc });
         instr.set_rm(rm);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn std_(self: *Self) !void {
+        var instr = Instr{};
+        instr.set_opcode(0xFD, null);
         try self.emit_instr(instr);
     }
 

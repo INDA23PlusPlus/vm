@@ -5,12 +5,29 @@ pub const ExecContext = extern struct {
     const Self = @This();
 
     pub const Common = struct {
-        err: ?anyerror = undefined,
+        err: ?anyerror = null,
 
-        output_stream: std.fs.File = undefined,
-        output_writer: std.fs.File.Writer = undefined,
+        write_ctxt: *const anyopaque = undefined,
+        write_fn: *const fn (*const anyopaque, []const u8) anyerror!usize = &default_write,
 
-        rterror: ?arch.err.RtError = undefined,
+        rterror: ?arch.err.RtError = null,
+
+        fn default_write(write_ctxt: *const anyopaque, bytes: []const u8) anyerror!usize {
+            _ = write_ctxt;
+
+            const output_stream = std.io.getStdOut();
+            const output_writer = output_stream.writer();
+
+            return output_writer.write(bytes);
+        }
+
+        fn write(self: *const Common, bytes: []const u8) anyerror!usize {
+            return self.write_fn(self.write_ctxt, bytes);
+        }
+
+        pub fn writer(self: *const Common) std.io.Writer(*const Common, anyerror, write) {
+            return .{ .context = self };
+        }
     };
 
     unwind_sp: u64 = undefined,
@@ -26,9 +43,10 @@ pub const ExecContext = extern struct {
     fn unwind() callconv(.Naked) noreturn {
         asm volatile (
             \\mov (%r15), %rsp    # ExecContext.unwind_sp
-            \\pop %r15
-            \\pop %rbx
             \\pop %rbp
+            \\pop %rcx
+            \\lea (%rsp, %rcx, 8), %rsp
+            \\pop %r15
             \\ret
         );
     }
@@ -48,19 +66,13 @@ pub const ExecContext = extern struct {
     }
 
     fn syscall_0(exec_ctxt: *ExecContext, v: i64) callconv(.C) void {
-        exec_ctxt.common.output_writer.print("{}\n", .{v}) catch {};
+        exec_ctxt.common.writer().print("{}\n", .{v}) catch {};
     }
 
     pub fn init(common: *Common) Self {
         var self = Self{};
 
         _ = std.os.linux.sigaction(std.os.linux.SIG.FPE, &.{ .handler = .{ .sigaction = &sigfpe_handler }, .mask = .{0} ** 32, .flags = std.os.linux.SA.SIGINFO }, &self.old_sigfpe_handler);
-
-        common.err = null;
-        common.rterror = null;
-
-        common.output_stream = std.io.getStdOut();
-        common.output_writer = common.output_stream.writer();
 
         self.common = common;
 
