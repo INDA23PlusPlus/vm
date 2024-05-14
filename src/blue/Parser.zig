@@ -76,23 +76,7 @@ pub fn parse(p: *Parser) anyerror!void {
 }
 
 fn expr(p: *Parser) anyerror!usize {
-    const tok = try p.lx.peek() orelse {
-        try p.errors.append(.{
-            .tag = .@"Unexpected end of input",
-            .extra = "expected expression",
-        });
-        return error.ParseError;
-    };
-
-    const node = switch (tok.tag) {
-        .@"if" => p.ifExpr(),
-        .let => p.letExpr(),
-        .@" ." => {
-            _ = try p.lx.take();
-            return p.expr();
-        },
-        else => p.compound(),
-    };
+    const node = p.compound();
 
     const next = try p.lx.peek();
     if (next != null and next.?.tag == .@" .") {
