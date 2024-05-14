@@ -1342,9 +1342,7 @@ test "fibonacci" {
 
 test "recursive fibonacci" {
     const Asm = @import("asm").Asm;
-    const AsmError = @import("asm").Error;
-    var errors = std.ArrayList(AsmError).init(std.testing.allocator);
-    defer errors.deinit();
+    const DiagnosticList = @import("diagnostic").DiagnosticList;
 
     const source =
         \\-function $main
@@ -1381,11 +1379,14 @@ test "recursive fibonacci" {
         \\-end
     ;
 
-    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+    defer diagnostics.deinit();
+
+    var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
     defer asm_.deinit();
 
     try asm_.assemble();
-    try assert(errors.items.len == 0);
+    try assert(diagnostics.list.items.len == 0);
 
     var program = try asm_.getProgram(std.testing.allocator, .none);
     defer program.deinit();

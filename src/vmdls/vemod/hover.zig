@@ -6,6 +6,9 @@ const std = @import("std");
 const arch = @import("arch");
 const lsp = @import("../lsp.zig");
 const asm_ = @import("asm");
+const vemod_diagnostic = @import("diagnostic");
+const DiagnosticList = vemod_diagnostic.DiagnosticList;
+const SourceRef = vemod_diagnostic.SourceRef;
 
 pub fn getHoverInfo(
     text: []const u8,
@@ -29,12 +32,12 @@ pub fn getHoverInfo(
         }
     } else offset = text.len;
 
-    var errors = std.ArrayList(asm_.Error).init(allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(allocator, text);
+    defer diagnostics.deinit();
 
     var scanner = asm_.Token.Scanner{
         .source = text,
-        .errors = &errors,
+        .diagnostics = &diagnostics,
     };
 
     const text_begin: usize = @intFromPtr(text.ptr);
@@ -53,7 +56,7 @@ pub fn getHoverInfo(
     }
 
     if (hovered_token) |token| {
-        const ref = try asm_.SourceRef.init(text, token.where);
+        const ref = try SourceRef.init(text, token.where);
         return .{
             .contents = arch.descr.text.get(token.tag.instr),
             .range = .{

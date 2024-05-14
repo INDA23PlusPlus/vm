@@ -5,20 +5,22 @@ const Parser = @This();
 
 const std = @import("std");
 const ArrayList = std.ArrayList;
-const Error = @import("asm").Error;
 const Token = @import("Token.zig");
 const Lexer = Token.Lexer;
 const Ast = @import("Ast.zig");
 
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
+
 ast: *Ast,
 lx: *Lexer,
-errors: *ArrayList(Error),
+diagnostics: *DiagnosticList,
 
-pub fn init(ast: *Ast, lexer: *Lexer, errors: *ArrayList(Error)) Parser {
+pub fn init(ast: *Ast, lexer: *Lexer, diagnostics: *DiagnosticList) Parser {
     return .{
         .ast = ast,
         .lx = lexer,
-        .errors = errors,
+        .diagnostics = diagnostics,
     };
 }
 
@@ -31,15 +33,16 @@ fn getNode(p: *Parser, i: usize) *Ast.Node {
     return &p.ast.nodes.items[i];
 }
 
-fn lastError(p: *Parser) *Error {
-    return &p.errors.items[p.errors.items.len - 1];
-}
-
 fn expectSomething(p: *Parser, extra: ?[]const u8) !Token {
     return try p.lx.take() orelse {
-        try p.errors.append(.{
-            .tag = .@"Unexpected end of input",
-            .extra = extra,
+        const description: diagnostic.Description = if (extra) |extra_| .{
+            .dynamic = try p.diagnostics.newDynamicDescription(
+                "unexpected end of input, {s}",
+                .{extra_},
+            ),
+        } else .{ .static = "unexpected end of input" };
+        try p.diagnostics.addDiagnostic(.{
+            .description = description,
         });
         return error.ParseError;
     };
@@ -48,10 +51,20 @@ fn expectSomething(p: *Parser, extra: ?[]const u8) !Token {
 fn expect(p: *Parser, tag: Token.Tag, extra: ?[]const u8) !Token {
     const tok = try p.expectSomething(extra);
     if (tok.tag != tag) {
-        try p.errors.append(.{
-            .tag = .@"Unexpected token",
-            .where = tok.where,
-            .extra = extra,
+        const description: diagnostic.Description = if (extra) |extra_| .{
+            .dynamic = try p.diagnostics.newDynamicDescription(
+                "unexpected token \"{s}\", {s}",
+                .{ tok.where, extra_ },
+            ),
+        } else .{
+            .dynamic = try p.diagnostics.newDynamicDescription(
+                "unexpected token \"{s}\"",
+                .{tok.where},
+            ),
+        };
+        try p.diagnostics.addDiagnostic(.{
+            .description = description,
+            .location = tok.where,
         });
         return error.ParseError;
     }
@@ -68,9 +81,15 @@ pub fn parse(p: *Parser) anyerror!void {
     };
 
     if (try p.lx.peek()) |trail| {
-        try p.errors.append(.{
-            .tag = .@"Trailing token(s)",
-            .where = trail.where,
+        try p.diagnostics.addDiagnostic(.{
+            .description = .{
+                .dynamic = try p.diagnostics.newDynamicDescription(
+                    "trailing token(s) \"{s}...\"",
+                    .{trail.where},
+                ),
+            },
+            .location = trail.where,
+            .severity = .Warning,
         });
     }
 }
@@ -284,10 +303,14 @@ fn fac(p: *Parser) anyerror!usize {
             .match => try p.match(),
             .neg => try p.neg(),
             else => {
-                try p.errors.append(.{
-                    .tag = .@"Unexpected token",
-                    .where = tok.where,
-                    .extra = "expected beginning of expression",
+                try p.diagnostics.addDiagnostic(.{
+                    .description = .{
+                        .dynamic = try p.diagnostics.newDynamicDescription(
+                            "unexpected token \"{s}\"",
+                            .{tok.where},
+                        ),
+                    },
+                    .location = tok.where,
                 });
                 return error.ParseError;
             },
@@ -295,7 +318,9 @@ fn fac(p: *Parser) anyerror!usize {
 
         return p.trailingOperators(inner);
     } else {
-        try p.errors.append(.{ .tag = .@"Unexpected end of input" });
+        try p.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "unexpected end of input, expected expression" },
+        });
         return error.ParseError;
     }
 }
@@ -317,9 +342,9 @@ fn match(p: *Parser) anyerror!usize {
     _ = try p.expect(.with, "expected 'with'");
 
     const optional_pipe = try p.lx.peek() orelse {
-        try p.errors.append(.{
-            .tag = .@"Unexpected end of input",
-            .where = p.lx.src[p.lx.src.len - 1 .. p.lx.src.len],
+        try p.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "unexpected end of input, expected match prong" },
+            .location = p.lx.src[p.lx.src.len - 1 ..],
         });
         return error.ParseError;
     };
@@ -341,11 +366,14 @@ fn match(p: *Parser) anyerror!usize {
             const def_expr = try p.expr();
 
             if (default) |_| {
-                try p.errors.append(.{
-                    .tag = .@"Duplicate '_ => ...' prong",
-                    .where = prong_begin.where,
-                    .related = first_default_where,
-                    .related_msg = "first '_ => ...' prong appears here",
+                try p.diagnostics.addDiagnostic(.{
+                    .description = .{ .static = "duplicate default prong" },
+                    .location = prong_begin.where,
+                });
+                try p.diagnostics.addRelated(.{
+                    .description = .{ .static = "frist default appears here" },
+                    .location = first_default_where,
+                    .severity = .Hint,
                 });
             } else {
                 default = def_expr;
@@ -369,9 +397,9 @@ fn match(p: *Parser) anyerror!usize {
 
     if (default == null) {
         default = 0; // dummy value
-        try p.errors.append(.{
-            .tag = .@"Missing '_ => ...' prong",
-            .where = match_tok.where,
+        try p.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "this match expression is missing the default prong '_ => ...'" },
+            .location = match_tok.where,
         });
     }
 
@@ -400,10 +428,20 @@ fn prong(p: *Parser) anyerror!usize {
 
 fn struct_(p: *Parser) anyerror!usize {
     const left = (try p.lx.take()).?; // {
-    const fields_ = try p.fields();
+    const fields_ = p.fields() catch {
+        try p.diagnostics.addRelated(.{
+            .description = .{ .static = "in initalization of this struct" },
+            .location = left.where,
+            .severity = .Hint,
+        });
+        return error.ParseError;
+    };
     _ = p.expect(.@"}", "missing closing bracket") catch {
-        p.lastError().related = left.where;
-        p.lastError().related_msg = "opening bracket here";
+        try p.diagnostics.addRelated(.{
+            .description = .{ .static = "opening bracket here" },
+            .location = left.where,
+            .severity = .Hint,
+        });
         return error.ParseError;
     };
     return try p.ast.push(.{ .struct_ = .{ .fields = fields_ } });
@@ -411,10 +449,20 @@ fn struct_(p: *Parser) anyerror!usize {
 
 fn list(p: *Parser) anyerror!usize {
     const left = (try p.lx.take()).?; // [
-    const items_ = try p.items();
+    const items_ = p.items() catch {
+        try p.diagnostics.addRelated(.{
+            .description = .{ .static = "in initalization of this list" },
+            .location = left.where,
+            .severity = .Hint,
+        });
+        return error.ParseError;
+    };
     _ = p.expect(.@"]", "missing closing bracket") catch {
-        p.lastError().related = left.where;
-        p.lastError().related_msg = "opening bracket here";
+        try p.diagnostics.addRelated(.{
+            .description = .{ .static = "opening bracket here" },
+            .location = left.where,
+            .severity = .Hint,
+        });
         return error.ParseError;
     };
     return try p.ast.push(.{ .list = .{ .items = items_ } });
@@ -441,10 +489,9 @@ fn field(p: *Parser) anyerror!usize {
     const name = try p.expect(.ident, "expected field name");
 
     const next_tok = try p.lx.peek() orelse {
-        try p.errors.append(.{
-            .tag = .@"Unexpected end of input",
-            .where = p.lx.src[p.lx.src.len - 1 .. p.lx.src.len],
-            .extra = "expected '}'",
+        try p.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "unexpected end of input, expected '}'" },
+            .location = p.lx.src[p.lx.src.len - 1 ..],
         });
         return error.ParseError;
     };
@@ -477,10 +524,14 @@ fn field(p: *Parser) anyerror!usize {
             });
         },
         else => {
-            try p.errors.append(.{
-                .tag = .@"Unexpected token",
-                .where = next_tok.where,
-                .extra = "expected '=', ',' or '}'",
+            try p.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try p.diagnostics.newDynamicDescription(
+                        "unexpected token \"{s}\", expected '=', ',' or '}}'",
+                        .{next_tok.where},
+                    ),
+                },
+                .location = next_tok.where,
             });
             return error.ParseError;
         },
@@ -575,8 +626,11 @@ fn paren(p: *Parser) anyerror!usize {
     const left = (try p.lx.take()).?;
     const expr_ = try p.expr();
     _ = p.expect(.@")", "missing closing parenthesis") catch {
-        p.lastError().related = left.where;
-        p.lastError().related_msg = "opening parenthesis here";
+        try p.diagnostics.addRelated(.{
+            .description = .{ .static = "opening parenthesis here" },
+            .location = left.where,
+            .severity = .Hint,
+        });
         return error.ParseError;
     };
     return expr_;
@@ -629,8 +683,11 @@ fn letEntry(p: *Parser) !usize {
     const assign = try p.expect(.@"=", "expected '='");
     const expr_ = try p.expr();
     _ = p.expect(.@";", "expected semicolon") catch {
-        p.lastError().related = assign.where;
-        p.lastError().related_msg = "expression following this '=' needs to be terminated with ';'";
+        try p.diagnostics.addRelated(.{
+            .description = .{ .static = "expression following this '=' needs to be terminated with ';'" },
+            .location = assign.where,
+            .severity = .Hint,
+        });
         return error.ParseError;
     };
     return try p.ast.push(.{

@@ -1,6 +1,7 @@
 const std = @import("std");
 const Instruction = @import("arch").Instruction;
-const Error = @import("Error.zig");
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
 
 const Patcher = @This();
 
@@ -11,16 +12,16 @@ const Ref = struct {
 
 decls: std.StringHashMap(usize),
 refs: std.ArrayList(Ref),
-errors: *std.ArrayList(Error),
+diagnostics: *DiagnosticList,
 
 pub fn init(
     allocator: std.mem.Allocator,
-    errors: *std.ArrayList(Error),
+    diagnostics: *DiagnosticList,
 ) Patcher {
     return .{
         .decls = std.StringHashMap(usize).init(allocator),
         .refs = std.ArrayList(Ref).init(allocator),
-        .errors = errors,
+        .diagnostics = diagnostics,
     };
 }
 
@@ -31,11 +32,19 @@ pub fn deinit(self: *Patcher) void {
 
 pub fn decl(self: *Patcher, symbol: []const u8, offset: usize) !void {
     if (self.decls.getEntry(symbol)) |entry| {
-        try self.errors.append(.{
-            .tag = .@"Duplicate symbol",
-            .where = symbol,
-            .related = entry.key_ptr.*,
-            .related_msg = "Previously defined here",
+        try self.diagnostics.addDiagnostic(.{
+            .description = .{
+                .dynamic = try self.diagnostics.newDynamicDescription(
+                    "duplicate symbol \"{s}\"",
+                    .{symbol},
+                ),
+            },
+            .location = symbol,
+        });
+        try self.diagnostics.addRelated(.{
+            .description = .{ .static = "previously defined here" },
+            .severity = .Hint,
+            .location = entry.key_ptr.*,
         });
     } else {
         try self.decls.put(symbol, offset);
@@ -49,9 +58,14 @@ pub fn reference(self: *Patcher, symbol: []const u8, offset: usize) !void {
 pub fn patch(self: *Patcher, code: []Instruction) !void {
     for (self.refs.items) |ref| {
         const offset = self.decls.get(ref.symbol) orelse {
-            try self.errors.append(.{
-                .tag = .@"Unresolved symbol",
-                .where = ref.symbol,
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try self.diagnostics.newDynamicDescription(
+                        "unresolved symbol \"{s}\"",
+                        .{ref.symbol},
+                    ),
+                },
+                .location = ref.symbol,
             });
             continue;
         };

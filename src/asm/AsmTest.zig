@@ -1,25 +1,21 @@
 const std = @import("std");
 const Opcode = @import("arch").Opcode;
 const Asm = @import("Asm.zig");
-const Error = @import("Error.zig");
-
-const Tag = @TypeOf(@as(Error, undefined).tag);
+const DiagnosticList = @import("diagnostic").DiagnosticList;
 
 fn testCase(
     source: []const u8,
-    expected_error_tag: Tag,
     expected_error_token: []const u8,
 ) !void {
-    var errors = std.ArrayList(Error).init(std.testing.allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+    defer diagnostics.deinit();
 
-    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
     defer asm_.deinit();
 
     try asm_.assemble();
-    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
-    try std.testing.expectEqual(expected_error_tag, errors.items[0].tag);
-    try std.testing.expectEqualStrings(expected_error_token, errors.items[0].where.?);
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.list.items.len);
+    try std.testing.expectEqualStrings(expected_error_token, diagnostics.list.items[0].location.?);
 }
 
 test "unexpected token" {
@@ -30,7 +26,7 @@ test "unexpected token" {
         \\-end
     ;
 
-    try testCase(source, .@"Unexpected token", "label");
+    try testCase(source, "label");
 }
 
 test "duplicate label" {
@@ -42,7 +38,7 @@ test "duplicate label" {
         \\-end
     ;
 
-    try testCase(source, .@"Duplicate symbol", "label");
+    try testCase(source, "label");
 }
 
 test "duplicate function" {
@@ -55,7 +51,7 @@ test "duplicate function" {
         \\-end
     ;
 
-    try testCase(source, .@"Duplicate symbol", "main");
+    try testCase(source, "main");
 }
 
 test "duplicate string" {
@@ -67,7 +63,7 @@ test "duplicate string" {
         \\-end
     ;
 
-    try testCase(source, .@"Duplicate symbol", "string");
+    try testCase(source, "string");
 }
 
 test "unresolved label" {
@@ -78,7 +74,7 @@ test "unresolved label" {
         \\-end
     ;
 
-    try testCase(source, .@"Unresolved symbol", "label");
+    try testCase(source, "label");
 }
 
 test "unresolved function" {
@@ -89,7 +85,7 @@ test "unresolved function" {
         \\-end
     ;
 
-    try testCase(source, .@"Unresolved symbol", "func");
+    try testCase(source, "func");
 }
 
 test "unresolved string" {
@@ -100,7 +96,7 @@ test "unresolved string" {
         \\-end
     ;
 
-    try testCase(source, .@"Unresolved symbol", "string");
+    try testCase(source, "string");
 }
 
 test "invalid escape character" {
@@ -111,7 +107,7 @@ test "invalid escape character" {
         \\-end
     ;
 
-    try testCase(source, .@"Invalid escape character", "m");
+    try testCase(source, "m");
 }
 
 test "success" {
@@ -138,15 +134,15 @@ test "success" {
         \\-end
     ;
 
-    var errors = std.ArrayList(Error).init(std.testing.allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+    defer diagnostics.deinit();
 
-    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
     defer asm_.deinit();
 
     try asm_.assemble();
 
-    try std.testing.expectEqual(@as(usize, 0), errors.items.len);
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.list.items.len);
     try std.testing.expectEqual(@as(usize, 0), asm_.entry.?);
 }
 
@@ -167,16 +163,16 @@ test "patching calls" {
         \\-end
     ;
 
-    var errors = std.ArrayList(Error).init(std.testing.allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+    defer diagnostics.deinit();
 
-    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
     defer asm_.deinit();
 
     try asm_.assemble();
     const code = asm_.code.items;
 
-    try std.testing.expectEqual(@as(usize, 0), errors.items.len);
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.list.items.len);
     try std.testing.expectEqual(@as(usize, 10), code.len);
     try std.testing.expectEqual(Opcode.call, code[0].op);
     try std.testing.expectEqual(@as(usize, 7), code[0].operand.location);
@@ -194,16 +190,16 @@ test "patching labels" {
         \\-end
     ;
 
-    var errors = std.ArrayList(Error).init(std.testing.allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+    defer diagnostics.deinit();
 
-    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
     defer asm_.deinit();
 
     try asm_.assemble();
     const code = asm_.code.items;
 
-    try std.testing.expectEqual(@as(usize, 0), errors.items.len);
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.list.items.len);
     try std.testing.expectEqual(@as(usize, 6), code.len);
     try std.testing.expectEqual(Opcode.jmp, code[0].op);
     try std.testing.expectEqual(@as(usize, 3), code[0].operand.location);
@@ -216,13 +212,12 @@ test "no main" {
         \\-end
     ;
 
-    var errors = std.ArrayList(Error).init(std.testing.allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+    defer diagnostics.deinit();
 
-    var asm_ = Asm.init(source, std.testing.allocator, &errors);
+    var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
     defer asm_.deinit();
 
     try asm_.assemble();
-    try std.testing.expectEqual(@as(usize, 1), errors.items.len);
-    try std.testing.expectEqual(Tag.@"No main function", errors.items[0].tag);
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.list.items.len);
 }

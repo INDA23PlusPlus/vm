@@ -17,8 +17,10 @@ const RtError = arch.err.RtError;
 
 const asm_ = @import("asm");
 const Asm = asm_.Asm;
-const AsmError = asm_.Error;
-const SourceRef = asm_.SourceRef;
+
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
+const SourceRef = diagnostic.SourceRef;
 
 const binary = @import("binary");
 
@@ -110,7 +112,7 @@ pub fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
 
     try writer.print("Runtime error (line {d}): ", .{ref.line_num});
     try rte.err.print(writer);
-    try ref.print(writer);
+    try ref.print(writer, SourceRef.terminal_colors.red);
 }
 
 pub fn main() !u8 {
@@ -221,35 +223,37 @@ pub fn main() !u8 {
             };
         },
         .vmd => {
-            var errors = ArrayList(AsmError).init(allocator);
-            defer errors.deinit();
+            var diagnostics = DiagnosticList.init(allocator, source);
+            defer diagnostics.deinit();
 
-            var assembler = Asm.init(source, allocator, &errors);
+            var assembler = Asm.init(source, allocator, &diagnostics);
             defer assembler.deinit();
 
             try assembler.assemble();
 
-            if (errors.items.len > 0) {
-                for (errors.items) |err| {
-                    try err.print(source, stderr);
-                }
+            if (diagnostics.hasDiagnosticsMinSeverity(.Error)) {
+                try diagnostics.printAllDiagnostic(stderr);
                 return 1;
+            } else if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
+                try diagnostics.printAllDiagnostic(stdout);
             }
 
             const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .vemod;
             program = try assembler.getProgram(allocator, src_opts);
         },
         .blue => {
-            var errors = ArrayList(AsmError).init(allocator);
-            defer errors.deinit();
+            var diagnostics = DiagnosticList.init(allocator, source);
+            defer diagnostics.deinit();
 
-            var compilation = blue.compile(source, allocator, &errors, false, null) catch {
-                for (errors.items) |err| {
-                    try err.print(source, stderr);
-                }
+            var compilation = blue.compile(source, allocator, &diagnostics, false, null) catch {
+                try diagnostics.printAllDiagnostic(stderr);
                 return 1;
             };
             defer compilation.deinit();
+
+            if (diagnostics.hasDiagnosticsMinSeverity(.Warning)) {
+                try diagnostics.printAllDiagnostic(stdout);
+            }
 
             if (options.output_asm) {
                 const filename = options.output_filename orelse blk: {
@@ -269,16 +273,16 @@ pub fn main() !u8 {
                 return 0;
             }
 
-            var assembler = Asm.init(compilation.result, allocator, &errors);
+            var assembler = Asm.init(compilation.result, allocator, &diagnostics);
             defer assembler.deinit();
 
             try assembler.assemble();
 
-            if (errors.items.len > 0) {
-                for (errors.items) |err| {
-                    try err.print(source, stderr);
-                }
+            if (diagnostics.hasDiagnosticsMinSeverity(.Error)) {
+                try diagnostics.printAllDiagnostic(stderr);
                 return 1;
+            } else if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
+                try diagnostics.printAllDiagnostic(stdout);
             }
 
             const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .{

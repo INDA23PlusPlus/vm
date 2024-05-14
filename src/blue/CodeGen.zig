@@ -30,7 +30,6 @@ code: ArrayList(u8),
 functions: ArrayList(ArrayList(u8)),
 param_counts: ArrayList(usize),
 local_counts: ArrayList(usize),
-errors: *ArrayList(Error),
 label_counter: usize,
 string_ids: ArrayList(usize),
 allocator: Allocator,
@@ -40,7 +39,6 @@ pub fn init(
     ast: *Ast,
     symtab: *SymbolTable,
     source: []const u8,
-    errors: *ArrayList(Error),
     allocator: Allocator,
 ) CodeGen {
     return .{
@@ -50,7 +48,6 @@ pub fn init(
         .instr_toks = ArrayList([]const u8).init(allocator),
         .code = ArrayList(u8).init(allocator),
         .functions = ArrayList(ArrayList(u8)).init(allocator),
-        .errors = errors,
         .allocator = allocator,
         .label_counter = 0,
         .param_counts = ArrayList(usize).init(allocator),

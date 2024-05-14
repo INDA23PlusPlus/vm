@@ -14,8 +14,10 @@ const Ast = blue.Ast;
 
 const asm_ = @import("asm");
 const Asm = asm_.Asm;
-const Error = asm_.Error;
 const EmbeddedSourceOptions = Asm.EmbeddedSourceOptions;
+
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
 
 const vm = @import("vm");
 const VMContext = vm.VMContext;
@@ -79,30 +81,26 @@ pub fn main(
         {
             const source = input_buffer.items;
 
-            var errors = ArrayList(Error).init(allocator);
-            defer errors.deinit();
+            var diagnostics = DiagnosticList.init(allocator, source);
+            defer diagnostics.deinit();
             var compilation = blue.compile(
                 source,
                 allocator,
-                &errors,
+                &diagnostics,
                 false,
                 astOverlay,
             ) catch {
-                for (errors.items) |err| {
-                    try err.print(source, stdout);
-                }
+                try diagnostics.printAllDiagnostic(stdout);
                 continue;
             };
             defer compilation.deinit();
 
-            var assembler = Asm.init(compilation.result, allocator, &errors);
+            var assembler = Asm.init(compilation.result, allocator, &diagnostics);
             defer assembler.deinit();
             try assembler.assemble();
-            if (errors.items.len > 0) {
-                for (errors.items) |err| {
-                    try err.print(source, stdout);
-                }
-                continue;
+            if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
+                try diagnostics.printAllDiagnostic(stdout);
+                if (diagnostics.hasDiagnosticsMinSeverity(.Error)) continue;
             }
 
             const src_opts: EmbeddedSourceOptions = .{

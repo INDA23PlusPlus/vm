@@ -4,6 +4,13 @@
 //!
 const Self = @This();
 
+pub const terminal_colors = struct {
+    pub const reset = "\x1b[0m";
+    pub const red = "\x1b[31m";
+    pub const yellow = "\x1b[33m";
+    pub const blue = "\x1b[34m";
+};
+
 /// The substring
 string: []const u8,
 /// The line number where the substring appears
@@ -48,18 +55,18 @@ pub fn init(source: []const u8, substr: []const u8) !Self {
     };
 }
 
-pub fn print(self: Self, writer: anytype) !void {
+pub fn print(self: Self, writer: anytype, color: ?[]const u8) !void {
     try writer.print("{s}\n", .{self.line});
     for (0..self.offset) |i| {
         const c: u8 = if (self.line[i] == '\t') '\t' else ' ';
         try writer.writeByte(c);
     }
 
-    try writer.writeAll("\x1b[31m");
+    if (color) |c| try writer.writeAll(c);
     for (0..self.string.len) |_| {
         try writer.writeByte('~');
     }
-    try writer.writeAll("\x1b[0m");
+    if (color) |_| try writer.writeAll(terminal_colors.reset);
 
     try writer.writeByte('\n');
 }

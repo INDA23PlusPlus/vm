@@ -157,6 +157,14 @@ pub fn build(b: *std.Build) void {
     const jit_run_tests = b.addRunArtifact(jit_tests);
 
     //
+    // Diagnostics
+    //
+    const diagnostic_mod = b.addModule(
+        "diagnostic",
+        .{ .root_source_file = .{ .path = "src/diagnostic/module.zig" } },
+    );
+
+    //
     // Main executable
     //
     const vemod = b.addExecutable(.{
@@ -177,12 +185,14 @@ pub fn build(b: *std.Build) void {
     vmdls.root_module.addImport("asm", assembler_mod);
     vmdls.root_module.addImport("arch", arch_mod);
     vmdls.root_module.addImport("blue", blue_mod);
+    vmdls.root_module.addImport("diagnostic", diagnostic_mod);
     vemod.root_module.addImport("arch", arch_mod);
     vemod.root_module.addImport("vm", vm_mod);
     vemod.root_module.addImport("asm", assembler_mod);
     vemod.root_module.addImport("binary", binary_mod);
     vemod.root_module.addImport("blue", blue_mod);
     vemod.root_module.addImport("jit", jit_mod);
+    vemod.root_module.addImport("diagnostic", diagnostic_mod);
 
     //
     // Module-module dependencies
@@ -193,9 +203,11 @@ pub fn build(b: *std.Build) void {
     vm_mod.addImport("asm", assembler_mod);
     assembler_mod.addImport("vm", vm_mod);
     assembler_mod.addImport("arch", arch_mod);
+    assembler_mod.addImport("diagnostic", diagnostic_mod);
     binary_mod.addImport("arch", arch_mod);
     blue_mod.addImport("asm", assembler_mod);
     blue_mod.addImport("arch", arch_mod);
+    blue_mod.addImport("diagnostic", diagnostic_mod);
     jit_mod.addImport("arch", arch_mod);
 
     //
@@ -203,20 +215,24 @@ pub fn build(b: *std.Build) void {
     //
     assembler_tests.root_module.addImport("arch", arch_mod);
     assembler_tests.root_module.addImport("vm", vm_mod);
+    assembler_tests.root_module.addImport("diagnostic", diagnostic_mod);
     memory_manager_tests.root_module.addImport("arch", arch_mod);
     vm_tests.root_module.addImport("arch", arch_mod);
     vm_tests.root_module.addImport("memory_manager", memory_manager_mod);
     vm_tests.root_module.addImport("asm", assembler_mod);
+    vm_tests.root_module.addImport("diagnostic", diagnostic_mod);
     binary_tests.root_module.addImport("arch", arch_mod);
     binary_tests.root_module.addImport("asm", assembler_mod);
     binary_tests.root_module.addImport("vm", vm_mod);
+    binary_tests.root_module.addImport("diagnostic", diagnostic_mod);
     blue_tests.root_module.addImport("arch", arch_mod);
     blue_tests.root_module.addImport("asm", assembler_mod);
+    blue_tests.root_module.addImport("diagnostic", diagnostic_mod);
 
     //
     // Unused modules
     //
-    _ = .{ compiler_mod, vmdls_mod, binary_mod };
+    _ = .{ compiler_mod, vmdls_mod };
 
     //
     // Default build step

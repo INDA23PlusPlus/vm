@@ -1,7 +1,7 @@
 const std = @import("std");
 const Opcode = @import("arch").Opcode;
 const Token = @This();
-const Error = @import("Error.zig");
+const DiagnosticList = @import("diagnostic").DiagnosticList;
 
 tag: Tag,
 where: []const u8,
@@ -38,7 +38,7 @@ pub const Scanner = struct {
     source: []const u8,
     cursor: usize = 0,
     peeked: ?Token = null,
-    errors: *std.ArrayList(Error),
+    diagnostics: *DiagnosticList,
 
     /// Returns the next token and advances scanner
     pub fn next(self: *Scanner) !?Token {
@@ -62,7 +62,15 @@ pub const Scanner = struct {
             else => {
                 const where = self.source[self.cursor .. self.cursor + 1];
                 self.advance();
-                try self.errors.append(.{ .tag = .@"Invalid character", .where = where });
+                try self.diagnostics.addDiagnostic(.{
+                    .description = .{
+                        .dynamic = try self.diagnostics.newDynamicDescription(
+                            "invalid character \'{c}\'",
+                            .{c},
+                        ),
+                    },
+                    .location = where,
+                });
                 return .{ .tag = .err, .where = where };
             },
         }
@@ -124,7 +132,15 @@ pub const Scanner = struct {
         self.advance();
         const where = self.readWord();
         const kw = std.meta.stringToEnum(Keyword, where) orelse {
-            try self.errors.append(.{ .tag = .@"Invalid keyword", .where = where });
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try self.diagnostics.newDynamicDescription(
+                        "invalid keyword \"-{s}\"",
+                        .{where},
+                    ),
+                },
+                .location = where,
+            });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .keyword = kw }, .where = where };
@@ -139,7 +155,15 @@ pub const Scanner = struct {
     fn instruction(self: *Scanner) !?Token {
         const where = self.readWord();
         const _instr = std.meta.stringToEnum(Opcode, where) orelse {
-            try self.errors.append(.{ .tag = .@"Invalid instruction", .where = where });
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try self.diagnostics.newDynamicDescription(
+                        "invalid opcode \"{s}\"",
+                        .{where},
+                    ),
+                },
+                .location = where,
+            });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .instr = _instr }, .where = where };
@@ -149,7 +173,15 @@ pub const Scanner = struct {
         self.advance();
         const where = self.readWord();
         const int = std.fmt.parseInt(i64, where, 10) catch {
-            try self.errors.append(.{ .tag = .@"Invalid literal", .where = where });
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try self.diagnostics.newDynamicDescription(
+                        "invalid integer literal \"%{s}\"",
+                        .{where},
+                    ),
+                },
+                .location = where,
+            });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .int = int }, .where = where };
@@ -159,7 +191,15 @@ pub const Scanner = struct {
         self.advance();
         const where = self.readWord();
         const float_ = std.fmt.parseFloat(f64, where) catch {
-            try self.errors.append(.{ .tag = .@"Invalid literal", .where = where });
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try self.diagnostics.newDynamicDescription(
+                        "invalid float literal \"%{s}\"",
+                        .{where},
+                    ),
+                },
+                .location = where,
+            });
             return .{ .tag = .err, .where = where };
         };
         return Token{ .tag = .{ .float = float_ }, .where = where };
@@ -178,9 +218,9 @@ pub const Scanner = struct {
         while (self.current()) |c| {
             if (c == '\n') {
                 const where = self.source[begin..self.cursor];
-                try self.errors.append(.{
-                    .tag = .@"Unterminated string",
-                    .where = where,
+                try self.diagnostics.addDiagnostic(.{
+                    .description = .{ .static = "unterminated string" },
+                    .location = where,
                 });
                 return .{ .tag = .err, .where = self.readWord() };
             }
@@ -197,9 +237,9 @@ pub const Scanner = struct {
             self.advance();
         } else {
             const where = self.source[begin..self.cursor];
-            try self.errors.append(.{
-                .tag = .@"Unterminated string",
-                .where = where,
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{ .static = "unterminated string" },
+                .location = where,
             });
             return .{ .tag = .err, .where = self.readWord() };
         }

@@ -6,8 +6,9 @@ const std = @import("std");
 const Scope = std.StringHashMap(usize);
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-const Error = @import("asm").Error;
 const Ast = @import("Ast.zig");
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
 
 pub const SymbolKind = union(enum) {
     func: usize,
@@ -47,7 +48,7 @@ const ScopeIterator = struct {
 scopes: ArrayList(Scope),
 symbols: ArrayList(Symbol),
 ast: *Ast,
-errors: *ArrayList(Error),
+diagnostics: *DiagnosticList,
 allocator: Allocator,
 // We don't allow captures. Therefore the only symbols
 // that should be available in a function scope outside of that scope,
@@ -56,12 +57,12 @@ markers: ArrayList(usize),
 param_counter: usize,
 local_counters: ArrayList(usize),
 
-pub fn init(allocator: Allocator, ast: *Ast, errors: *ArrayList(Error)) !SymbolTable {
+pub fn init(allocator: Allocator, ast: *Ast, diagnostics: *DiagnosticList) !SymbolTable {
     var self = SymbolTable{
         .scopes = ArrayList(Scope).init(allocator),
         .symbols = ArrayList(Symbol).init(allocator),
         .ast = ast,
-        .errors = errors,
+        .diagnostics = diagnostics,
         .allocator = allocator,
         .markers = ArrayList(usize).init(allocator),
         .param_counter = 0,
@@ -82,7 +83,6 @@ pub fn deinit(self: *SymbolTable) void {
 
 pub fn resolve(self: *SymbolTable) !void {
     self.resolveNode(self.ast.root) catch |err| switch (err) {
-        // Resolve errors are detected by checking length of error list
         else => return err,
     };
 }
@@ -159,19 +159,40 @@ fn reference(self: *SymbolTable, name: []const u8, nparams: usize) !usize {
         if (scope.get(name)) |symid| {
             const symbol = &self.symbols.items[symid];
             if (symbol.nparams == 0 and scope_iter.only_funcs) {
-                try self.errors.append(.{
-                    .tag = .@"Variable referenced outside function scope",
-                    .where = name,
-                    .related = symbol.decl_loc,
-                    .related_msg = "non-function declared here",
+                try self.diagnostics.addDiagnostic(.{
+                    .description = .{
+                        .dynamic = try self.diagnostics.newDynamicDescription(
+                            "reference of external non-function \"{s}\"",
+                            .{name},
+                        ),
+                    },
+                    .location = name,
+                });
+                try self.diagnostics.addRelated(.{
+                    .description = .{ .static = "non-function declared here" },
+                    .location = symbol.decl_loc,
+                    .severity = .Hint,
                 });
             }
             if (symbol.nparams != nparams) {
-                try self.errors.append(.{
-                    .tag = .@"Argument count mismatch",
-                    .where = name,
-                    .related = symbol.decl_loc,
-                    .related_msg = "symbol declared here",
+                try self.diagnostics.addDiagnostic(.{
+                    .description = .{
+                        .dynamic = try self.diagnostics.newDynamicDescription(
+                            "argument count mismatch, \"{s}\" takes {d} parameters but {d} where provided",
+                            .{ name, symbol.nparams, nparams },
+                        ),
+                    },
+                    .location = name,
+                });
+                try self.diagnostics.addRelated(.{
+                    .description = .{
+                        .dynamic = try self.diagnostics.newDynamicDescription(
+                            "\"{s}\" declared here",
+                            .{symbol.decl_loc},
+                        ),
+                    },
+                    .location = symbol.decl_loc,
+                    .severity = .Hint,
                 });
                 return 0;
             } else {
@@ -179,9 +200,11 @@ fn reference(self: *SymbolTable, name: []const u8, nparams: usize) !usize {
             }
         }
     } else {
-        try self.errors.append(.{
-            .tag = .@"Unresolved symbol",
-            .where = name,
+        try self.diagnostics.addDiagnostic(.{
+            .description = .{
+                .dynamic = try self.diagnostics.newDynamicDescription("unresolved symbol \"{s}\"", .{name}),
+            },
+            .location = name,
         });
         return 0;
     }
@@ -191,11 +214,19 @@ fn declare(self: *SymbolTable, name: []const u8, nparams: usize, kind: SymbolKin
     var scope = self.scopes.items[self.currentScopeID()];
     if (scope.get(name)) |symid| {
         const symbol = &self.symbols.items[symid];
-        try self.errors.append(.{
-            .tag = .@"Duplicate symbol",
-            .where = name,
-            .related = symbol.decl_loc,
-            .related_msg = "previously declared here",
+        try self.diagnostics.addDiagnostic(.{
+            .description = .{
+                .dynamic = try self.diagnostics.newDynamicDescription(
+                    "duplicate symbol \"{s}\"",
+                    .{name},
+                ),
+            },
+            .location = name,
+        });
+        try self.diagnostics.addRelated(.{
+            .description = .{ .static = "previously declared here" },
+            .location = symbol.decl_loc,
+            .severity = .Hint,
         });
         return 0;
     } else {

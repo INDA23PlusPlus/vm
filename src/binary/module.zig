@@ -261,7 +261,7 @@ test {
     const testing = std.testing;
     const fs = std.fs;
     const asm_ = @import("asm");
-    const AsmError = asm_.Error;
+    const DiagnosticList = @import("diagnostic").DiagnosticList;
     const Asm = asm_.Asm;
     const vm = @import("vm");
     const VMContext = vm.VMContext;
@@ -297,14 +297,14 @@ test {
         \\
     ;
 
-    var errors = ArrayList(AsmError).init(testing.allocator);
-    defer errors.deinit();
+    var diagnostics = DiagnosticList.init(testing.allocator, source);
+    defer diagnostics.deinit();
 
-    var assembler = Asm.init(source, testing.allocator, &errors);
+    var assembler = Asm.init(source, testing.allocator, &diagnostics);
     defer assembler.deinit();
 
     try assembler.assemble();
-    try testing.expectEqual(@as(usize, 0), errors.items.len);
+    try testing.expectEqual(@as(usize, 0), diagnostics.list.items.len);
 
     {
         var program = try assembler.getProgram(testing.allocator, .vemod);

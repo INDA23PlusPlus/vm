@@ -8,7 +8,8 @@ const arch = @import("arch");
 const Instruction = arch.Instruction;
 const Program = arch.Program;
 const Patcher = @import("Patcher.zig");
-const Error = @import("Error.zig");
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
 const Token = @import("Token.zig");
 const Scanner = Token.Scanner;
 const StringPool = @import("StringPool.zig");
@@ -25,7 +26,7 @@ lbl_patcher: Patcher,
 str_patcher: Patcher,
 string_pool: StringPool,
 field_name_pool: StringPool,
-errors: *std.ArrayList(Error),
+diagnostics: *DiagnosticList,
 str_build: std.ArrayList(u8),
 str_parser: StringParser,
 instr_toks: std.ArrayList([]const u8),
@@ -35,20 +36,20 @@ fn_len_map: FnLenMap,
 pub fn init(
     source: []const u8,
     allocator: std.mem.Allocator,
-    errors: *std.ArrayList(Error),
+    diagnostics: *DiagnosticList,
 ) Asm {
     return .{
         .code = std.ArrayList(Instruction).init(allocator),
-        .scan = .{ .source = source, .errors = errors },
-        .fn_patcher = Patcher.init(allocator, errors),
-        .lbl_patcher = Patcher.init(allocator, errors),
-        .str_patcher = Patcher.init(allocator, errors),
+        .scan = .{ .source = source, .diagnostics = diagnostics },
+        .fn_patcher = Patcher.init(allocator, diagnostics),
+        .lbl_patcher = Patcher.init(allocator, diagnostics),
+        .str_patcher = Patcher.init(allocator, diagnostics),
         .string_pool = StringPool.init(allocator),
         .field_name_pool = StringPool.init(allocator),
-        .errors = errors,
+        .diagnostics = diagnostics,
         .entry = null,
         .str_build = std.ArrayList(u8).init(allocator),
-        .str_parser = StringParser.init(allocator, errors),
+        .str_parser = StringParser.init(allocator, diagnostics),
         .instr_toks = std.ArrayList([]const u8).init(allocator),
         .curr_fn_addr = 0,
         .fn_len_map = FnLenMap.init(allocator),
@@ -71,10 +72,9 @@ pub fn deinit(self: *Asm) void {
 pub fn assemble(self: *Asm) !void {
     while (try self.scan.peek()) |leading| {
         if (leading.tag != .keyword) {
-            try self.errors.append(.{
-                .where = leading.where,
-                .tag = .@"Unexpected token",
-                .extra = "expected '-string' or '-function'",
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{ .static = "unexpected token, expected '-function' or '-string'" },
+                .location = leading.where,
             });
             try self.syncUntilNextToplevel();
             continue;
@@ -84,10 +84,9 @@ pub fn assemble(self: *Asm) !void {
             .function => self.asmFunc(),
             .string => self.asmString(),
             else => {
-                try self.errors.append(.{
-                    .where = leading.where,
-                    .tag = .@"Unexpected token",
-                    .extra = "expected '-string' or '-function'",
+                try self.diagnostics.addDiagnostic(.{
+                    .description = .{ .static = "unexpected token, expected '-string' or '-function'" },
+                    .location = leading.where,
                 });
                 try self.syncUntilNextToplevel();
                 continue;
@@ -107,8 +106,8 @@ pub fn assemble(self: *Asm) !void {
     try self.str_patcher.patch(self.code.items);
 
     if (self.entry == null) {
-        try self.errors.append(.{
-            .tag = .@"No main function",
+        try self.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "missing 'main' function" },
         });
     }
 }
@@ -353,10 +352,15 @@ fn asmLabel(self: *Asm) !void {
 
 fn getToken(self: *Asm, extra: ?[]const u8) !Token {
     return try self.scan.next() orelse {
-        try self.errors.append(.{
-            .tag = .@"Unexpected end of input",
-            .where = self.scan.source[self.scan.source.len - 1 ..],
-            .extra = extra,
+        const description: diagnostic.Description = if (extra) |extra_| .{
+            .dynamic = try self.diagnostics.newDynamicDescription(
+                "unexpected end of input, {s}",
+                .{extra_},
+            ),
+        } else .{ .static = "unexpected end of input" };
+        try self.diagnostics.addDiagnostic(.{
+            .description = description,
+            .location = self.scan.source[self.scan.source.len - 1 ..],
         });
         return error.UnexpectedEOF;
     };
@@ -368,10 +372,15 @@ fn expect(self: *Asm, tag: std.meta.Tag(Token.Tag), extra: ?[]const u8) !Token {
         return error.InvalidToken;
     }
     if (tok.tag != tag) {
-        try self.errors.append(.{
-            .tag = .@"Unexpected token",
-            .where = tok.where,
-            .extra = extra,
+        const description: diagnostic.Description = if (extra) |extra_| .{
+            .dynamic = try self.diagnostics.newDynamicDescription(
+                "unexpected token, {s}",
+                .{extra_},
+            ),
+        } else .{ .static = "unexpected token" };
+        try self.diagnostics.addDiagnostic(.{
+            .description = description,
+            .location = tok.where,
         });
         return error.UnexpectedToken;
     }
@@ -381,10 +390,15 @@ fn expect(self: *Asm, tag: std.meta.Tag(Token.Tag), extra: ?[]const u8) !Token {
 fn expectKw(self: *Asm, kw: Token.Keyword, extra: ?[]const u8) !Token {
     const tok = try self.expect(.keyword, extra);
     if (tok.tag.keyword != kw) {
-        try self.errors.append(.{
-            .tag = .@"Unexpected token",
-            .where = tok.where,
-            .extra = extra,
+        const description: diagnostic.Description = if (extra) |extra_| .{
+            .dynamic = try self.diagnostics.newDynamicDescription(
+                "unexpected token, {s}",
+                .{extra_},
+            ),
+        } else .{ .static = "unexpected token" };
+        try self.diagnostics.addDiagnostic(.{
+            .description = description,
+            .location = self.scan.source[self.scan.source.len - 1 ..],
         });
         return error.UnexpectedToken;
     }

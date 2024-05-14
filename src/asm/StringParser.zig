@@ -3,13 +3,13 @@
 //!
 
 const std = @import("std");
-const Error = @import("Error.zig");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const StringParser = @This();
+const DiagnosticList = @import("diagnostic").DiagnosticList;
 
 buffer: ArrayList(u8),
-errors: *ArrayList(Error),
+diagnostics: *DiagnosticList,
 
 const CharIterator = struct {
     string: []const u8,
@@ -23,10 +23,10 @@ const CharIterator = struct {
     }
 };
 
-pub fn init(allocator: Allocator, errors: *ArrayList(Error)) StringParser {
+pub fn init(allocator: Allocator, diagnostics: *DiagnosticList) StringParser {
     return .{
         .buffer = ArrayList(u8).init(allocator),
-        .errors = errors,
+        .diagnostics = diagnostics,
     };
 }
 
@@ -49,15 +49,15 @@ pub fn parse(self: *StringParser, string: []const u8) ![]const u8 {
                         '\\' => try writer.writeByte('\\'),
                         '\"' => try writer.writeByte('\"'),
                         // TODO: more escape characters
-                        else => try self.errors.append(.{
-                            .tag = .@"Invalid escape character",
-                            .where = string[iter.index - 1 .. iter.index],
+                        else => try self.diagnostics.addDiagnostic(.{
+                            .description = .{ .static = "invalid escape character" },
+                            .location = string[iter.index - 1 .. iter.index],
                         }),
                     }
                 } else {
-                    try self.errors.append(.{
-                        .tag = .@"Missing escape character",
-                        .where = string[iter.index - 1 .. iter.index],
+                    try self.diagnostics.addDiagnostic(.{
+                        .description = .{ .static = "missing escape character" },
+                        .location = string[iter.index - 1 .. iter.index],
                     });
                 }
             },

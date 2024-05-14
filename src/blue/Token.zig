@@ -6,9 +6,8 @@ const std = @import("std");
 const ascii = std.ascii;
 const mem = std.mem;
 const ArrayList = std.ArrayList;
-
-const asm_ = @import("asm");
-const Error = asm_.Error;
+const diagnostic = @import("diagnostic");
+const DiagnosticList = diagnostic.DiagnosticList;
 
 pub const Tag = enum {
     let,
@@ -71,10 +70,10 @@ pub const Lexer = struct {
     src: []const u8,
     pos: usize = 0,
     peeked: ?Token = null,
-    errors: *ArrayList(Error),
+    diagnostics: *DiagnosticList,
 
-    pub fn init(src: []const u8, errors: *ArrayList(Error)) Lexer {
-        return .{ .src = src, .errors = errors };
+    pub fn init(src: []const u8, diagnostics: *DiagnosticList) Lexer {
+        return .{ .src = src, .diagnostics = diagnostics };
     }
 
     pub fn deinit(self: *Lexer) void {
@@ -104,9 +103,14 @@ pub const Lexer = struct {
         if (try self.infix()) |tok| return tok;
 
         const where = self.src[self.pos .. self.pos + 1];
-        try self.errors.append(.{
-            .tag = .@"Invalid character",
-            .where = where,
+        try self.diagnostics.addDiagnostic(.{
+            .description = .{
+                .dynamic = try self.diagnostics.newDynamicDescription(
+                    "invalid character \'{c}\'",
+                    .{self.curr().?},
+                ),
+            },
+            .location = where,
         });
         self.adv();
         return .{ .tag = .err, .where = where };
@@ -268,9 +272,9 @@ pub const Lexer = struct {
             return .{ .tag = .infix, .where = where };
         } else {
             const where = self.src[self.pos - 1 .. self.pos];
-            try self.errors.append(.{
-                .tag = .@"Empty infix operator",
-                .where = where,
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{ .static = "empty infix operator" },
+                .location = where,
             });
             return error.LexicalError;
         }
@@ -291,9 +295,9 @@ pub const Lexer = struct {
             self.adv();
         }
         const where = self.src[begin..self.pos];
-        try self.errors.append(.{
-            .tag = .@"Unterminated string",
-            .where = where,
+        try self.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "unterminated string" },
+            .location = where,
         });
         return error.LexicalError;
     }
@@ -321,10 +325,10 @@ test Lexer {
     const testing = std.testing;
     const src = @embedFile("test-inputs/fib.blue");
 
-    var errs = ArrayList(Error).init(testing.allocator);
-    defer errs.deinit();
+    var diagnostics = DiagnosticList.init(testing.allocator, src);
+    defer diagnostics.deinit();
 
-    var lx = Lexer.init(src, &errs);
+    var lx = Lexer.init(src, &diagnostics);
 
     var tags = ArrayList(Tag).init(testing.allocator);
     defer tags.deinit();
