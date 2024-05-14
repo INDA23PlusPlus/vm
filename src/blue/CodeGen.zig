@@ -29,7 +29,6 @@ instr_toks: ArrayList([]const u8),
 code: ArrayList(u8),
 functions: ArrayList(ArrayList(u8)),
 param_counts: ArrayList(usize),
-local_counts: ArrayList(usize),
 label_counter: usize,
 string_ids: ArrayList(usize),
 allocator: Allocator,
@@ -51,7 +50,6 @@ pub fn init(
         .allocator = allocator,
         .label_counter = 0,
         .param_counts = ArrayList(usize).init(allocator),
-        .local_counts = ArrayList(usize).init(allocator),
         .string_ids = ArrayList(usize).init(allocator),
         .prong_labels = ArrayList(ArrayList(usize)).init(allocator),
     };
@@ -62,7 +60,6 @@ pub fn deinit(self: *CodeGen) void {
     self.code.deinit();
     self.functions.deinit();
     self.param_counts.deinit();
-    self.local_counts.deinit();
     self.string_ids.deinit();
     self.prong_labels.deinit();
 }
@@ -122,7 +119,6 @@ fn beginFunction(self: *CodeGen, symid: usize) !void {
         );
     }
     try self.param_counts.append(symbol.nparams);
-    try self.local_counts.append(symbol.kind.func);
 }
 
 fn endFunction(self: *CodeGen) !void {
@@ -137,7 +133,6 @@ fn endFunction(self: *CodeGen) !void {
     self.currentFunction().deinit();
     _ = self.functions.pop();
     _ = self.param_counts.pop();
-    _ = self.local_counts.pop();
 }
 
 fn currentFunction(self: *CodeGen) *ArrayList(u8) {
@@ -211,7 +206,6 @@ pub fn gen(self: *CodeGen) !void {
         .{ .int = @intCast(self.symtab.mainLocalCount()) },
         self.placeholderToken(),
     );
-    try self.local_counts.append(self.symtab.mainLocalCount());
     try self.param_counts.append(0);
     try self.genNode(self.ast.root);
     try self.endFunction();
