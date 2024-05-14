@@ -9,7 +9,8 @@ pub const Type = enum(u8) {
     int        = 0b00000,
     float      = 0b00001,
 
-    string     = 0b10000,
+    string_ref     = 0b10000,
+    string_lit     = 0b10001,
 
     list       = 0b01010,
     object     = 0b01100,

@@ -102,10 +102,10 @@ fn objectEq(a: Value, b: Value) bool {
 }
 
 fn getstr(a: Value) []const u8 {
-    assert(a == .string) catch {
+    assert(a == .string_ref or a == .string_lit) catch {
         debug_log("internal error: called getstr on non string\n", .{});
     };
-    return if (a.string == .string_lit) a.string.string_lit.* else a.string.string_ref.get();
+    return if (a == .string_lit) a.string_lit.* else a.string_ref.get();
 }
 
 fn stringOperation(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
@@ -144,7 +144,7 @@ fn compareEq(a: Value, b: Value) bool {
         .unit => true,
         .int => a.as(.int).? == b.as(.int).?,
         .float => a.as(.float).? == b.as(.float).?,
-        .string => std.mem.order(u8, getstr(a), getstr(b)) == .eq,
+        .string_ref, .string_lit => std.mem.order(u8, getstr(a), getstr(b)) == .eq,
         .list => listEq(a, b),
         .object => objectEq(a, b),
     };
@@ -155,7 +155,7 @@ fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
         .unit => Value.tryFrom(doArithmetic(Value.GetRepr(.int), 0, op, 0, ctxt)),
         .int => Value.tryFrom(doArithmetic(Value.GetRepr(.int), a.int, op, b.int, ctxt)),
         .float => Value.tryFrom(doArithmetic(Value.GetRepr(.float), a.float, op, b.float, ctxt)),
-        .string => stringOperation(a, op, b, ctxt),
+        .string_ref, .string_lit => stringOperation(a, op, b, ctxt),
         .list => switch (op) {
             .cmp_eq => Value.from(listEq(a, b)),
             .cmp_ne => Value.from(!listEq(a, b)),
@@ -221,7 +221,6 @@ fn take(ctxt: *VMContext, v: Value) Value {
         ctxt.refc = ctxt.refc + 1;
     }
 
-    // return v.clone();
     return v;
 }
 
@@ -230,7 +229,6 @@ fn drop(ctxt: *VMContext, v: Value) void {
         ctxt.refc = ctxt.refc - 1;
     }
 
-    // v.deinit();
     _ = v;
 }
 
@@ -249,9 +247,13 @@ inline fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Value {
     return ctxt.stack.items[idx];
 }
 
+inline fn unlikely_event() void {
+    @setCold(true);
+}
+
 // mark condition as unlikely (optimizer hint)
 inline fn unlikely(a: bool) bool {
-    @setCold(true);
+    if (a) unlikely_event();
     return a;
 }
 
@@ -279,7 +281,7 @@ inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Value) !void {
 
 fn push(ctxt: *VMContext, v: Value) !void {
     if (unlikely(ctxt.stack.capacity == ctxt.stack.items.len)) {
-        try ctxt.stack.ensureTotalCapacityPrecise(ctxt.stack.items.len * 4);
+        try ctxt.stack.ensureTotalCapacityPrecise(ctxt.stack.items.len * 2);
     }
     ctxt.stack.appendAssumeCapacity(take(ctxt, v));
 }
@@ -325,7 +327,7 @@ fn printImpl(x: *Value, ctxt: *VMContext) anyerror!void {
         .unit => try writer.print("()", .{}),
         .int => |i| try writer.print("{}", .{i}),
         .float => |f| try writer.print("{d}", .{f}),
-        .string => try writer.print("{s}", .{getstr(x.*)}),
+        .string_lit, .string_ref => try writer.print("{s}", .{getstr(x.*)}),
         .list => |*l| {
             const len = l.length();
 

@@ -22,23 +22,13 @@ pub const ListRef = struct {
         _ = self;
     }
 
-    // DEPRECATED Increment the reference count, called when a new reference is created (e.g. copy)
-    pub fn incr(self: *const Self) void {
-        _ = self;
-    }
-
-    //  DEPRECATED Decrement the reference count, called when a reference is destroyed (e.g. deinit)
-    pub fn decr(self: *const Self) void {
-        _ = self;
-    }
-
     pub fn length(self: *const Self) usize {
         return self.ref.items.items.len;
     }
 
     pub fn get(self: *const Self, index: usize) Value {
         if (index >= self.length()) {
-            return Value.from(Unit.init());
+            return Value.from(Unit{});
         } else {
             return self.ref.items.items[index];
         }
@@ -47,7 +37,7 @@ pub const ListRef = struct {
     pub fn set(self: *const Self, index: usize, value: Value) void {
         if (index >= self.ref.items.items.len) {
             for (0..index - self.ref.items.items.len) |_| {
-                self.ref.items.append(Value.from(Unit.init())) catch |err| {
+                self.ref.items.append(Value.from(Unit{})) catch |err| {
                     std.debug.print("Error on list set: {}\n", .{err});
                     return;
                 };
@@ -93,20 +83,6 @@ pub const ObjectRef = struct {
         return .{ .ref = obj };
     }
 
-    pub fn deinit(self: *const Self) void {
-        _ = self;
-    }
-
-    //  DEPRECATED Increment the reference count, called when a new reference is created (e.g. copy)
-    pub fn incr(self: *const Self) void {
-        _ = self;
-    }
-
-    //  DEPRECATED Decrement the reference count, called when a reference is destroyed (e.g. deinit)
-    pub fn decr(self: *const Self) void {
-        _ = self;
-    }
-
     pub fn get(self: *const Self, key: usize) ?Value {
         const val = self.ref.map.get(key);
         if (val == null) {
@@ -137,32 +113,13 @@ const StringLit = *const []const u8;
 const StringRef = struct {
     const Self = @This();
 
-    pub fn incr(self: *const Self) void {
-        _ = self;
-    }
-
-    pub fn decr(self: *const Self) void {
-        _ = self;
-    }
-
     pub fn get(self: *const Self) []const u8 {
         _ = self;
         return "";
     }
 };
 
-const String = union(enum) {
-    string_lit: StringLit,
-    string_ref: StringRef,
-};
-
-pub const Unit = struct {
-    const Self = @This();
-
-    pub fn init() Self {
-        return .{};
-    }
-};
+pub const Unit = void;
 
 // assert that @intFromEnum(e1) ^ @intFromEnum(e2) is equivalent to checking if comparisons are allowed between these types
 comptime {
@@ -170,7 +127,8 @@ comptime {
         .int,
         .float,
         .unit,
-        .string,
+        .string_ref,
+        .string_lit,
         .list,
         .object,
     }) |e1| {
@@ -178,7 +136,8 @@ comptime {
             .int,
             .float,
             .unit,
-            .string,
+            .string_ref,
+            .string_lit,
             .list,
             .object,
         }) |e2| {
@@ -187,11 +146,16 @@ comptime {
                 // should only be valid if one is int and one is float, or both are some kind of string
                 if (e1 != e2) {
                     const int_float = (e1 == .int and e2 == .float) or (e1 == .float and e2 == .int);
-                    std.debug.assert(int_float);
+                    const string_string = (e1 == .string_ref and e2 == .string_lit) or (e1 == .string_lit and e2 == .string_ref);
+                    std.debug.assert(int_float or string_string);
                 }
             }
         }
     }
+}
+
+comptime {
+    std.debug.assert(@sizeOf(Value) == 16);
 }
 
 pub const Value = union(Type) {
@@ -201,7 +165,8 @@ pub const Value = union(Type) {
     unit: Unit,
     int: i64,
     float: f64,
-    string: String,
+    string_ref: StringRef,
+    string_lit: StringLit,
     list: ListRef,
     object: ObjectRef,
 
@@ -210,53 +175,11 @@ pub const Value = union(Type) {
             .unit => Unit,
             .int => i64,
             .float => f64,
-            .string => String,
+            .string_lit => StringLit,
+            .string_ref => StringRef,
             .list => ListRef,
             .object => ObjectRef,
         };
-    }
-
-    pub fn incr(self: *const Self) void {
-        @setCold(true);
-        switch (self.*) {
-            .string => |string| {
-                switch (string) {
-                    .string_ref => |*m| m.incr(),
-                    else => {},
-                }
-            },
-            .list => |*m| m.incr(),
-            .object => |*m| m.incr(),
-            else => {},
-        }
-    }
-
-    pub fn decr(self: *const Self) void {
-        @setCold(true);
-        switch (self.*) {
-            .string => |string| {
-                switch (string) {
-                    .string_ref => |*m| m.decr(),
-                    else => {},
-                }
-            },
-            .list => |*m| m.decr(),
-            .object => |*m| m.decr(),
-            else => {},
-        }
-    }
-
-    pub fn clone(self: *const Self) Self {
-        if (@intFromEnum(self.tag()) > 2) {
-            self.incr();
-        }
-        return self.*;
-    }
-
-    pub fn deinit(self: *const Self) void {
-        if (@intFromEnum(self.tag()) > 2) {
-            self.decr();
-        }
     }
 
     pub fn tag(self: *const Self) Tag {
@@ -268,13 +191,11 @@ pub const Value = union(Type) {
 
         return switch (T) {
             Value => x,
-            String => return .{ .string = x },
-            StringLit => return .{ .string = .{ .string_lit = x } },
-            StringRef => return .{ .string = .{ .string_ref = x } },
+            StringLit => return .{ .string_lit = x },
+            StringRef => return .{ .string_ref = x },
             ListRef => .{ .list = x },
             ObjectRef => .{ .object = x },
             Unit => .{ .unit = x },
-            void => .{ .unit = .{} },
             else => switch (@typeInfo(T)) {
                 .Bool => .{ .int = @intFromBool(x) },
                 .Int, .ComptimeInt => .{ .int = @intCast(x) },
@@ -331,7 +252,8 @@ pub const Value = union(Type) {
             .unit => |c| if (T == .unit) c else unreachable,
             .int => |c| if (T == .int) c else unreachable,
             .float => |c| if (T == .float) c else unreachable,
-            .string => |c| if (T == .string) c else unreachable,
+            .string_ref => |c| if (T == .string_ref) c else unreachable,
+            .string_lit => |c| if (T == .string_lit) c else unreachable,
             .list => |c| if (T == .list) c else unreachable,
             .object => |c| if (T == .object) c else unreachable,
         };
@@ -352,7 +274,7 @@ test "casting" {
         Value.from(0.0).as(.int) == null,
     );
     try std.testing.expectEqual(
-        Unit.init(),
-        Value.from(Unit.init()).as(.unit),
+        Unit{},
+        Value.from(Unit{}).as(.unit),
     );
 }

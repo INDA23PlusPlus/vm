@@ -40,7 +40,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn alloc_struct(self: *Self) ObjectRef {
-    var objRef = ObjectRef.init(self.allocator) catch block: {
+    const objRef = ObjectRef.init(self.allocator) catch block: {
         // gc then try again
         self.gc_pass();
         break :block ObjectRef.init(self.allocator) catch |e| {
@@ -52,7 +52,6 @@ pub fn alloc_struct(self: *Self) ObjectRef {
         // gc then try again
         self.gc_pass();
         break :block self.allObjects.append(self.allocator, objRef.ref) catch |e| {
-            objRef.deinit();
             std.debug.panic("out of memory {}", .{e});
         };
     };
@@ -460,7 +459,6 @@ test "tree of objects with references to root" {
                 try cur.set(i + 1, Value.from(child));
 
                 // make sure only reference to child is from `cur`
-                child.decr();
 
                 try buildTree(child, root, mem, depth - 1, nodes_per_layer);
             }
@@ -489,7 +487,6 @@ test "tree of objects with references to root" {
     try std.testing.expectEqual(expected_node_count, memoryManager.get_object_count());
 
     // drop the entire tree
-    root.decr();
     memoryManager.gc_pass();
 
     try std.testing.expectEqual(0, memoryManager.get_object_count());
