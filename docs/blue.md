@@ -22,7 +22,7 @@ let
   # The function square takes a parameter x
   # Inside the function, the only available symbols from outside the function scope
   # are other functions. It is thus not possible to reference `num_to_square` inside `square`.
-  square x = x ** x;
+  square x = x * x;
 in square num_to_square
 ```
 
@@ -49,7 +49,7 @@ in sum x y
 ```
 
 
-This is because the parser is will read the last line as:
+This is because the parser will read the last line as:
 ```
 # ...
 in (sum (x (y))
@@ -63,7 +63,7 @@ current expression at **x** and treat **y** as an argument to **sum**:
 # ...
 in sum x . y
 ```
-**Note**: the dot operator must be preceeded by atleast one whitespace,
+**Note**: the dot operator must be preceded by at least one whitespace,
 or else it's interpreted as field access.
 
 
@@ -75,7 +75,7 @@ in x 'sum y
 ```
 
 
-Lists are handled with the following oeprators:
+Lists are handled with the following operators:
 * **++** - Concatenation
 * **::** - Appending
 * **$** - Indexing
