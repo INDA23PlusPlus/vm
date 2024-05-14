@@ -248,7 +248,16 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             };
             try self.writeInstr(opcode, .none, v.op.where);
         },
-        .unop => std.debug.panic("no unary operators supported", .{}),
+        .unop => |v| {
+            switch (v.op.tag) {
+                .neg => {
+                    try self.writeInstr(.push, .{ .int = 0 }, self.placeholderToken());
+                    try self.genNode(v.opnd);
+                    try self.writeInstr(.sub, .none, v.op.where);
+                },
+                else => unreachable,
+            }
+        },
         .if_expr => |v| {
             const then_label = self.newLabel();
             const done_label = self.newLabel();

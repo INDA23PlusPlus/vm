@@ -282,6 +282,7 @@ fn fac(p: *Parser) anyerror!usize {
             .let => try p.letExpr(),
             .@"{" => try p.struct_(),
             .match => try p.match(),
+            .neg => try p.neg(),
             else => {
                 try p.errors.append(.{
                     .tag = .@"Unexpected token",
@@ -297,6 +298,17 @@ fn fac(p: *Parser) anyerror!usize {
         try p.errors.append(.{ .tag = .@"Unexpected end of input" });
         return error.ParseError;
     }
+}
+
+fn neg(p: *Parser) anyerror!usize {
+    const neg_ = (try p.lx.take()).?;
+    const fac_ = try p.fac();
+    return try p.ast.push(.{
+        .unop = .{
+            .opnd = fac_,
+            .op = neg_,
+        },
+    });
 }
 
 fn match(p: *Parser) anyerror!usize {
@@ -530,6 +542,7 @@ fn isExprBegin(tok: Token) bool {
         .@"if",
         .@"{",
         .match,
+        .neg,
         => true,
         else => false,
     };

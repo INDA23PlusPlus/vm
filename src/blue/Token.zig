@@ -50,6 +50,7 @@ pub const Tag = enum {
     @".",
     @" .",
     @"$",
+    neg,
     string,
     int,
     len,
@@ -161,7 +162,7 @@ pub const Lexer = struct {
         const tag: Tag = switch (self.curr().?) {
             '=' => return self.multiCharOperator(.@"=", .@"=>", '>'),
             '+' => return self.multiCharOperator(.@"+", .@"++", '+'),
-            '-' => return self.multiCharOperator(.@"-", .@"->", '>'),
+            '-' => return self.minus(),
             '*' => .@"*",
             '/' => .@"/",
             '%' => .@"%",
@@ -187,6 +188,23 @@ pub const Lexer = struct {
         const tok = Token{ .tag = tag, .where = self.src[self.pos .. self.pos + 1] };
         self.adv();
         return tok;
+    }
+
+    fn minus(self: *Lexer) Token {
+        const begin = self.pos;
+        self.adv();
+        var tag: Tag = undefined;
+        if (self.curr()) |c| {
+            switch (c) {
+                ' ' => tag = .@"-",
+                '>' => {
+                    self.adv();
+                    tag = .@"->";
+                },
+                else => tag = .neg,
+            }
+        } else tag = .@"-";
+        return .{ .tag = tag, .where = self.src[begin..self.pos] };
     }
 
     fn dot(self: *Lexer) Token.Tag {
