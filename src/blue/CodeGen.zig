@@ -293,7 +293,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             const symbol = self.symtab.getSymbol(v.symid);
             switch (symbol.kind) {
                 .func => {
-                    try self.genNode(v.args.?);
+                    if (v.args) |args| try self.genNode(args);
                     try self.writeInstr(.push, .{ .int = @intCast(symbol.nparams) }, self.placeholderToken());
                     try self.writeInstr(.call, .{ .function = v.symid }, v.name);
                 },

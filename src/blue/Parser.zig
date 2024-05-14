@@ -34,7 +34,13 @@ fn getNode(p: *Parser, i: usize) *Ast.Node {
 }
 
 fn expectSomething(p: *Parser, extra: ?[]const u8) !Token {
-    return try p.lx.take() orelse {
+    const tok = try p.expectSomethingPeek(extra);
+    _ = try p.lx.take();
+    return tok;
+}
+
+fn expectSomethingPeek(p: *Parser, extra: ?[]const u8) !Token {
+    return try p.lx.peek() orelse {
         const description: diagnostic.Description = if (extra) |extra_| .{
             .dynamic = try p.diagnostics.newDynamicDescription(
                 "unexpected end of input, {s}",
@@ -49,7 +55,13 @@ fn expectSomething(p: *Parser, extra: ?[]const u8) !Token {
 }
 
 fn expect(p: *Parser, tag: Token.Tag, extra: ?[]const u8) !Token {
-    const tok = try p.expectSomething(extra);
+    const tok = try p.expectPeek(tag, extra);
+    _ = try p.lx.take();
+    return tok;
+}
+
+fn expectPeek(p: *Parser, tag: Token.Tag, extra: ?[]const u8) !Token {
+    const tok = try p.expectSomethingPeek(extra);
     if (tok.tag != tag) {
         const description: diagnostic.Description = if (extra) |extra_| .{
             .dynamic = try p.diagnostics.newDynamicDescription(
@@ -678,8 +690,20 @@ fn letExpr(p: *Parser) !usize {
 }
 
 fn letEntry(p: *Parser) !usize {
+    const maybe_const = try p.expectSomethingPeek("expected 'const' or identfier");
+    const is_const = if (maybe_const.tag == .@"const") blk: {
+        _ = try p.lx.take();
+        break :blk true;
+    } else false;
     const name = try p.expect(.ident, "expected identifier");
     const params_ = try p.params();
+    if (is_const and params_ != null) {
+        try p.diagnostics.addDiagnostic(.{
+            .description = .{ .static = "redundant 'const' specifier for function" },
+            .location = maybe_const.where,
+            .severity = .Warning,
+        });
+    }
     const assign = try p.expect(.@"=", "expected '='");
     const expr_ = try p.expr();
     _ = p.expect(.@";", "expected semicolon") catch {
@@ -696,6 +720,7 @@ fn letEntry(p: *Parser) !usize {
             .params = params_,
             .expr = expr_,
             .assign_where = assign.where,
+            .is_const = is_const or params_ != null,
         },
     });
 }

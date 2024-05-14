@@ -20,13 +20,14 @@ pub const Symbol = struct {
     decl_loc: []const u8,
     nparams: usize,
     kind: SymbolKind,
+    is_const: bool,
 };
 
 const ScopeIterator = struct {
     table: *const SymbolTable,
     index: usize,
     done: bool = false,
-    only_funcs: bool = false,
+    only_consts: bool = false,
 
     pub fn init(table: *const SymbolTable) ScopeIterator {
         return .{
@@ -38,7 +39,7 @@ const ScopeIterator = struct {
     pub fn next(self: *ScopeIterator) ?*Scope {
         if (self.done) return null;
         const marker = self.table.topMarker();
-        if (marker != null and marker.? == self.index) self.only_funcs = true;
+        if (marker != null and marker.? == self.index) self.only_consts = true;
         const scope = &self.table.scopes.items[self.index];
         if (self.index == 0) self.done = true else self.index -= 1;
         return scope;
@@ -158,18 +159,18 @@ fn reference(self: *SymbolTable, name: []const u8, nparams: usize) !usize {
     while (scope_iter.next()) |scope| {
         if (scope.get(name)) |symid| {
             const symbol = &self.symbols.items[symid];
-            if (symbol.nparams == 0 and scope_iter.only_funcs) {
+            if (!symbol.is_const and scope_iter.only_consts) {
                 try self.diagnostics.addDiagnostic(.{
                     .description = .{
                         .dynamic = try self.diagnostics.newDynamicDescription(
-                            "reference of external non-function \"{s}\"",
+                            "reference of external non-constant \"{s}\"",
                             .{name},
                         ),
                     },
                     .location = name,
                 });
                 try self.diagnostics.addRelated(.{
-                    .description = .{ .static = "non-function declared here" },
+                    .description = .{ .static = "non-constant declared here" },
                     .location = symbol.decl_loc,
                     .severity = .Hint,
                 });
@@ -210,7 +211,7 @@ fn reference(self: *SymbolTable, name: []const u8, nparams: usize) !usize {
     }
 }
 
-fn declare(self: *SymbolTable, name: []const u8, nparams: usize, kind: SymbolKind) !usize {
+fn declare(self: *SymbolTable, name: []const u8, nparams: usize, kind: SymbolKind, is_const: bool) !usize {
     var scope = self.scopes.items[self.currentScopeID()];
     if (scope.get(name)) |symid| {
         const symbol = &self.symbols.items[symid];
@@ -235,6 +236,7 @@ fn declare(self: *SymbolTable, name: []const u8, nparams: usize, kind: SymbolKin
         symbol.decl_loc = name;
         symbol.nparams = nparams;
         symbol.kind = kind;
+        symbol.is_const = is_const;
         try self.scopes.items[self.currentScopeID()].put(name, symid);
         return symid;
     }
@@ -276,16 +278,21 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
         .let_entry => |*v| {
             // Declare the symbol with number of params (may be zero).
             const nparams = self.countChildren(node_id);
-            const kind: SymbolKind = if (nparams > 0) .{ .func = undefined } else .{ .local = self.nextLocalID() };
+            // This is where constants are turned in to zero parameter functions!
+            const kind: SymbolKind = if (nparams > 0 or v.is_const) .{
+                .func = undefined,
+            } else .{
+                .local = self.nextLocalID(),
+            };
 
-            // Only let symbol reference itself if it's a function
-            if (kind == .func) {
-                v.symid = try self.declare(v.name, nparams, kind);
+            // Only let symbol reference itself if it's a REAL function
+            if (nparams > 0) {
+                v.symid = try self.declare(v.name, nparams, kind, true);
             }
 
             // Push new scope for params and expression,
             // as well as a marker if there are more than zero markers.
-            if (nparams > 0) try self.pushMarkerForThisScope();
+            if (kind == .func) try self.pushMarkerForThisScope();
             try self.pushScope();
 
             // Resolve params and reset param counter.
@@ -302,19 +309,19 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
 
             // Exit scope, remove marker if it exists.
             self.popScope();
-            if (nparams > 0) self.popMarker();
+            if (kind == .func) self.popMarker();
 
-            // If symbol is not a function, declare it after we've
+            // If symbol is not a REAL function, declare it after we've
             // resolved it's definition.
-            if (kind != .func) {
-                v.symid = try self.declare(v.name, nparams, kind);
+            if (nparams == 0) {
+                v.symid = try self.declare(v.name, nparams, kind, v.is_const);
             }
 
             // Resolve next entry in let expression.
             if (v.next) |next| try self.resolveNode(next);
         },
         .param => |*v| {
-            v.symid = try self.declare(v.name, 0, .{ .param = self.nextParamID() });
+            v.symid = try self.declare(v.name, 0, .{ .param = self.nextParamID() }, false);
             if (v.next) |next| try self.resolveNode(next);
         },
         .reference => |*v| {

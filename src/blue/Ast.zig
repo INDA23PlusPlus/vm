@@ -20,6 +20,7 @@ pub const Node = union(enum) {
         expr: usize,
         next: ?usize = null,
         assign_where: []const u8,
+        is_const: bool,
     },
     param: struct { name: []const u8, symid: usize = 0, next: ?usize },
     reference: struct { name: []const u8, symid: usize = 0, args: ?usize },
