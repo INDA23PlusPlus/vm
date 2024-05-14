@@ -35,6 +35,8 @@ pub const Diagnostic = struct {
     severity: Severity = .Error,
     /// A linked list of related diagnostics.
     related: ?*Diagnostic = null,
+    /// Whether this is a primary diagnostic, i.e. it's not related to an earlier diagnostic.
+    primary: bool = true,
 };
 
 pub const DiagnosticList = struct {
@@ -107,8 +109,9 @@ pub const DiagnosticList = struct {
 
     pub fn addRelated(self: *DiagnosticList, diagnostic: Diagnostic) !void {
         if (self.last) |*last| {
-            const copy = try self.allocator.create(Diagnostic);
+            var copy = try self.allocator.create(Diagnostic);
             copy.* = diagnostic;
+            copy.primary = false;
             last.*.related = copy;
             last.* = copy;
             self.updateMaxSeverity(diagnostic.severity);
@@ -162,6 +165,7 @@ pub const DiagnosticList = struct {
     ) !void {
         var it = self.iterator();
         while (it.next()) |diagnostic| {
+            if (diagnostic.primary) try writer.writeAll("=" ** 80 ++ "\n");
             try self.printSingleDiagnostic(diagnostic, writer);
         }
     }
