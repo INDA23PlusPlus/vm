@@ -320,6 +320,16 @@ const Instr = struct {
         self.set_modrm_rm(reg);
     }
 
+    inline fn assert_disp_size(mem: Mem, T: type) void {
+        // This is needed to work around an apparent compiler bug,
+        // where branches are reached during comptime evalaution
+        // for displacements of wrong sizes, causing compilation
+        // errors for @intCast's in that branch.
+        if (mem.disp < std.math.minInt(T) or mem.disp > std.math.maxInt(T)) {
+            unreachable;
+        }
+    }
+
     pub inline fn set_rm_mem(self: *Self, mem: Mem) void {
         var disp_min: usize = 0;
 
@@ -356,11 +366,9 @@ const Instr = struct {
                     .RAX, .RCX, .RDX, .RBX, .RSI, .RDI, .R8, .R9, .R10, .R11, .R14, .R15 => {
                         if (disp_min == 4) {
                             self.set_modrm_mod(.mem_disp32);
-                            self.disp = .{ .disp32 = @intCast(mem.disp) };
+                            self.disp = .{ .disp32 = mem.disp };
                         } else if (disp_min == 1) {
-                            if (mem.disp > std.math.maxInt(i8)) {
-                                @panic("Compiler bug");
-                            }
+                            assert_disp_size(mem, i8);
                             self.set_modrm_mod(.mem_disp8);
                             self.disp = .{ .disp8 = @intCast(mem.disp) };
                         } else {
@@ -374,8 +382,9 @@ const Instr = struct {
                     .RSP, .R12 => {
                         if (disp_min == 4) {
                             self.set_modrm_mod(.mem_disp32);
-                            self.disp = .{ .disp32 = @intCast(mem.disp) };
+                            self.disp = .{ .disp32 = mem.disp };
                         } else if (disp_min == 1) {
+                            assert_disp_size(mem, i8);
                             self.set_modrm_mod(.mem_disp8);
                             self.disp = .{ .disp8 = @intCast(mem.disp) };
                         } else {
@@ -390,8 +399,9 @@ const Instr = struct {
                     .RBP, .R13 => {
                         if (disp_min == 4) {
                             self.set_modrm_mod(.mem_disp32);
-                            self.disp = .{ .disp32 = @intCast(mem.disp) };
+                            self.disp = .{ .disp32 = mem.disp };
                         } else {
+                            assert_disp_size(mem, i8);
                             self.set_modrm_mod(.mem_disp8);
                             self.disp = .{ .disp8 = @intCast(mem.disp) };
                         }
@@ -413,8 +423,9 @@ const Instr = struct {
                 .RAX, .RCX, .RDX, .RBX, .RSP, .RSI, .RDI, .R8, .R9, .R10, .R11, .R12, .R14, .R15 => {
                     if (disp_min == 4) {
                         self.set_modrm_mod(.mem_disp32);
-                        self.disp = .{ .disp32 = @intCast(mem.disp) };
+                        self.disp = .{ .disp32 = mem.disp };
                     } else if (disp_min == 1) {
+                        assert_disp_size(mem, i8);
                         self.set_modrm_mod(.mem_disp8);
                         self.disp = .{ .disp8 = @intCast(mem.disp) };
                     } else {
@@ -429,8 +440,9 @@ const Instr = struct {
                 .RBP, .R13 => {
                     if (disp_min == 4) {
                         self.set_modrm_mod(.mem_disp32);
-                        self.disp = .{ .disp32 = @intCast(mem.disp) };
+                        self.disp = .{ .disp32 = mem.disp };
                     } else {
+                        assert_disp_size(mem, i8);
                         self.set_modrm_mod(.mem_disp8);
                         self.disp = .{ .disp8 = @intCast(mem.disp) };
                     }
