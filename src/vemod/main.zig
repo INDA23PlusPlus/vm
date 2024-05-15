@@ -83,23 +83,23 @@ fn usage(name: []const u8, writer: anytype) !void {
         \\    {s} INPUT [OPTIONS...]
         \\
         \\Options:
-        \\    -c, --compile            Only compile.
-        \\                              Writes program to binary file specified by OUTPUT.
-        \\    -t, --transpile          Only transpile.
-        \\                              Write generated VeMod assembly to OUTPUT instead of compiled program.
-        \\                              Ignored if input is binary or VeMod assembly.
-        \\    -o, --output OUTPUT      Write output to file OUTPUT.
-        \\                              If omitted, output filename is inferred from input filename.
-        \\    -s, --strip              Don't include source information in compiled program.
-        \\    -j, --jit <jit-opt>      Set experimental JIT recompiler mode.
-        \\                              full: Use only JIT, no interpreter.
-        \\                              auto: Use JIT where possible. Default.
-        \\                              off: Turn off JIT.
-        \\    -h, --help               Show this help message and exit.
-        \\    -p, --parse "EXPR"       Parse Blue expression from command line, surrounded by double quotes.
-        \\                              Overrides any provided file input.
-        \\    -r, --repl               Run the Blue REPL.
-        \\    -d, --debug              Print debug information.
+        \\    -c, --compile           Only compile.
+        \\                             Writes program to binary file specified by OUTPUT.
+        \\    -t, --transpile         Only transpile.
+        \\                             Write generated VeMod assembly to OUTPUT instead of compiled program.
+        \\                             Ignored if input is binary or VeMod assembly.
+        \\    -o, --output OUTPUT     Write output to file OUTPUT.
+        \\                             If omitted, output filename is inferred from input filename.
+        \\    -s, --strip             Don't include source information in compiled program.
+        \\    -j, --jit <jit-opt>     Set experimental JIT recompiler mode.
+        \\                             full   Use only JIT, no interpreter.
+        \\                             auto   Use JIT where possible. Default.
+        \\                             off    Turn off JIT.
+        \\    -h, --help              Show this help message and exit.
+        \\    -p, --parse "EXPR"      Parse Blue expression from command line, surrounded by double quotes.
+        \\                             Overrides any provided file input.
+        \\    -r, --repl              Run the Blue REPL.
+        \\    -d, --debug             Print debug information.
         \\
     , .{name});
 }
