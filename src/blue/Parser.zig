@@ -383,7 +383,7 @@ fn match(p: *Parser) anyerror!usize {
                     .location = prong_begin.where,
                 });
                 try p.diagnostics.addRelated(.{
-                    .description = .{ .static = "frist default appears here" },
+                    .description = .{ .static = "first default appears here" },
                     .location = first_default_where,
                     .severity = .Hint,
                 });
