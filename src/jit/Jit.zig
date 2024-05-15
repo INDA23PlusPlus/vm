@@ -306,7 +306,11 @@ const Context = struct {
                 .asm_reg => |reg| {
                     return .{ .tag = v.tag, .val = .{ .reg = reg } };
                 },
-                else => std.debug.panic("Unimplemented value type for vstk_pop_asm: {s}.", .{@tagName(v.val)}),
+                .asm_cc => |cc| {
+                    try as.setcc_rm8(cc, .{ .reg = .R8L });
+                    try as.movzx_r64_rm8(.R8, .{ .reg = .R8L });
+                    return .{ .tag = .int, .val = .{ .reg = .R8 } };
+                },
             }
         } else {
             return .{ .val = .top };
@@ -700,27 +704,35 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
             },
             .ret => {
                 if (ctxt.vstk_pop()) |v| {
-                    // stack is being cleared, no need to sync ctxt
+                    if (v.val == .sprel) {
+                        try ctxt.vstk_sync(v.val.sprel + 1, as);
+                    } else {
+                        // stack is being cleared, no need to sync ctxt
+                    }
+
                     self.pc_map[pc] = as.offset();
                     try self.dbg_break(@tagName(insn.op));
 
                     switch (v.val) {
+                        .unit => {},
+                        .sprel => |sprel| {
+                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(ctxt.vstk.items.len))) } });
+                        },
                         .bprel => |bprel| {
                             try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
+                        },
+                        .imm => |imm| {
+                            try as.mov_r64_imm64(.RAX, imm);
                         },
                         .asm_reg => |reg| {
                             if (reg != .RAX) {
                                 try as.mov_r64_rm64(.RAX, .{ .reg = reg });
                             }
                         },
-                        .imm => |imm| {
-                            try as.mov_r64_imm64(.RAX, imm);
-                        },
                         .asm_cc => |cc| {
                             try as.setcc_rm8(cc, .{ .reg = .AL });
                             try as.movzx_r64_rm8(.RAX, .{ .reg = .AL });
                         },
-                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v.val) }),
                     }
                 } else {
                     // ctxt empty, no need to sync
@@ -748,10 +760,21 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                     try self.dbg_break(@tagName(insn.op));
 
                     switch (v.val) {
+                        .unit => {},
                         .sprel => |sprel| {
                             try as.mov_r64_rm64(.RCX, .{ .mem = .{ .base = .RSP, .disp = @intCast(-8 * (sprel + 1)) } });
                             try as.test_rm64_r64(.{ .reg = .RCX }, .RCX);
                             try self.jcc_loc(.NE, insn.operand.location);
+                        },
+                        .bprel => |bprel| {
+                            try as.mov_r64_rm64(.RCX, .{ .mem = .{ .base = .RBP, .disp = @intCast(-8 * (bprel + 1)) } });
+                            try as.test_rm64_r64(.{ .reg = .RCX }, .RCX);
+                            try self.jcc_loc(.NE, insn.operand.location);
+                        },
+                        .imm => |imm| {
+                            if (imm != 0) {
+                                try self.jmp_loc(insn.operand.location);
+                            }
                         },
                         .asm_reg => |reg| {
                             try as.test_rm64_r64(.{ .reg = reg }, reg);
@@ -760,7 +783,6 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                         .asm_cc => |cc| {
                             try self.jcc_loc(cc, insn.operand.location);
                         },
-                        else => std.debug.panic("@{}: Unimplemented ctxt condition for {s}: {s}.", .{ i, @tagName(insn.op), @tagName(v.val) }),
                     }
                 } else {
                     try ctxt.vstk_full_sync(as);
