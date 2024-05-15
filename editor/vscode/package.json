@@ -1,7 +1,7 @@
 {
   "name": "vscode-vemod",
-  "displayName": "VeMod Language",
-  "description": "Language support for the VeMod assembly language",
+  "displayName": "VeMod Language Support",
+  "description": "Language support for the VeMod project",
   "version": "0.1.0",
   "license": "MIT",
   "repository": {
@@ -16,7 +16,8 @@
   ],
   "main": "./out/extension.js",
   "activationEvents": [
-    "onLanguage:vemod"
+    "onLanguage:vemod",
+    "onLanguage:blue"
   ],
   "contributes": {
     "languages": [
@@ -24,6 +25,12 @@
         "id": "vemod",
         "extensions": [
           ".vmd"
+        ]
+      },
+      {
+        "id": "blue",
+        "extensions": [
+          ".blue"
         ]
       }
     ],
