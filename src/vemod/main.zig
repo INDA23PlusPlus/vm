@@ -77,8 +77,8 @@ const Options = struct {
     debug: bool = false,
 };
 
-fn usage(name: []const u8) !void {
-    try io.getStdOut().writer().print(
+fn usage(name: []const u8, writer: anytype) !void {
+    try writer.print(
         \\Usage:
         \\    {s} INPUT [OPTIONS...]
         \\
@@ -144,18 +144,18 @@ pub fn main() !u8 {
             options.action = .compile;
         } else if (mem.eql(u8, arg, "-o") or mem.eql(u8, arg, "--output")) {
             options.output_filename = args.next() orelse {
-                try usage(name);
+                try usage(name, stderr);
                 try stderr.print("error: missing output file name\n", .{});
                 return 1;
             };
         } else if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
-            try usage(name);
+            try usage(name, stdout);
             return 0;
         } else if (mem.eql(u8, arg, "-s") or mem.eql(u8, arg, "--strip")) {
             options.strip = true;
         } else if (mem.eql(u8, arg, "-j") or mem.eql(u8, arg, "--jit")) {
             const mode = args.next() orelse {
-                try usage(name);
+                try usage(name, stderr);
                 try stderr.print("error: missing option parameter\n", .{});
                 return 1;
             };
@@ -166,7 +166,7 @@ pub fn main() !u8 {
             } else if (mem.eql(u8, mode, "off")) {
                 options.jit = .off;
             } else {
-                try usage(name);
+                try usage(name, stderr);
                 try stderr.print("error: unknown jit setting '{s}'\n", .{mode});
                 return 1;
             }
@@ -186,7 +186,7 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-d") or mem.eql(u8, arg, "--debug")) {
             options.debug = true;
         } else if (arg[0] == '-') {
-            try usage(name);
+            try usage(name, stderr);
             try stderr.print("error: unknown option '{s}'\n", .{arg});
             return 1;
         } else {
@@ -199,13 +199,13 @@ pub fn main() !u8 {
         break :cl_src try allocator.dupe(u8, cl_expr);
     } else file_src: {
         const input_filename = options.input_filename orelse {
-            try usage(name);
+            try usage(name, stderr);
             try stderr.print("error: missing input file name\n", .{});
             return 1;
         };
 
         options.extension = getExtension(input_filename, &options.input_basename) orelse {
-            try usage(name);
+            try usage(name, stderr);
             try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
             return 1;
         };
@@ -257,7 +257,7 @@ pub fn main() !u8 {
                 try diagnostics.printAllDiagnostic(stderr);
                 return 1;
             } else if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
-                try diagnostics.printAllDiagnostic(stdout);
+                try diagnostics.printAllDiagnostic(stderr);
             }
 
             const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .vemod;
@@ -274,7 +274,7 @@ pub fn main() !u8 {
             defer compilation.deinit();
 
             if (diagnostics.hasDiagnosticsMinSeverity(.Warning)) {
-                try diagnostics.printAllDiagnostic(stdout);
+                try diagnostics.printAllDiagnostic(stderr);
             }
 
             if (options.output_asm) {
@@ -308,7 +308,7 @@ pub fn main() !u8 {
                 try diagnostics.printAllDiagnostic(stderr);
                 return 1;
             } else if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
-                try diagnostics.printAllDiagnostic(stdout);
+                try diagnostics.printAllDiagnostic(stderr);
             }
 
             const src_opts: Asm.EmbeddedSourceOptions = if (options.strip) .none else .{
@@ -356,8 +356,25 @@ pub fn main() !u8 {
                 var jit = Jit.init(allocator);
                 defer jit.deinit();
 
-                var jit_fn = try jit.compile_program(program);
+                var diagnostics: ?DiagnosticList = null;
+                defer if (diagnostics) |*dg| dg.deinit();
+
+                if (program.deinit_data) |deinit_data| {
+                    if (deinit_data.source) |src| {
+                        diagnostics = DiagnosticList.init(allocator, src);
+                    }
+                }
+
+                var jit_fn = try jit.compile_program(program, if (diagnostics) |*dg| dg else null);
                 defer jit_fn.deinit();
+
+                if (diagnostics) |dg| {
+                    try dg.printAllDiagnostic(stderr);
+
+                    if (dg.hasDiagnosticsMinSeverity(.Error)) {
+                        return 1;
+                    }
+                }
 
                 jit_fn.set_writer(&stdout);
 

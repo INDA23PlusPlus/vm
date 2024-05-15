@@ -304,7 +304,7 @@ fn jit_compile_full(ctxt: *VMContext) !void {
     var jit = jit_mod.Jit.init(ctxt.alloc);
     defer jit.deinit();
 
-    var jit_fn = try jit.compile_program(ctxt.prog);
+    var jit_fn = try jit.compile_program(ctxt.prog, null);
     jit_fn.set_writer(@as(*const VMContext, ctxt));
 
     ctxt.jit_fn = jit_fn;
@@ -329,7 +329,7 @@ fn jit_compile_partial(ctxt: *VMContext) !void {
         }
     }
 
-    var jit_fn = try jit.compile_partial(ctxt.prog, fns.items);
+    var jit_fn = try jit.compile_partial(ctxt.prog, fns.items, null);
     jit_fn.set_writer(@as(*const VMContext, ctxt));
 
     ctxt.jit_fn = jit_fn;

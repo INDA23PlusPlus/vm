@@ -210,6 +210,7 @@ pub fn build(b: *std.Build) void {
     blue_mod.addImport("arch", arch_mod);
     blue_mod.addImport("diagnostic", diagnostic_mod);
     jit_mod.addImport("arch", arch_mod);
+    jit_mod.addImport("diagnostic", diagnostic_mod);
 
     //
     // Test dependencies

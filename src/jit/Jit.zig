@@ -3,6 +3,7 @@ const arch = @import("arch");
 const as_lib = @import("as.zig");
 const ExecContext = @import("exec_context.zig").ExecContext;
 const Function = @import("Function.zig");
+const Diagnostics = @import("diagnostic").DiagnosticList;
 
 const Self = @This();
 
@@ -338,7 +339,7 @@ const Context = struct {
     }
 };
 
-fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !void {
+fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction, start_pc: usize, diags: ?*Diagnostics) !void {
     const as = &self.as;
 
     var ctxt = Context.init(self.alloc);
@@ -824,12 +825,27 @@ fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !
                     },
                 }
             },
-            else => {},
+            else => {
+                if (diags) |dg| {
+                    var loc: ?[]const u8 = null;
+                    if (prog.tokens) |t| {
+                        if (pc < t.len) {
+                            loc = t[pc];
+                        }
+                    }
+                    try dg.addDiagnostic(.{
+                        .description = .{
+                            .dynamic = try dg.newDynamicDescription("operation not compilable: {s}", .{@tagName(insn.op)}),
+                        },
+                        .location = loc,
+                    });
+                }
+            },
         }
     }
 }
 
-pub fn compile_program(self: *Self, prog: arch.Program) !Function {
+pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !Function {
     self.reset();
 
     const as = &self.as;
@@ -860,7 +876,7 @@ pub fn compile_program(self: *Self, prog: arch.Program) !Function {
     self.pc_map = try self.alloc.alloc(usize, prog.code.len + 1);
     errdefer self.alloc.free(self.pc_map);
 
-    try self.compile_slice(prog.code, 0);
+    try self.compile_slice(prog, prog.code, 0, diags);
 
     self.pc_map[prog.code.len] = self.as.offset();
     self.relocate_all();
@@ -868,7 +884,7 @@ pub fn compile_program(self: *Self, prog: arch.Program) !Function {
     return Function.init(self.alloc, self.as.code(), self.pc_map);
 }
 
-pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const arch.Instruction) !Function {
+pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const arch.Instruction, diags: ?*Diagnostics) !Function {
     self.reset();
 
     const as = &self.as;
@@ -909,7 +925,8 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
     @memset(self.pc_map, 0);
 
     for (slices) |s| {
-        try self.compile_slice(s, (@intFromPtr(s.ptr) - @intFromPtr(prog.code.ptr)) / @sizeOf(@TypeOf(s[0])));
+        const start = (@intFromPtr(s.ptr) - @intFromPtr(prog.code.ptr)) / @sizeOf(@TypeOf(s[0]));
+        try self.compile_slice(prog, s, start, diags);
     }
 
     self.pc_map[prog.code.len] = self.as.offset();
