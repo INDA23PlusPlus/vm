@@ -15,13 +15,13 @@ pub const Entry = struct {
 /// Unique ID of a string in the pool
 pub const ID = usize;
 
-map: std.StringHashMap(ID),
+map: std.StringArrayHashMap(ID),
 entries: std.ArrayList(Entry),
 contiguous: std.ArrayList(u8),
 
 pub fn init(allocator: std.mem.Allocator) Self {
     return .{
-        .map = std.StringHashMap(ID).init(allocator),
+        .map = std.StringArrayHashMap(ID).init(allocator),
         .entries = std.ArrayList(Entry).init(allocator),
         .contiguous = std.ArrayList(u8).init(allocator),
     };
@@ -44,12 +44,11 @@ pub fn getOrIntern(self: *Self, string: []const u8) !ID {
         .begin = self.contiguous.items.len,
         .end = self.contiguous.items.len + string.len,
     };
-    // TODO: add null termination if we decide to use that for strings
     const slice = try self.contiguous.addManyAsSlice(string.len);
     const index = self.entries.items.len;
     @memcpy(slice, string);
     try self.entries.append(entry);
-    try self.map.put(string, index);
+    try self.map.put(slice, index);
     return index;
 }
 
