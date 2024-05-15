@@ -714,7 +714,9 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                     try self.dbg_break(@tagName(insn.op));
 
                     switch (v.val) {
-                        .unit => {},
+                        .unit => {
+                            try as.xor_r64_rm64(.RAX, .{ .reg = .RAX });
+                        },
                         .sprel => |sprel| {
                             try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(ctxt.vstk.items.len))) } });
                         },
