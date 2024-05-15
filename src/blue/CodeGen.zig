@@ -161,15 +161,15 @@ fn writeInstr(
     token: []const u8,
 ) !void {
     const writer = self.currentFunction().writer();
-    try writer.print("    {s: <12}", .{@tagName(opcode)});
+    try writer.print("    {s: <16}", .{@tagName(opcode)});
     switch (operand) {
-        .float_str => |v| try writer.print(" @{s}", .{v}),
-        .int_str => |v| try writer.print(" %{s}", .{v}),
-        .int => |v| try writer.print(" %{d}", .{v}),
-        .label => |v| try writer.print(" .L{d}", .{v}),
+        .float_str => |v| try writer.print("@{s}", .{v}),
+        .int_str => |v| try writer.print("%{s}", .{v}),
+        .int => |v| try writer.print("%{d}", .{v}),
+        .label => |v| try writer.print(".L{d}", .{v}),
         .function => |v| try self.writeFuncName(v, writer),
-        .string => |v| try writer.print(" $~str{d}", .{v}),
-        .field_name => |v| try writer.print(" ${s}", .{v}),
+        .string => |v| try writer.print("$~str{d}", .{v}),
+        .field_name => |v| try writer.print("${s}", .{v}),
         .none => {},
     }
     try writer.print("\n", .{});
