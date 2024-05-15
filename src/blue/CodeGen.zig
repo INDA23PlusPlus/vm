@@ -26,6 +26,7 @@ ast: *Ast,
 symtab: *SymbolTable,
 source: []const u8,
 instr_toks: ArrayList([]const u8),
+instr_tok_stack: ArrayList(ArrayList([]const u8)),
 code: ArrayList(u8),
 functions: ArrayList(ArrayList(u8)),
 param_counts: ArrayList(usize),
@@ -45,6 +46,7 @@ pub fn init(
         .symtab = symtab,
         .source = source,
         .instr_toks = ArrayList([]const u8).init(allocator),
+        .instr_tok_stack = ArrayList(ArrayList([]const u8)).init(allocator),
         .code = ArrayList(u8).init(allocator),
         .functions = ArrayList(ArrayList(u8)).init(allocator),
         .allocator = allocator,
@@ -62,6 +64,7 @@ pub fn deinit(self: *CodeGen) void {
     self.param_counts.deinit();
     self.string_ids.deinit();
     self.prong_labels.deinit();
+    self.instr_tok_stack.deinit();
 }
 
 fn placeholderToken(self: *const CodeGen) []const u8 {
@@ -100,6 +103,7 @@ fn popProngLabels(self: *CodeGen) void {
 
 fn beginFunction(self: *CodeGen, symid: usize) !void {
     try self.functions.append(ArrayList(u8).init(self.allocator));
+    try self.instr_tok_stack.append(ArrayList([]const u8).init(self.allocator));
     const writer = self.currentFunction().writer();
     const symbol = self.symtab.getSymbol(symid);
     try writer.writeAll("-function ");
@@ -130,13 +134,20 @@ fn endFunction(self: *CodeGen) !void {
         \\
     );
     try self.code.writer().writeAll(self.currentFunction().items);
+    try self.instr_toks.appendSlice(self.currentInstrToks().items);
     self.currentFunction().deinit();
+    self.currentInstrToks().deinit();
     _ = self.functions.pop();
+    _ = self.instr_tok_stack.pop();
     _ = self.param_counts.pop();
 }
 
 fn currentFunction(self: *CodeGen) *ArrayList(u8) {
     return &self.functions.items[self.functions.items.len - 1];
+}
+
+fn currentInstrToks(self: *CodeGen) *ArrayList([]const u8) {
+    return &self.instr_tok_stack.items[self.instr_tok_stack.items.len - 1];
 }
 
 fn currentParamCount(self: *CodeGen) usize {
@@ -150,22 +161,19 @@ fn writeInstr(
     token: []const u8,
 ) !void {
     const writer = self.currentFunction().writer();
-    try writer.writeAll("    ");
-    try writer.writeAll(@tagName(opcode));
-    try writer.writeByte(' ');
+    try writer.print("    {s: <12}", .{@tagName(opcode)});
     switch (operand) {
-        .float_str => |v| try writer.print("@{s}", .{v}),
-        .int_str => |v| try writer.print("%{s}", .{v}),
-        .int => |v| try writer.print("%{d}", .{v}),
-        .label => |v| try writer.print(".L{d}", .{v}),
+        .float_str => |v| try writer.print(" @{s}", .{v}),
+        .int_str => |v| try writer.print(" %{s}", .{v}),
+        .int => |v| try writer.print(" %{d}", .{v}),
+        .label => |v| try writer.print(" .L{d}", .{v}),
         .function => |v| try self.writeFuncName(v, writer),
-        .string => |v| try writer.print("$~str{d}", .{v}),
-        .field_name => |v| try writer.print("${s}", .{v}),
+        .string => |v| try writer.print(" $~str{d}", .{v}),
+        .field_name => |v| try writer.print(" ${s}", .{v}),
         .none => {},
     }
-    // try writer.print(" # {s}\n", .{token});
     try writer.print("\n", .{});
-    try self.instr_toks.append(token);
+    try self.currentInstrToks().append(token);
 }
 
 fn appendStringConstants(self: *CodeGen) !void {
@@ -192,9 +200,9 @@ fn writeLabel(self: *CodeGen, id: usize) !void {
 }
 
 pub fn gen(self: *CodeGen) !void {
-    const ptr = try self.functions.addOne();
-    ptr.* = ArrayList(u8).init(self.allocator);
-    try ptr.writer().print(
+    try self.functions.append(ArrayList(u8).init(self.allocator));
+    try self.instr_tok_stack.append(ArrayList([]const u8).init(self.allocator));
+    try self.currentFunction().writer().print(
         \\-function $main
         \\-begin
         \\
