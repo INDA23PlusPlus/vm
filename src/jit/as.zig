@@ -679,6 +679,12 @@ pub const As = struct {
         try self.emit_instr(instr);
     }
 
+    pub inline fn cld(self: *Self) !void {
+        var instr = Instr{};
+        instr.set_opcode(0xFC, null);
+        try self.emit_instr(instr);
+    }
+
     pub inline fn cmp_r64_rm64(self: *Self, reg: R64, rm: RM64) !void {
         var instr = Instr{};
         instr.set_rex(.{ .W = true });
@@ -893,6 +899,16 @@ pub const As = struct {
     pub inline fn ret_near(self: *Self) !void {
         var instr = Instr{};
         instr.set_opcode(0xC3, null);
+        try self.emit_instr(instr);
+    }
+
+    pub inline fn sal_rm64_imm8(self: *Self, rm: RM64, imm: i8) !void {
+        var instr = Instr{};
+        instr.set_rex(.{ .W = true });
+        instr.set_opcode(0xC1, null);
+        instr.set_modrm_ext(4);
+        instr.set_rm(rm);
+        instr.set_imm(.{ .imm8 = imm });
         try self.emit_instr(instr);
     }
 

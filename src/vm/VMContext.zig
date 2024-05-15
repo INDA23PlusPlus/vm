@@ -38,8 +38,10 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
 
     const util = struct {
         fn dfs(fn_start: usize, prog: []const Instruction, i: usize, vis: *std.DynamicBitSet, jit: *std.DynamicBitSetUnmanaged) bool {
-            if (i >= prog.len) return true;
-            if (vis.isSet(i)) return true;
+            if (i >= prog.len or vis.isSet(i) or jit.isSet(i)) {
+                return true;
+            }
+
             vis.set(i);
 
             return switch (prog[i].op) {
@@ -68,23 +70,10 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
                 => dfs(fn_start, prog, i + 1, vis, jit),
 
                 // branching
-                .jmpnz => {
-                    const dest = prog[i].operand.location;
-                    const res = dfs(fn_start, prog, prog[i].operand.location, vis, jit) and dfs(fn_start, prog, i + 1, vis, jit);
-                    jit.setValue(dest, res);
-                    return res;
-                },
+                .jmpnz, .call => (prog[i].operand.location == fn_start or dfs(fn_start, prog, prog[i].operand.location, vis, jit)) and dfs(fn_start, prog, i + 1, vis, jit),
 
-                // if we recurse or call another jitable function
-                .jmp,
-                .call,
-                => {
-                    const dest = prog[i].operand.location;
-                    const res = (prog[i].operand.location == fn_start or
-                        dfs(prog[i].operand.location, prog, prog[i].operand.location, vis, jit)) and dfs(fn_start, prog, i + 1, vis, jit);
-                    jit.setValue(dest, res);
-                    return res;
-                },
+                .jmp => prog[i].operand.location == fn_start or dfs(fn_start, prog, prog[i].operand.location, vis, jit),
+
                 // base case
                 .ret => true,
 
@@ -94,8 +83,15 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
         }
     };
 
-    const main_jitable = util.dfs(program.entry, program.code, program.entry, &visited, &jitable);
-    jitable.setValue(program.entry, main_jitable);
+    if (program.fn_tbl) |fn_tbl| {
+        for (fn_tbl.items) |sym| {
+            visited.unmanaged.unsetAll();
+            jitable.setValue(sym.addr, util.dfs(sym.addr, program.code, sym.addr, &visited, &jitable));
+        }
+    } else {
+        jitable.setValue(program.entry, util.dfs(program.entry, program.code, program.entry, &visited, &jitable));
+    }
+
     return jitable;
 }
 

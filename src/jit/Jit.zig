@@ -874,6 +874,7 @@ pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !F
 
     // Function call thunk
     try self.dbg_break("start");
+    try self.dbg_break("program");
     // Save caller registers
     try as.push_r64(.R15);
     // Save ExecutionContext pointer
@@ -913,6 +914,7 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
 
     // Function call thunk
     try self.dbg_break("start");
+    try self.dbg_break("partial");
     // Save caller registers
     try as.push_r64(.R15);
     // Save ExecutionContext pointer
@@ -921,12 +923,13 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
     try as.mov_r64_rm64(.RAX, .{ .reg = .RCX });
     // Copy function arguments to stack
     try as.mov_r64_rm64(.RCX, .{ .reg = .RDX });
-    try as.lea_r64(.RDI, .{ .base = .RSP, .disp = -8 });
-    try as.std_();
+    try as.sal_rm64_imm8(.{ .reg = .RDX }, 3);
+    try as.sub_r64_rm64(.RSP, .{ .reg = .RDX });
+    try as.mov_r64_rm64(.RDI, .{ .reg = .RSP });
+    try as.push_r64(.RCX);
+    try as.cld();
     try as.rep();
     try as.movsq();
-    try as.mov_r64_rm64(.RSP, .{ .reg = .RDI });
-    try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RDX);
     try as.push_r64(.RBP);
     // Set ExecContext.unwind_sp
     try as.mov_rm64_r64(.{ .mem = .{ .base = .R15 } }, .RSP);
