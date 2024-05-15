@@ -1,7 +1,7 @@
 const std = @import("std");
 const arch = @import("arch");
 const as_lib = @import("as.zig");
-const ExecContext = @import("exec_context.zig").ExecContext;
+const ExecContext = @import("ExecContext.zig");
 const Function = @import("Function.zig");
 const Diagnostics = @import("diagnostic").DiagnosticList;
 

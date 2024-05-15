@@ -1,6 +1,6 @@
 const std = @import("std");
 const arch = @import("arch");
-const ExecContext = @import("exec_context.zig").ExecContext;
+const ExecContext = @import("ExecContext.zig");
 
 const Self = @This();
 
