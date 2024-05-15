@@ -1,6 +1,8 @@
 //!
 //! String pool
 //! Stores deduplicated strings in a contiguous buffer
+//! TODO: figure out how to actually store keys so
+//! they don't have to be managed externally.
 //!
 const Self = @This();
 const std = @import("std");
@@ -48,7 +50,7 @@ pub fn getOrIntern(self: *Self, string: []const u8) !ID {
     const index = self.entries.items.len;
     @memcpy(slice, string);
     try self.entries.append(entry);
-    try self.map.put(slice, index);
+    try self.map.put(string, index);
     return index;
 }
 
