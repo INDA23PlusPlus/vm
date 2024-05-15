@@ -51,7 +51,8 @@ fn unwind() callconv(.Naked) noreturn {
         \\lea (%rsp, %rcx, 8), %rsp
         \\pop %r15
         \\ret
-        :: [unwind_sp] "i" (@offsetOf(Self, "unwind_sp"))
+        :
+        : [unwind_sp] "i" (@offsetOf(Self, "unwind_sp")),
     );
 }
 
