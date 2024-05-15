@@ -358,6 +358,9 @@ const Instr = struct {
                             self.set_modrm_mod(.mem_disp32);
                             self.disp = .{ .disp32 = @intCast(mem.disp) };
                         } else if (disp_min == 1) {
+                            if (mem.disp > std.math.maxInt(i8)) {
+                                @panic("Compiler bug");
+                            }
                             self.set_modrm_mod(.mem_disp8);
                             self.disp = .{ .disp8 = @intCast(mem.disp) };
                         } else {

@@ -694,8 +694,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                         try as.lea_r64(.RCX, .{ .base = .RSP, .disp = 8 });
                         try as.and_rm64_imm8(.{ .reg = .RSP }, -0x10);
                         try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RCX);
-                        // ExecContext.syscall_tbl[0]
-                        try as.call_rm64(.{ .mem = .{ .base = .R15, .disp = 8 } });
+                        try as.call_rm64(.{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "syscall_tbl") + 0 * 8 } });
                         try self.dbg_break("syscall_ret");
                         try as.pop_r64(.RSP);
                     },
@@ -891,8 +890,8 @@ pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !F
     // Set arguments
     try as.push_imm8(0);
     try as.push_r64(.RBP);
-    // Set ExecContext.unwind_sp
-    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15 } }, .RSP);
+    // Save unwind sp
+    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "unwind_sp") } }, .RSP);
     // Call compiled function
     try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
     try self.call_loc(prog.entry);
@@ -940,8 +939,8 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
     try as.rep();
     try as.movsq();
     try as.push_r64(.RBP);
-    // Set ExecContext.unwind_sp
-    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15 } }, .RSP);
+    // Save unwind sp
+    try as.mov_rm64_r64(.{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "unwind_sp") } }, .RSP);
     // Call compiled function
     try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
     try as.call_rm64(.{ .reg = .RAX });

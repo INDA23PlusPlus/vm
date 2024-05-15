@@ -85,25 +85,23 @@ pub fn execute_as(self: *Self, fn_type: type, args: anytype) @Type(std.builtin.T
     comptime var fn_ptr_typeinfo = @typeInfo(*const fn (*ExecContext) callconv(.C) i64);
     fn_ptr_typeinfo.Pointer.child = @Type(fn_typeinfo);
 
-    var exec_common = ExecContext.Common{};
+    var exec_ctxt = ExecContext.init();
+    defer exec_ctxt.deinit();
 
     if (self.write_fn) |write_fn| {
-        exec_common.write_ctxt = self.write_ctxt;
-        exec_common.write_fn = write_fn;
+        exec_ctxt.write_ctxt = self.write_ctxt;
+        exec_ctxt.write_fn = write_fn;
     }
-
-    var exec_ctxt = ExecContext.init(&exec_common);
-    defer exec_ctxt.deinit();
 
     const ret = @call(.auto, @as(@Type(fn_ptr_typeinfo), @ptrCast(self.code)), .{&exec_ctxt} ++ args);
 
-    self.rterror = exec_common.rterror;
+    self.rterror = exec_ctxt.rterror;
 
     if (self.rterror) |*rterror| {
         rterror.pc = self.map_pc(exec_ctxt.err_pc);
     }
 
-    return exec_ctxt.common.err orelse ret;
+    return exec_ctxt.err orelse ret;
 }
 
 pub fn execute_sub(self: *Self, pc: usize, args: []const i64) !i64 {
