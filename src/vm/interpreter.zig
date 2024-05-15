@@ -823,7 +823,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 if (l.tag() != .list) {
                     ctxt.rterror = .{
                         .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_indexing = l.tag() },
+                        .err = .{ .non_list_append = l.tag() },
                     };
                     return error.RuntimeError;
                 }

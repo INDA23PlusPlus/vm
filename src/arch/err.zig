@@ -31,6 +31,8 @@ pub const ErrorSpecifier = union(enum) {
     non_int_main_ret_val: Type,
     /// A list_length was performed on something else than a list
     non_list_length: Type,
+    /// An append was performed on a something else than a list
+    non_list_append: Type,
 
     pub fn print(err: ErrorSpecifier, writer: anytype) !void {
         switch (err) {
@@ -103,6 +105,12 @@ pub const ErrorSpecifier = union(enum) {
             .non_int_main_ret_val => |e| {
                 try writer.print(
                     "main function return value is of non-integer type {s}\n",
+                    .{e.str()},
+                );
+            },
+            .non_list_append => |e| {
+                try writer.print(
+                    "can't append to non-list type {s}\n",
                     .{e.str()},
                 );
             },
