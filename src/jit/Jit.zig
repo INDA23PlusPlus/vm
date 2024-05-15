@@ -855,6 +855,13 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                     if (prog.tokens) |t| {
                         if (pc < t.len) {
                             loc = t[pc];
+                            // ignore placeholder tokens from embedded Blue code
+                            // these always come after a related "non-compilable"-error,
+                            // for example [1] generates `list_alloc`, then a `list_store` with
+                            // a placeholder token
+                            if (loc.?.len == 0) {
+                                continue;
+                            }
                         }
                     }
                     try dg.addDiagnostic(.{
