@@ -688,13 +688,13 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 try self.dbg_break(@tagName(insn.op));
 
                 switch (insn.operand.int) {
-                    0 => {
+                    0...1 => |syscall| {
                         try as.mov_r64_rm64(.RDI, .{ .reg = .R15 });
                         try as.mov_r64_rm64(.RSI, .{ .mem = .{ .base = .RSP } });
                         try as.lea_r64(.RCX, .{ .base = .RSP, .disp = 8 });
                         try as.and_rm64_imm8(.{ .reg = .RSP }, -0x10);
                         try as.mov_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RCX);
-                        try as.call_rm64(.{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "syscall_tbl") + 0 * 8 } });
+                        try as.call_rm64(.{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "syscall_tbl") + @as(i32, @intCast(syscall * 8)) } });
                         try self.dbg_break("syscall_ret");
                         try as.pop_r64(.RSP);
                     },

@@ -12,7 +12,10 @@ old_sigfpe_handler: std.os.linux.Sigaction = undefined,
 write_ctxt: *const anyopaque = undefined,
 write_fn: *const fn (*const anyopaque, []const u8) anyerror!usize = &default_write,
 
-syscall_tbl: [1]*const anyopaque = .{&syscall_0},
+syscall_tbl: [2]*const anyopaque = .{
+    &syscall_0,
+    &syscall_1,
+},
 
 pub fn init() Self {
     var self = Self{};
@@ -72,4 +75,8 @@ fn sigfpe_handler(sig: i32, info: *const std.os.linux.siginfo_t, ucontext: ?*any
 
 fn syscall_0(self: *Self, v: i64) callconv(.C) void {
     self.writer().print("{}\n", .{v}) catch {};
+}
+
+fn syscall_1(self: *Self, v: i64) callconv(.C) void {
+    self.writer().print("{}", .{v}) catch {};
 }
