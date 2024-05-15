@@ -37,7 +37,7 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
     var jitable = std.DynamicBitSetUnmanaged.initEmpty(alloc, program.code.len) catch @panic("oom");
 
     const util = struct {
-        fn dfs(fn_start: usize, prog: []const Instruction, i: usize, vis: *std.DynamicBitSet, jit: *std.DynamicBitSetUnmanaged) bool {
+        fn dfs(prog: []const Instruction, i: usize, vis: *std.DynamicBitSet, jit: *std.DynamicBitSetUnmanaged) bool {
             if (i >= prog.len or vis.isSet(i) or jit.isSet(i)) {
                 return true;
             }
@@ -67,12 +67,12 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
                 .load,
                 .store,
                 // go to next instruction
-                => dfs(fn_start, prog, i + 1, vis, jit),
+                => dfs(prog, i + 1, vis, jit),
 
                 // branching
-                .jmpnz, .call => (prog[i].operand.location == fn_start or dfs(fn_start, prog, prog[i].operand.location, vis, jit)) and dfs(fn_start, prog, i + 1, vis, jit),
+                .jmpnz, .call => dfs(prog, prog[i].operand.location, vis, jit) and dfs(prog, i + 1, vis, jit),
 
-                .jmp => prog[i].operand.location == fn_start or dfs(fn_start, prog, prog[i].operand.location, vis, jit),
+                .jmp => dfs(prog, prog[i].operand.location, vis, jit),
 
                 // base case
                 .ret => true,
@@ -86,10 +86,10 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
     if (program.fn_tbl) |fn_tbl| {
         for (fn_tbl.items) |sym| {
             visited.unmanaged.unsetAll();
-            jitable.setValue(sym.addr, util.dfs(sym.addr, program.code, sym.addr, &visited, &jitable));
+            jitable.setValue(sym.addr, util.dfs(program.code, sym.addr, &visited, &jitable));
         }
     } else {
-        jitable.setValue(program.entry, util.dfs(program.entry, program.code, program.entry, &visited, &jitable));
+        jitable.setValue(program.entry, util.dfs(program.code, program.entry, &visited, &jitable));
     }
 
     return jitable;

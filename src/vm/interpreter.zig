@@ -619,7 +619,7 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                     for (0..N) |i| {
                         const v = try pop(ctxt);
-                        ctxt.jit_args.items[N - 1 - i] = v.int;
+                        ctxt.jit_args.items[i] = v.int;
                         drop(ctxt, v);
                     }
 
@@ -973,10 +973,10 @@ fn replaceWhiteSpace(buf: []const u8, allocator: Allocator) ![]const u8 {
 }
 
 fn testRun(prog: Program, expected_output: []const u8, expected_exit_code: i64) !void {
-    return testRunWithJitable(prog, expected_output, expected_exit_code, false);
+    return testRunWithJit(prog, expected_output, expected_exit_code, .off);
 }
 
-fn testRunWithJitable(prog: Program, expected_output: []const u8, expected_exit_code: i64, must_be_jitable: bool) !void {
+fn testRunWithJit(prog: Program, expected_output: []const u8, expected_exit_code: i64, jit_req: enum { full, partial, none, off }) !void {
     const output_buffer = try std.testing.allocator.alloc(u8, expected_output.len * 2 + 1024);
     defer std.testing.allocator.free(output_buffer);
     var output_stream = std.io.fixedBufferStream(output_buffer);
@@ -984,8 +984,10 @@ fn testRunWithJitable(prog: Program, expected_output: []const u8, expected_exit_
 
     var ctxt = try VMContext.init(prog, std.testing.allocator, &output_writer, &std.io.getStdErr().writer(), false);
     defer ctxt.deinit();
-    if (must_be_jitable) {
-        try std.testing.expect(ctxt.jit_mask.isSet(prog.entry));
+
+    if (jit_req != .off) {
+        const jit_val: @TypeOf(jit_req) = if (ctxt.jit_mask.isSet(prog.entry)) .full else if (ctxt.jit_mask.count() != 0) .partial else .none;
+        try std.testing.expectEqual(jit_req, jit_val);
     } else {
         ctxt.jit_enabled = false;
     }
@@ -1439,7 +1441,7 @@ test "fibonacci" {
         Instruction.push(0),
         Instruction.ret(),
     }, 0, &.{}, &.{});
-    try testRunWithJitable(prog,
+    try testRunWithJit(prog,
         \\0
         \\1
         \\1
@@ -1451,7 +1453,7 @@ test "fibonacci" {
         \\21
         \\34
         \\
-    , 0, true);
+    , 0, .full);
 }
 
 test "recursive fibonacci" {
@@ -1505,7 +1507,84 @@ test "recursive fibonacci" {
     var program = try asm_.getProgram(std.testing.allocator, .none);
     defer program.deinit();
 
-    try testRunWithJitable(program, "", 55, true);
+    try testRunWithJit(program, "", 55, .full);
+}
+
+test "partial jit" {
+    const Asm = @import("asm").Asm;
+    const DiagnosticList = @import("diagnostic").DiagnosticList;
+
+    {
+        const source =
+            \\-function $main
+            \\-begin
+            \\    push    %1
+            \\    push    %2
+            \\    push    %2
+            \\    call    $test
+            \\    ret
+            \\-end
+            \\
+            \\-function $test
+            \\-begin
+            \\    load    %-5
+            \\    load    %-4
+            \\    cmp_lt
+            \\    ret
+            \\-end
+        ;
+
+        var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+        defer diagnostics.deinit();
+
+        var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
+        defer asm_.deinit();
+
+        try asm_.assemble();
+        try assert(diagnostics.list.items.len == 0);
+
+        var program = try asm_.getProgram(std.testing.allocator, .none);
+        defer program.deinit();
+
+        try testRun(program, "", 1);
+    }
+
+    {
+        const source =
+            \\-function $main
+            \\-begin
+            \\    push    %1
+            \\    push    %2
+            \\    push    %2
+            \\    call    $test
+            \\    struct_alloc
+            \\    pop
+            \\    ret
+            \\-end
+            \\
+            \\-function $test
+            \\-begin
+            \\    load    %-5
+            \\    load    %-4
+            \\    cmp_lt
+            \\    ret
+            \\-end
+        ;
+
+        var diagnostics = DiagnosticList.init(std.testing.allocator, source);
+        defer diagnostics.deinit();
+
+        var asm_ = Asm.init(source, std.testing.allocator, &diagnostics);
+        defer asm_.deinit();
+
+        try asm_.assemble();
+        try assert(diagnostics.list.items.len == 0);
+
+        var program = try asm_.getProgram(std.testing.allocator, .none);
+        defer program.deinit();
+
+        try testRunWithJit(program, "", 1, .partial);
+    }
 }
 
 test "hello world" {
