@@ -339,6 +339,7 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             if (v.next) |next| try self.resolveNode(next);
         },
         .print => |v| try self.resolveNode(v),
+        .println => |v| try self.resolveNode(v),
         .compound => |v| {
             try self.resolveNode(v.discard);
             try self.resolveNode(v.keep);

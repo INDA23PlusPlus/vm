@@ -29,6 +29,7 @@ pub const Node = union(enum) {
     number: Token,
     unit: Token,
     print: usize,
+    println: usize,
     compound: struct { discard: usize, keep: usize },
     list: struct { items: ?usize },
     item: struct { expr: usize, next: ?usize },

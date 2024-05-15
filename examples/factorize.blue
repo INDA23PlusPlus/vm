@@ -40,4 +40,4 @@ let
                   else loop k + 1 n . f . p;
             in loop 0 n . f . p;
     in loop' n . f . p;
-in print factorize 15120 . . -> 0
+in println factorize 15120 . . -> 0

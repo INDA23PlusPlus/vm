@@ -10,8 +10,8 @@ let
       loop n x x' = if n = 0 then x' else loop n - 1 x . newton x . x';
     in loop n . x . x';
 in
-  print "The square root of" . ->
+  print "The square root of " . ->
   print x . ->
-  print "is" . ->
-  print sqrt x . . ->
+  print " is " . ->
+  println sqrt x . . ->
   0

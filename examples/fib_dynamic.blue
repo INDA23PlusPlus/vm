@@ -15,6 +15,6 @@ let
       loop k l =
         if k = len l
         then ()        
-        else print l $ k . -> loop k + 1 l;
+        else println l $ k . -> loop k + 1 l;
     in loop 0 l;
 in printeach build 20 . . -> 0

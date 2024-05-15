@@ -2,4 +2,4 @@
 
 let
   vec x y z = { x, y, z };
-in print vec 1 2 3 . . -> 0
+in println vec 1 2 3 . . -> 0

@@ -13,4 +13,4 @@ let
 				n = if n % 2 = 0 then n / 2 else 3 * n + 1;
 			in hailstone' l . n;
 	hailstone n = hailstone' [] n;
-in print hailstone n . . -> 0
+in print hailstone n . . -> print " " . -> 0

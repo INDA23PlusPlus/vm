@@ -307,6 +307,7 @@ fn fac(p: *Parser) anyerror!usize {
             .int, .float => try p.ast.push(.{ .number = (try p.lx.take()).? }),
             .ident => try p.ref(),
             .print => try p.print(),
+            .println => try p.println(),
             .len => try p.len(),
             .@"[" => try p.list(),
             .@"if" => try p.ifExpr(),
@@ -582,6 +583,11 @@ fn print(p: *Parser) anyerror!usize {
     return try p.ast.push(.{ .print = try p.expr() });
 }
 
+fn println(p: *Parser) anyerror!usize {
+    _ = try p.lx.take(); // print
+    return try p.ast.push(.{ .println = try p.expr() });
+}
+
 fn len(p: *Parser) anyerror!usize {
     const tok = (try p.lx.take()).?; // print
     return try p.ast.push(.{
@@ -606,6 +612,8 @@ fn isExprBegin(tok: Token) bool {
         .@"{",
         .match,
         .neg,
+        .print,
+        .println,
         => true,
         else => false,
     };

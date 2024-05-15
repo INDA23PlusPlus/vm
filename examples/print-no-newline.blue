@@ -1,0 +1,6 @@
+#!/usr/bin/env vemod
+
+println "This is on its own line" . ->
+print "A" . ->
+print "B" . ->
+print "C" . -> 0

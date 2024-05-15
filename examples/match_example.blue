@@ -3,12 +3,12 @@
 let
   printNum n =
     match n with
-    | 1 => print "one"
-    | 2 => print "two"
-    | 3 => print "three"
-    | 4 => print "four"
-    | 5 => print "five"
-    | _ => print "it's too big!";
+    | 1 => println "one"
+    | 2 => println "two"
+    | 3 => println "three"
+    | 4 => println "four"
+    | 5 => println "five"
+    | _ => println "it's too big!";
   iter n =
     let loop k n =
       match k with

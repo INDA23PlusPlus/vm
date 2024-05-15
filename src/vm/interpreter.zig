@@ -435,9 +435,13 @@ fn printImpl(x: *Value, ctxt: *VMContext) anyerror!void {
     }
 }
 
-fn print(x: *Value, ctxt: *VMContext) !void {
-    try printImpl(x, ctxt);
+fn printLn(x: *Value, ctxt: *VMContext) !void {
+    try @call(.always_inline, printImpl, .{ x, ctxt });
     _ = try ctxt.write("\n");
+}
+
+fn print(x: *Value, ctxt: *VMContext) !void {
+    try @call(.always_inline, printImpl, .{ x, ctxt });
 }
 
 // wrapper around std.debug.print, but marked as cold as a hint to the optimizer
@@ -587,6 +591,12 @@ pub fn run(ctxt: *VMContext) !i64 {
             .syscall => {
                 switch (insn.operand.int) {
                     0 => {
+                        var v = try pop(ctxt);
+                        defer drop(ctxt, v);
+
+                        try printLn(&v, ctxt);
+                    },
+                    1 => {
                         var v = try pop(ctxt);
                         defer drop(ctxt, v);
 

@@ -45,19 +45,19 @@ let
     in
       if expected != actual
       then
-        print "Test failed:" . ->
-        print "Sequence:" . ->
-        print test.seq . ->
-        print "Expected:" . ->
-        print expected . ->
-        print "Actual:" . ->
-        print actual . ->
+        println "Test failed:" . ->
+        print "Sequence: " . ->
+        println test.seq . ->
+        print "Expected: " . ->
+        println expected . ->
+        print "Actual: " . ->
+        println actual . ->
         1
       else 0;
 
   run_all_tests start tests =
     if start = len tests
-    then print "All tests passed!" . -> 0
+    then println "All tests passed!" . -> 0
     else
       if run_test tests $ start
       then 1
