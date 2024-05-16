@@ -39,9 +39,9 @@ const input_prefix = ">>> ";
 // the user provided expression is printed,
 // and the real expression evaluates to an integer (0).
 fn astOverlay(ast: *Ast) !void {
-    const print = try ast.push(.{ .print = ast.root });
+    const println = try ast.push(.{ .println = ast.root });
     const zero = try ast.push(.{ .number = .{ .tag = .int, .where = "0" } });
-    const compound = try ast.push(.{ .compound = .{ .discard = print, .keep = zero } });
+    const compound = try ast.push(.{ .compound = .{ .discard = println, .keep = zero } });
     ast.root = compound;
 }
 
