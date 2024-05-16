@@ -1416,7 +1416,7 @@ test "lists" {
         Instruction.listAlloc(),
         Instruction.listAlloc(),
         Instruction.listAlloc(),
-        
+
         Instruction.load(0),
         Instruction.push(42),
         Instruction.listAppend(),
@@ -1438,7 +1438,7 @@ test "lists" {
         Instruction.listConcat(),
 
         Instruction.load(2),
-        Instruction.equal(),        
+        Instruction.equal(),
 
         Instruction.ret(),
     }, 0, &.{}, &.{}), "", 1);
