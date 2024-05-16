@@ -61,18 +61,19 @@
     },
     "commands": [
       {
-        "command": "vemod.helloWorld",
-        "title": "Hello World"
+        "command": "vemod.runFile",
+        "title": "Run file",
+        "category": "VeMod"
       },
       {
         "command": "vemod.vmdls.startRestart",
-        "title": "Start / Restart Server",
-        "category": "VeMod Language Server"
+        "title": "Start / Restart vmdls",
+        "category": "VeMod"
       },
       {
         "command": "vemod.vmdls.stop",
-        "title": "Stop Server",
-        "category": "VeMod Language Server"
+        "title": "Stop vmdls",
+        "category": "VeMod"
       }
     ]
   },

@@ -56,6 +56,7 @@ pub const std_options = std.Options{
 };
 
 fn getExtension(filename: []const u8, basename: *?[]const u8) ?Extension {
+    // TODO: fix case when filename has no '.'
     if (filename.len == 0) return null;
     var iter = mem.tokenizeScalar(u8, filename, '.');
     var ext: []const u8 = undefined;
