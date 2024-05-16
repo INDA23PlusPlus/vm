@@ -67,43 +67,66 @@ pub fn jmpnz(destination: usize) Self {
 pub fn add() Self {
     return .{ .op = .add };
 }
-
+pub fn increment() Self {
+    return .{ .op = .inc };
+}
 pub fn sub() Self {
     return .{ .op = .sub };
 }
-
+pub fn decrement() Self {
+    return .{ .op = .dec };
+}
+pub fn negate() Self {
+    return .{ .op = .neg };
+}
 pub fn mul() Self {
     return .{ .op = .mul };
 }
-
 pub fn div() Self {
     return .{ .op = .div };
 }
-
 pub fn mod() Self {
     return .{ .op = .mod };
+}
+
+pub fn logicalOr() Self {
+    return .{ .op = .log_or };
+}
+pub fn logicalAnd() Self {
+    return .{ .op = .log_and };
+}
+pub fn logicalNot() Self {
+    return .{ .op = .log_not };
+}
+
+pub fn bitwiseOr() Self {
+    return .{ .op = .bit_or };
+}
+pub fn bitwiseXor() Self {
+    return .{ .op = .bit_xor };
+}
+pub fn bitwiseAnd() Self {
+    return .{ .op = .bit_and };
+}
+pub fn bitwiseNot() Self {
+    return .{ .op = .bit_not };
 }
 
 pub fn less() Self {
     return .{ .op = .cmp_lt };
 }
-
 pub fn lessEqual() Self {
     return .{ .op = .cmp_le };
 }
-
 pub fn greater() Self {
     return .{ .op = .cmp_gt };
 }
-
 pub fn greaterEqual() Self {
     return .{ .op = .cmp_ge };
 }
-
 pub fn equal() Self {
     return .{ .op = .cmp_eq };
 }
-
 pub fn notEqual() Self {
     return .{ .op = .cmp_ne };
 }

@@ -66,7 +66,7 @@
       "patterns": [
         {
           "name": "keyword.statement.vmd",
-          "match": "\\b(add|sub|mul|div|mod|inc|dec|cmp_lt|cmp_gt|cmp_le|cmp_ge|cmp_eq|cmp_ne|jmp|jmpnz|push|pushf|pushs|pop|dup|load|store|syscall|call|ret|stack_alloc|struct_alloc|struct_load|struct_store|list_alloc|list_load|list_store|list_length|list_append|list_pop|list_remove|list_concat)\\b"
+          "match": "\\b(add|sub|mul|div|mod|inc|dec|cmp_lt|cmp_gt|cmp_le|cmp_ge|cmp_eq|cmp_ne|jmp|jmpnz|push|pushf|pushs|pop|dup|load|store|syscall|call|ret|stack_alloc|struct_alloc|struct_load|struct_store|list_alloc|list_load|list_store|list_length|list_append|list_pop|list_remove|list_concat|bit_or|bit_xor|bit_and|bit_not|neg|log_or|log_and|log_not)\\b"
         }
       ]
     }

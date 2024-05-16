@@ -7,20 +7,27 @@ pub const Opcode = enum(u8) {
     add = 0,
     sub = 1,
     mul = 2,
-    div = 11,
-    mod = 12,
+    neg = 3,
+    div = 4,
+    mod = 5,
+    inc = 6,
+    dec = 7,
+    log_or = 8,
+    // no logical xor, use cmp_ne
+    log_and = 9,
+    log_not = 10,
+    bit_or = 11,
+    bit_xor = 12,
+    bit_and = 13,
+    bit_not = 14,
+    cmp_lt = 15,
+    cmp_gt = 16,
+    cmp_le = 17,
+    cmp_ge = 18,
+    cmp_eq = 19,
+    cmp_ne = 20,
 
-    inc = 3,
-    dec = 4,
-
-    cmp_lt = 5,
-    cmp_gt = 6,
-    cmp_le = 7,
-    cmp_ge = 8,
-    cmp_eq = 9,
-    cmp_ne = 10,
-
-    jmp = 13,
+    jmp = 21,
     jmpnz,
 
     push,
@@ -33,7 +40,8 @@ pub const Opcode = enum(u8) {
     store,
 
     syscall, //TODO: keep or remove syscalls as a concept
-    call,
+
+    call, // not said to have one specific arity because it can have any arity
     ret,
 
     stack_alloc,
@@ -51,6 +59,28 @@ pub const Opcode = enum(u8) {
     list_pop,
     list_remove,
     list_concat,
+
+    // TODO
+    // pub fn isNullary(self: Opcode) bool {
+    //     return switch (self) {
+    //         .push,.pushf, .pushs, .struct_alloc, .list_alloc,.
+    //     };
+    // }
+
+    pub fn isUnary(self: Opcode) bool {
+        return switch (self) {
+            .neg,
+            .inc,
+            .dec,
+            .bit_not,
+            .log_not,
+            .list_length,
+            .list_pop,
+            .ret,
+            => true,
+            else => false,
+        };
+    }
 
     pub fn isArithmetic(self: Opcode) bool {
         return switch (self) {
@@ -77,18 +107,44 @@ pub const Opcode = enum(u8) {
         };
     }
 
+    pub fn isLogical(self: Opcode) bool {
+        return switch (self) {
+            .log_and,
+            .log_or,
+            .log_not,
+            => true,
+            else => false,
+        };
+    }
+
+    pub fn isBitwise(self: Opcode) bool {
+        return switch (self) {
+            .bit_and,
+            .bit_or,
+            .bit_xor,
+            .bit_not,
+            => true,
+            else => false,
+        };
+    }
+
     /// Returns whether an operand is to be expected following this instruction
     pub fn hasOperand(self: Opcode) bool {
-        const arr = comptime blk: {
-            // add instructions with operands here
-            const instrs = [_]Opcode{
-                .jmp,   .jmpnz, .push,        .pushf,        .pushs,       .load,
-                .store, .call,  .struct_load, .struct_store, .stack_alloc, .syscall,
-            };
-            var arr = std.EnumArray(Opcode, bool).initFill(false);
-            for (instrs) |i| arr.set(i, true);
-            break :blk arr;
+        return switch (self) {
+            .jmp,
+            .jmpnz,
+            .push,
+            .pushf,
+            .pushs,
+            .load,
+            .store,
+            .call,
+            .struct_load,
+            .struct_store,
+            .stack_alloc,
+            .syscall,
+            => true,
+            else => false,
         };
-        return arr.get(self);
     }
 };
