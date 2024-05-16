@@ -1,0 +1,98 @@
+#!/usr/bin/env vemod
+
+let
+  # Initialize a complex number
+  Complex x y = { x, y };
+
+  # Add two complex numbers
+  cadd u v = {
+    x = u.x + v.x,
+    y = u.y + v.y,    
+  };
+
+  # Multiply two complex numbers
+  cmul u v = {
+    x = u.x * v.x - u.y * v.y,
+    y = u.x * v.y + u.y * v.x,
+  };
+
+  # Compute the squared magnitude of a complex number
+  cmag2 z = z.x * z.x + z.y * z.y;
+
+  # The quadratic map
+  qmap z c = (z 'cmul z) 'cadd c;
+
+  # The width of the visible area of the complex plane
+  const VIEWPORT_SIZE = 2.5;
+
+  # The center coordinate of the visible area of the complex plane
+  const CENTER = Complex -0.5 0.0;
+  
+  # The width and height, i characters, of the rendered image
+  const RESOLUTION = 160;
+
+  # Turns a pixel coordinate in to a complex number
+  transform x y =
+    let
+      offset = VIEWPORT_SIZE / 2.0;
+    in
+      {
+        # Convert ints to floats by multiplying with 1.0
+        x = VIEWPORT_SIZE * x / RESOLUTION - offset,
+        # Scale y up to accommodate for characters not being square
+        y = 1.8 * (VIEWPORT_SIZE * y / RESOLUTION - offset),
+      } 'cadd CENTER;
+
+  # The number of iterations per pixel
+  const ITERATIONS = 32;
+
+  # The square of the complex magnitude where iterations terminate
+  const LIMIT2 = 4.0;
+
+  # Perform iteration on a single complex number
+  # Returns an index in to CHARS
+  iter z =
+    let
+      c = z;
+      z = Complex 0 0;
+      i = ITERATIONS;
+      impl c z i =
+        if cmag2 z . > LIMIT2 or i = 0
+        then i
+        else impl c . qmap z . c . . i - 1;
+    in impl c . z . i;
+
+  # Draw a single pixel
+  put i =
+    print "\e[48;5;" . ->
+    print 256 / ITERATIONS * i . ->
+    print "m ";
+
+  # Render a single row
+  row y =
+    let
+      loop x y =
+        if x = RESOLUTION
+        then ()
+        else
+          let
+            z = transform x . y;
+            i = iter z;
+          in
+            put i . -> loop x + 1 y;
+    in
+      loop 0 y . -> print "\e[0m\n";
+
+  # Render the image
+  const RENDER =
+    let
+      loop y =
+        if y = RESOLUTION
+        then ()
+        else row y . -> loop y + 1;
+    in
+      print "\e[?25l" . ->
+      loop 0 . ->
+      print "\e[?25h";
+
+in RENDER . -> 0
