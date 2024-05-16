@@ -54,6 +54,12 @@ async function runVemodOnActiveDocument(extraArgs: string) {
 
     const args = ["clear && vemod", filename, extraArgs].join(" ");
 
+    const saveStatus = activeEditor.document.save();
+    if (!saveStatus) {
+        vscode.window.showErrorMessage("VeMod: Failed to save document " + filename);
+        return;
+    }
+
     const terminal = getVemodTerminal();
     terminal.show(false);
     terminal.sendText(args, true);
