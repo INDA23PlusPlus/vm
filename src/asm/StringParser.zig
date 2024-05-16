@@ -48,6 +48,7 @@ pub fn parse(self: *StringParser, string: []const u8) ![]const u8 {
                         'n' => try writer.writeByte('\n'),
                         '\\' => try writer.writeByte('\\'),
                         '\"' => try writer.writeByte('\"'),
+                        'E' => try writer.writeByte('\x1b'),
                         // TODO: more escape characters
                         else => try self.diagnostics.addDiagnostic(.{
                             .description = .{ .static = "invalid escape character" },
