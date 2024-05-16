@@ -21,6 +21,7 @@ pub const Symbol = struct {
     nparams: usize,
     kind: SymbolKind,
     is_const: bool,
+    decl_node_id: usize,
 };
 
 const ScopeIterator = struct {
@@ -211,7 +212,14 @@ fn reference(self: *SymbolTable, name: []const u8, nparams: usize) !usize {
     }
 }
 
-fn declare(self: *SymbolTable, name: []const u8, nparams: usize, kind: SymbolKind, is_const: bool) !usize {
+fn declare(
+    self: *SymbolTable,
+    name: []const u8,
+    nparams: usize,
+    kind: SymbolKind,
+    is_const: bool,
+    node_id: usize,
+) !usize {
     var scope = self.scopes.items[self.currentScopeID()];
     if (scope.get(name)) |symid| {
         const symbol = &self.symbols.items[symid];
@@ -237,6 +245,7 @@ fn declare(self: *SymbolTable, name: []const u8, nparams: usize, kind: SymbolKin
         symbol.nparams = nparams;
         symbol.kind = kind;
         symbol.is_const = is_const;
+        symbol.decl_node_id = node_id;
         try self.scopes.items[self.currentScopeID()].put(name, symid);
         return symid;
     }
@@ -278,16 +287,15 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
         .let_entry => |*v| {
             // Declare the symbol with number of params (may be zero).
             const nparams = self.countChildren(node_id);
-            // This is where constants are turned in to zero parameter functions!
-            const kind: SymbolKind = if (nparams > 0 or v.is_const) .{
+            const kind: SymbolKind = if (nparams > 0) .{
                 .func = undefined,
             } else .{
                 .local = self.nextLocalID(),
             };
 
-            // Only let symbol reference itself if it's a REAL function
-            if (nparams > 0) {
-                v.symid = try self.declare(v.name, nparams, kind, true);
+            // Only let symbol reference itself if it's a function
+            if (kind == .func) {
+                v.symid = try self.declare(v.name, nparams, kind, true, node_id);
             }
 
             // Push new scope for params and expression,
@@ -311,17 +319,17 @@ fn resolveNode(self: *SymbolTable, node_id: usize) !void {
             self.popScope();
             if (kind == .func) self.popMarker();
 
-            // If symbol is not a REAL function, declare it after we've
+            // If symbol is not a function, declare it after we've
             // resolved it's definition.
-            if (nparams == 0) {
-                v.symid = try self.declare(v.name, nparams, kind, v.is_const);
+            if (kind != .func) {
+                v.symid = try self.declare(v.name, nparams, kind, v.is_const, node_id);
             }
 
             // Resolve next entry in let expression.
             if (v.next) |next| try self.resolveNode(next);
         },
         .param => |*v| {
-            v.symid = try self.declare(v.name, 0, .{ .param = self.nextParamID() }, false);
+            v.symid = try self.declare(v.name, 0, .{ .param = self.nextParamID() }, false, node_id);
             if (v.next) |next| try self.resolveNode(next);
         },
         .reference => |*v| {

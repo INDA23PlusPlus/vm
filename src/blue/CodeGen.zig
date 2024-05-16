@@ -281,8 +281,10 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                     try self.endFunction();
                 },
                 .local => |w| {
-                    try self.genNode(v.expr);
-                    try self.writeInstr(.store, .{ .int = @intCast(w) }, v.assign_where);
+                    if (!symbol.is_const) {
+                        try self.genNode(v.expr);
+                        try self.writeInstr(.store, .{ .int = @intCast(w) }, v.assign_where);
+                    }
                 },
                 .param => unreachable,
             }
@@ -300,7 +302,12 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                     try self.writeInstr(.call, .{ .function = v.symid }, v.name);
                 },
                 .local => |offset| {
-                    try self.writeInstr(.load, .{ .int = @intCast(offset) }, v.name);
+                    if (symbol.is_const) {
+                        const decl_node = self.ast.getNode(symbol.decl_node_id);
+                        try self.genNode(decl_node.let_entry.expr);
+                    } else {
+                        try self.writeInstr(.load, .{ .int = @intCast(offset) }, v.name);
+                    }
                 },
                 .param => |index| {
                     const offset = @as(i64, @intCast(index)) - 3 - @as(i64, @intCast(self.currentParamCount()));
