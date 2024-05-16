@@ -1,0 +1,74 @@
+{
+  "name": "vemod",
+  "scopeName": "source.vmd",
+  "patterns": [
+    { "include": "#keywords" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#opcodes" },
+    { "include": "#identifiers" },
+    { "include": "#comments" }
+  ],
+
+  "repository": {
+
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.vmd",
+          "match": "\\-(function|string|begin|end)"
+        }
+      ]
+    },
+
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.vmd",
+          "begin": "\"",
+          "end": "\""
+        }
+      ]
+    },
+
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.vmd",
+          "match": "\\@[^\\s]*"
+        },
+        {
+          "name": "constant.numeric.integer.vmd",
+          "match": "\\%[^\\s]*"
+        }
+      ]
+    },
+
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.vmd",
+          "match": "\\$[^\\s]*"
+        }
+      ]
+    },
+
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.vmd",
+          "match": "#.*\\n?"
+        }
+      ]
+    },
+
+    "opcodes": {
+      "patterns": [
+        {
+          "name": "keyword.statement.vmd",
+          "match": "\\b(add|sub|mul|div|mod|inc|dec|cmp_lt|cmp_gt|cmp_le|cmp_ge|cmp_eq|cmp_ne|jmp|jmpnz|push|pushf|pushs|pop|dup|load|store|syscall|call|ret|stack_alloc|struct_alloc|struct_load|struct_store|list_alloc|list_load|list_store|list_length|list_append|list_pop|list_remove|list_concat)\\b"
+        }
+      ]
+    }
+  }
+}

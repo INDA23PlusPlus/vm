@@ -39,6 +39,11 @@
         "language": "blue",
         "scopeName": "source.blue",
         "path": "./syntaxes/blue.tmGrammar.json"
+      },
+      {
+        "language": "vemod",
+        "scopeName": "source.vmd",
+        "path": "./syntaxes/vemod.tmGrammar.json"
       }
     ],
     "configuration": {
