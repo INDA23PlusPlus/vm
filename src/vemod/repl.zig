@@ -50,6 +50,7 @@ pub fn main(
     stdout: anytype,
     stdin: anytype,
     stderr: anytype,
+    no_color: bool,
 ) !void {
     _ = stderr;
     var input_buffer = ArrayList(u8).init(allocator);
@@ -82,6 +83,7 @@ pub fn main(
             const source = input_buffer.items;
 
             var diagnostics = DiagnosticList.init(allocator, source);
+            diagnostics.no_color = no_color;
             defer diagnostics.deinit();
             var compilation = blue.compile(
                 source,
@@ -117,7 +119,7 @@ pub fn main(
 
             _ = interpreter.run(&context) catch |err| {
                 if (context.rterror) |rterror| {
-                    try print_rterror(program, rterror, stdout);
+                    try print_rterror(program, rterror, stdout, no_color);
                 } else {
                     return err;
                 }

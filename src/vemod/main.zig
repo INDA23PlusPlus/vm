@@ -76,6 +76,7 @@ const Options = struct {
     output_asm: bool = false,
     cl_expr: ?[]const u8 = null,
     debug: bool = false,
+    no_color: bool = false,
 };
 
 fn usage(name: []const u8, writer: anytype) !void {
@@ -101,11 +102,12 @@ fn usage(name: []const u8, writer: anytype) !void {
         \\                             Overrides any provided file input.
         \\    -r, --repl              Run the Blue REPL.
         \\    -d, --debug             Print debug information.
+        \\    -n, --no-color          Disable terminal colors.
         \\
     , .{name});
 }
 
-pub fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
+pub fn print_rterror(prog: Program, rte: RtError, writer: anytype, no_color: bool) !void {
     if (prog.tokens == null or rte.pc == null) {
         _ = try writer.write("Runtime error: ");
         try rte.err.print(writer);
@@ -118,7 +120,7 @@ pub fn print_rterror(prog: Program, rte: RtError, writer: anytype) !void {
 
     try writer.print("Runtime error (line {d}): ", .{ref.line_num});
     try rte.err.print(writer);
-    try ref.print(writer, SourceRef.terminal_colors.red);
+    try ref.print(writer, if (no_color) null else SourceRef.terminal_colors.red);
 }
 
 pub fn main() !u8 {
@@ -176,7 +178,9 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
             options.cl_expr = args.next();
         } else if (mem.eql(u8, arg, "-r") or mem.eql(u8, arg, "--repl")) {
-            repl.main(allocator, stdout, stdin, stderr) catch |err| {
+            // TODO: maybe move this out of argument parsing
+            // so we don't discard arguments to the right of this?
+            repl.main(allocator, stdout, stdin, stderr, options.no_color) catch |err| {
                 try stderr.print(
                     "Unhandled runtime error in REPL: {s}\n",
                     .{@errorName(err)},
@@ -186,6 +190,8 @@ pub fn main() !u8 {
             return 0;
         } else if (mem.eql(u8, arg, "-d") or mem.eql(u8, arg, "--debug")) {
             options.debug = true;
+        } else if (mem.eql(u8, arg, "-n") or mem.eql(u8, arg, "--no-color")) {
+            options.no_color = true;
         } else if (arg[0] == '-') {
             try usage(name, stderr);
             try stderr.print("error: unknown option '{s}'\n", .{arg});
@@ -247,6 +253,7 @@ pub fn main() !u8 {
         },
         .vmd => {
             var diagnostics = DiagnosticList.init(allocator, source);
+            diagnostics.no_color = options.no_color;
             defer diagnostics.deinit();
 
             var assembler = Asm.init(source, allocator, &diagnostics);
@@ -266,6 +273,7 @@ pub fn main() !u8 {
         },
         .blue => {
             var diagnostics = DiagnosticList.init(allocator, source);
+            diagnostics.no_color = options.no_color;
             defer diagnostics.deinit();
 
             var compilation = blue.compile(source, allocator, &diagnostics, false, null) catch {
@@ -302,6 +310,7 @@ pub fn main() !u8 {
             // reset diagnostics
             diagnostics.deinit();
             diagnostics = DiagnosticList.init(allocator, source);
+            diagnostics.no_color = options.no_color;
 
             try assembler.assemble();
 
@@ -363,6 +372,7 @@ pub fn main() !u8 {
                 if (program.deinit_data) |deinit_data| {
                     if (deinit_data.source) |src| {
                         diagnostics = DiagnosticList.init(allocator, src);
+                        diagnostics.?.no_color = options.no_color;
                     }
                 }
 
@@ -381,7 +391,7 @@ pub fn main() !u8 {
 
                 const ret = jit_fn.execute() catch |err| {
                     if (jit_fn.rterror) |rterror| {
-                        try print_rterror(program, rterror, stderr);
+                        try print_rterror(program, rterror, stderr, options.no_color);
                     } else {
                         try stderr.print("error: {s}\n", .{@errorName(err)});
                     }
@@ -398,7 +408,7 @@ pub fn main() !u8 {
 
                 const ret = interpreter.run(&context) catch |err| {
                     if (context.rterror) |rterror| {
-                        try print_rterror(program, rterror, stderr);
+                        try print_rterror(program, rterror, stderr, options.no_color);
                     } else {
                         try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
                     }

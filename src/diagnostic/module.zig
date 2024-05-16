@@ -50,6 +50,8 @@ pub const DiagnosticList = struct {
     max_severity: ?Diagnostic.Severity,
     /// The source code
     source: []const u8,
+    /// Disable terminal colors
+    no_color: bool = false,
 
     allocator: Allocator,
 
@@ -150,7 +152,7 @@ pub const DiagnosticList = struct {
                 ref.line_num,
                 self.getDescriptionString(diagnostic.description),
             });
-            try ref.print(writer, diagnostic.severity.terminalColor());
+            try ref.print(writer, if (self.no_color) null else diagnostic.severity.terminalColor());
         } else {
             try writer.print("{s}: {s}.\n", .{
                 @tagName(diagnostic.severity),
