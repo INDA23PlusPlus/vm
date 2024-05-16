@@ -1,0 +1,152 @@
+{
+  "name": "blue",
+  "scopeName": "source.blue",
+  "patterns": [
+    { "include": "#expressions" }
+  ],
+
+  "repository": {
+
+    "expressions": {
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#keywords" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#variables" },
+        { "include": "#parenthesis" },
+        { "include": "#lists" },
+        { "include": "#structs" }
+      ]
+    },
+
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.blue",
+          "match": "\\b(let|in|if|then|else|match|with|const)\\b"
+        },
+        {
+          "name": "keyword.operator.arithmetic.blue",
+          "match": "(\\+|\\*|\/|::|\\+\\+|=|\\.|\\->|\\-|\\,|>=|<=|>|<)"
+        },
+        {
+          "name": "keyword.statement.blue",
+          "match": "\\b(print|println|len)\\b"
+        },
+        {
+          "name": "keyword.default.blue",
+          "match": "\\b(or|and)\\b"
+        }
+      ]
+    },
+
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.blue",
+          "begin": "\"",
+          "end": "\""
+        }
+      ]
+    },
+
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.blue",
+          "match": "#.*\\n?"
+        }
+      ]
+    },
+
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.blue",
+          "match": "[\\d]+\\.[\\d]+"
+        },
+        {
+          "name": "constant.numeric.integer.blue",
+          "match": "[\\d]+"
+        }
+      ]
+    },
+
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.parameter.blue",
+          "match": "'[a-zA-Z][a-zA-Z_'\\d]*"
+        },
+        {
+          "name": "variable.other.blue",
+          "match": "[a-zA-Z][a-zA-Z_'\\d]*"
+        }
+      ]
+    },
+
+    "parenthesis": {
+      "patterns": {
+        "name": "meta.parens.blue",
+        "begin": "\\(",
+        "end": "\\)",
+        "beginCaptures": {
+          "0": {
+            "name": "punctuation.section.parens.begin.blue"
+          }
+        },
+        "endCaptures": {
+          "0": {
+            "name": "punctuation.section.parens.end.blue"
+          }
+        },
+        "patterns": [
+          { "include": "#expressions" }
+        ]
+      }
+    },
+
+    "lists": {
+      "patterns": {
+        "name": "meta.list.blue",
+        "begin": "\\[",
+        "end": "\\]",
+        "beginCaptures": {
+          "0": {
+            "name": "punctuation.section.brackets.begin.list.blue"
+          }
+        },
+        "endCaptures": {
+          "0": {
+            "name": "punctuation.section.brackets.end.list.blue"
+          }
+        },
+        "patterns": [
+          { "include": "#expressions" }
+        ]
+      }
+    },
+
+    "structs": {
+      "patterns": {
+        "name": "meta.struct.blue",
+        "begin": "\\{",
+        "end": "\\}",
+        "beginCaptures": {
+          "0": {
+            "name": "punctuation.section.braces.begin.struct.blue"
+          }
+        },
+        "endCaptures": {
+          "0": {
+            "name": "punctuation.section.braces.end.struct.blue"
+          }
+        },
+        "patterns": [
+          { "include": "#expressions" }
+        ]
+      }
+    }
+  }
+}

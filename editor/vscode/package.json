@@ -24,14 +24,21 @@
       {
         "id": "vemod",
         "extensions": [
-          ".vmd"
+          "vmd"
         ]
       },
       {
         "id": "blue",
         "extensions": [
-          ".blue"
+          "blue"
         ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "blue",
+        "scopeName": "source.blue",
+        "path": "./syntaxes/blue.tmGrammar.json"
       }
     ],
     "configuration": {
