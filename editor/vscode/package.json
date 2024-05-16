@@ -66,6 +66,11 @@
         "category": "VeMod"
       },
       {
+        "command": "vemod.runFileForceJit",
+        "title": "Run file (force JIT)",
+        "category": "VeMod"
+      },
+      {
         "command": "vemod.vmdls.startRestart",
         "title": "Start / Restart vmdls",
         "category": "VeMod"

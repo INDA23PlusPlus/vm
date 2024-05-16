@@ -8,6 +8,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('vemod.runFile', () => runVemodOnActiveDocument("")),
+        vscode.commands.registerCommand('vemod.runFileForceJit', () => runVemodOnActiveDocument("-j full")),
         // TODO: transpile, compile, install
     );
 }
