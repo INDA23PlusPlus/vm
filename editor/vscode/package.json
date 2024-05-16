@@ -71,6 +71,11 @@
         "category": "VeMod"
       },
       {
+        "command": "vemod.transpileFile",
+        "title": "Transpile file",
+        "category": "VeMod"
+      },
+      {
         "command": "vemod.vmdls.startRestart",
         "title": "Start / Restart vmdls",
         "category": "VeMod"
@@ -103,6 +108,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "child_process": "^1.0.2",
     "vscode-languageclient": "^9.0.1",
     "which": "^4.0.0"
   }
