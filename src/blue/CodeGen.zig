@@ -226,7 +226,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
         .binop => |v| {
             try self.genNode(v.lhs);
             // lists need to be duplicated
-            switch (v.op) {
+            switch (v.op.tag) {
                 .@"::", .@"++" => try self.writeInstr(.dup, .none, self.placeholderToken()),
                 else => {},
             }
