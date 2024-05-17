@@ -225,8 +225,10 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
     switch (node.*) {
         .binop => |v| {
             try self.genNode(v.lhs);
-            if (v.op.tag == .@"::") {
-                try self.writeInstr(.dup, .none, self.placeholderToken());
+            // lists need to be duplicated
+            switch (v.op) {
+                .@"::", .@"++" => try self.writeInstr(.dup, .none, self.placeholderToken()),
+                else => {},
             }
             try self.genNode(v.rhs);
             const opcode: Opcode = switch (v.op.tag) {
