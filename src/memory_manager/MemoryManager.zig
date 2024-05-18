@@ -12,7 +12,9 @@ fn UnmanagedObjectList(comptime T: type) type {
     return std.ArrayListUnmanaged(*T);
 }
 
-allocs_until_next_sweep: usize = 1 << 15,
+const MinAllocsUntilSweep = 64;
+
+allocs_until_next_sweep: usize = MinAllocsUntilSweep,
 allocator: std.mem.Allocator,
 allObjects: UnmanagedObjectList(Object),
 allLists: UnmanagedObjectList(List),
@@ -41,6 +43,8 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn alloc_struct(self: *Self) ObjectRef {
+    self.maybe_gc();
+
     const objRef = ObjectRef.init(self.allocator) catch block: {
         // gc then try again
         self.gc_pass();
@@ -57,12 +61,12 @@ pub fn alloc_struct(self: *Self) ObjectRef {
         };
     };
 
-    self.maybe_gc();
-
     return objRef;
 }
 
 pub fn alloc_list(self: *Self) ListRef {
+    self.maybe_gc();
+
     var listRef = ListRef.init(self.allocator) catch block: {
         // gc then try again
         self.gc_pass();
@@ -80,8 +84,6 @@ pub fn alloc_list(self: *Self) ListRef {
         };
     };
 
-    self.maybe_gc();
-
     return listRef;
 }
 
@@ -93,7 +95,7 @@ fn maybe_gc(self: *Self) void {
     self.allocs_until_next_sweep -= 1;
     if (self.allocs_until_next_sweep == 0) {
         self.gc_pass();
-        self.allocs_until_next_sweep = @max(1 << 15, 8 * (self.allLists.items.len + self.allObjects.items.len));
+        self.allocs_until_next_sweep = self.allLists.items.len + self.allObjects.items.len | MinAllocsUntilSweep;
     }
 }
 
@@ -108,26 +110,6 @@ pub fn gc_pass(self: *Self) void {
 }
 
 fn mark_items_in_stack(self: *Self) void {
-    for (self.stack.items) |*item| {
-        mark_item(item);
-    }
-    if (self.allLists.items.len > 0)
-        mark_list(self.allLists.items[self.allLists.items.len - 1]);
-    if (self.allObjects.items.len > 0)
-        mark_object(self.allObjects.items[self.allObjects.items.len - 1]);
-}
-
-pub fn force_gc_pass(self: *Self) void {
-    // std.debug.print("[vemod] Garbage collecting.\n", .{});
-
-    // Mark all objects that are reachable from the stack
-    self.force_mark_items_in_stack();
-
-    self.sweep(Object, &self.allObjects);
-    self.sweep(List, &self.allLists);
-}
-
-fn force_mark_items_in_stack(self: *Self) void {
     for (self.stack.items) |*item| {
         mark_item(item);
     }
@@ -252,7 +234,7 @@ test "run gc pass with empty memory manager" {
     var memoryManager = try Self.init(std.testing.allocator, &stack);
     defer memoryManager.deinit();
 
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
 }
 
 test "gc pass removes one unused object" {
@@ -265,7 +247,7 @@ test "gc pass removes one unused object" {
     _ = memoryManager.alloc_struct();
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -281,7 +263,7 @@ test "gc pass keeps one object still in use" {
 
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 }
 
@@ -293,15 +275,15 @@ test "gc pass keeps one object still in use and discards one unused" {
     defer memoryManager.deinit();
 
     var objectRef1 = memoryManager.alloc_struct();
-    _ = memoryManager.alloc_struct();
-
     try stack.append(Value.from(objectRef1));
+
+    _ = memoryManager.alloc_struct();
     try objectRef1.set(123, Value.from(456));
 
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // objectRef2 is not on the stack
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
 
     try std.testing.expectEqual(1, memoryManager.get_object_count());
     try std.testing.expectEqual(456, objectRef1.get(123).?.int);
@@ -315,6 +297,7 @@ test "assign object to object" {
     defer memoryManager.deinit();
 
     var objectRef1 = memoryManager.alloc_struct();
+    try stack.append(Value.from(objectRef1));
     var objectRef2 = memoryManager.alloc_struct();
     try objectRef1.set(123, Value.from(456));
     try objectRef2.set(123, Value.from(objectRef1));
@@ -329,19 +312,21 @@ test "object in object, drop parent, keep child" {
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
+    try stack.append(Value.from(objectA));
+    
     var objectB = memoryManager.alloc_struct(); // B
+    try stack.append(Value.from(objectB));
+
     try objectA.set(123, Value.from(456)); // A[123] = 456
     try objectB.set(123, Value.from(objectA)); // B[123] = A
 
-    try stack.append(Value.from(objectA));
-    try stack.append(Value.from(objectB));
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object B from stack. The child A should still be kept since it
     remove(&stack, objectB);
     // Object B should be dropped
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     // Only Object A should be alive.
     try std.testing.expectEqual(1, memoryManager.get_object_count());
 
@@ -356,18 +341,18 @@ test "object in object, drop child from stack, gc, both stay" {
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
+    try stack.append(Value.from(objectA));
     var objectB = memoryManager.alloc_struct(); // B
+    try stack.append(Value.from(objectB));
     try objectA.set(123, Value.from(456)); // A[123] = 456
     try objectB.set(123, Value.from(objectA)); // B[123] = A
 
-    try stack.append(Value.from(objectA));
-    try stack.append(Value.from(objectB));
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop object A from stack. It should still be kept since it is alive as a child of object B.
     remove(&stack, objectA);
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 }
 
@@ -379,20 +364,20 @@ test "cycles get dropped" {
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
+    try stack.append(Value.from(objectA));
     var objectB = memoryManager.alloc_struct(); // B
+    try stack.append(Value.from(objectB));
     try objectA.set(124, Value.from(objectA)); // A[124] = B
     try objectB.set(123, Value.from(objectA)); // B[123] = A
 
-    try stack.append(Value.from(objectA));
-    try stack.append(Value.from(objectB));
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     // Drop both from stack.
     // They should both
     remove(&stack, objectA);
     remove(&stack, objectB);
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -404,19 +389,19 @@ test "one object refers to same object twice" {
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
+    try stack.append(Value.from(objectA));
     const objectB = memoryManager.alloc_struct(); // B
+    try stack.append(Value.from(objectB));
     try objectA.set(0, Value.from(objectB)); // A[0] = B
     try objectA.set(1, Value.from(objectB)); // A[1] = B
     // all references to B are from A
 
-    try stack.append(Value.from(objectA));
-    try stack.append(Value.from(objectB));
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     remove(&stack, objectA);
     remove(&stack, objectB);
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -428,19 +413,19 @@ test "object key set twice with same value" {
     defer memoryManager.deinit();
 
     var objectA = memoryManager.alloc_struct(); // A
+    try stack.append(Value.from(objectA));
     const objectB = memoryManager.alloc_struct(); // B
+    try stack.append(Value.from(objectB));
     try objectA.set(0, Value.from(objectB)); // A[0] = B
     try objectA.set(0, Value.from(objectB)); // A[0] = B
     // all references to B are from A
 
-    try stack.append(Value.from(objectA));
-    try stack.append(Value.from(objectB));
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(2, memoryManager.get_object_count());
 
     remove(&stack, objectA);
     remove(&stack, objectB);
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -466,11 +451,11 @@ test "big cycle" {
         try objects.items[(i + 1) % cycle_len].set(0, Value.from(objects.items[i]));
     }
 
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(cycle_len, memoryManager.get_object_count());
 
     stack.clearAndFree();
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
 
@@ -516,12 +501,12 @@ test "tree of objects with references to root" {
         try ref1.set(nodes_per_layer + 1, Value.from(ref2));
     }
 
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
     try std.testing.expectEqual(expected_node_count, memoryManager.get_object_count());
     _ = stack.pop();
 
     // drop the entire tree
-    memoryManager.force_gc_pass();
+    memoryManager.gc_pass();
 
     try std.testing.expectEqual(0, memoryManager.get_object_count());
 }
