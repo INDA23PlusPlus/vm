@@ -174,6 +174,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    vemod.linkLibC();
+    vemod.addIncludePath(.{ .path = "src/vemod/" });
+    vemod.addCSourceFile(.{ .file = .{ .path = "src/vemod/linenoise.c" } });
+
     const build_vemod = b.step("vemod", "Build the main VeMod executable");
     const install_vemod = b.addInstallArtifact(vemod, .{});
     build_vemod.dependOn(&install_vemod.step);

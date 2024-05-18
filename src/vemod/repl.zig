@@ -25,6 +25,10 @@ const interpreter = vm.interpreter;
 
 const print_rterror = @import("main.zig").print_rterror;
 
+const ln = @cImport({
+    @cInclude("linenoise.h");
+});
+
 fn isOnlyWhitespace(str: []const u8) bool {
     for (str) |c| {
         if (!ascii.isWhitespace(c)) {
@@ -32,8 +36,6 @@ fn isOnlyWhitespace(str: []const u8) bool {
         }
     } else return true;
 }
-
-const input_prefix = ">>> ";
 
 // we need to modify the AST so that
 // the user provided expression is printed,
@@ -53,26 +55,33 @@ pub fn main(
     no_color: bool,
 ) !void {
     _ = stderr;
+    _ = stdin;
+
     var input_buffer = ArrayList(u8).init(allocator);
     defer input_buffer.deinit();
 
     while (true) {
         input_buffer.clearRetainingCapacity();
 
-        try stdout.writeAll(input_prefix);
+        var first = true;
 
         while (true) {
-            // keep reading until we receive empty line, or terminate REPL on EOF
-            const buffer_len_before_input_line = input_buffer.items.len;
-            stdin.streamUntilDelimiter(input_buffer.writer(), '\n', null) catch {
-                try stdout.writeByte('\n');
-                return;
-            };
-            if (input_buffer.items.len == buffer_len_before_input_line) break;
-            try input_buffer.append('\n');
+            const prompt = if (first) ">>> " else "    ";
+            first = false;
 
-            // align cursor with previous line
-            try stdout.print("\x1B[{d}C", .{input_prefix.len});
+            const cstr = ln.linenoise(prompt);
+            if (@as(?*anyopaque, cstr) == ln.NULL) return;
+            _ = ln.linenoiseHistoryAdd(cstr);
+            const line = std.mem.span(cstr);
+
+            if (line.len == 0) {
+                ln.linenoiseFree(cstr);
+                break;
+            }
+
+            try input_buffer.appendSlice(line);
+            try input_buffer.append('\n');
+            ln.linenoiseFree(cstr);
         }
 
         // ignore empty input
