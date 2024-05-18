@@ -313,7 +313,7 @@ test "object in object, drop parent, keep child" {
 
     var objectA = memoryManager.alloc_struct(); // A
     try stack.append(Value.from(objectA));
-    
+
     var objectB = memoryManager.alloc_struct(); // B
     try stack.append(Value.from(objectB));
 
