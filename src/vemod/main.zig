@@ -36,6 +36,20 @@ const repl = @import("repl.zig");
 
 const Extension = enum { vmd, mcl, vbf, blue };
 
+const builtin = @import("builtin");
+
+fn isatty(file: std.fs.File) bool {
+    if (builtin.os.tag == .windows) {
+        // TODO
+        return true;
+    } else {
+        const c = @cImport({
+            @cInclude("unistd.h");
+        });
+        return c.isatty(file.handle) == 1;
+    }
+}
+
 pub fn logFn(
     comptime level: std.log.Level,
     comptime scope: @TypeOf(.EnumLiteral),
@@ -127,6 +141,7 @@ pub fn main() !u8 {
 
     // Parse command line options
     var options = Options{};
+    if (!isatty(io.getStdErr())) options.no_color = true;
 
     var args = process.args();
     const name = args.next().?;
