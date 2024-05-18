@@ -115,6 +115,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <ctype.h>
 #include "linenoise.h"
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
@@ -530,6 +531,71 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
     }
 }
 
+static const char *blue_keywords[] = { "let", "in", "match", "with", "if", "then", "else", "const", NULL };
+static const char *blue_builtins[] = { "print", "println", "len", NULL };
+
+static const char *esc_red = "\x1b[31m";
+static const char *esc_blue = "\x1b[34m";
+static const char *esc_default = "\x1b[39m";
+
+static const char *colorWord(const char *word, size_t len) {
+    const char **ptr;
+    size_t mlen;
+
+    ptr = blue_keywords;
+    while (*ptr) {
+        mlen = strlen(*ptr);
+        if (len == mlen && strncmp(word, *ptr, mlen) == 0) return esc_red;
+        ptr++;
+    }
+
+    ptr = blue_builtins;
+    while (*ptr) {
+        mlen = strlen(*ptr);
+        if (len == mlen && strncmp(word, *ptr, mlen) == 0) return esc_blue;
+        ptr++;
+    }
+
+    return esc_default;
+}
+
+/* Adds Blue syntax hightlighting to the current line. */
+static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
+    int start = -1, pos;
+
+    for (pos = 0; pos < len; ++pos)
+    {
+        if (isalpha(buf[pos]))
+        {
+            if (start < 0)
+            {
+                start = pos;
+            }
+        }
+        else
+        {
+            if (start >= 0)
+            {
+                const char *color = colorWord(buf + start, pos - start);
+                abAppend(ab, color, strlen(color));
+                abAppend(ab, buf + start, pos - start);
+                abAppend(ab, esc_default, strlen(esc_default));
+                start = -1;
+            }
+            abAppend(ab, buf + pos, 1);
+        }
+    }
+
+    if (start >= 0)
+    {
+        const char *color = colorWord(&buf[start], pos - start);
+        abAppend(ab, color, strlen(color));
+        abAppend(ab, &buf[start], pos - start);
+        abAppend(ab, esc_default, strlen(esc_default));
+        start = -1;
+    }
+}
+
 /* Single line low level line refresh.
  *
  * Rewrite the currently edited line accordingly to the buffer content,
@@ -566,7 +632,7 @@ static void refreshSingleLine(struct linenoiseState *l, int flags) {
         if (maskmode == 1) {
             while (len--) abAppend(&ab,"*",1);
         } else {
-            abAppend(&ab,buf,len);
+            appendBufWithHl(&ab, buf, len);
         }
         /* Show hits if any. */
         refreshShowHints(&ab,l,plen);
@@ -729,10 +795,9 @@ int linenoiseEditInsert(struct linenoiseState *l, char c) {
             l->len++;
             l->buf[l->len] = '\0';
             if ((!mlmode && l->plen+l->len < l->cols && !hintsCallback)) {
-                /* Avoid a full update of the line in the
-                 * trivial case. */
                 char d = (maskmode==1) ? '*' : c;
                 if (write(l->ofd,&d,1) == -1) return -1;
+                refreshLine(l);
             } else {
                 refreshLine(l);
             }

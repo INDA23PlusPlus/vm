@@ -16,7 +16,7 @@
 
         devShells = rec {
           default = develop;
-          develop = pkgs.mkShell { nativeBuildInputs = with pkgs; [ zig_0_12 zls ]; };
+          develop = pkgs.mkShell { nativeBuildInputs = with pkgs; [ zig_0_12 zls clang-tools ]; };
           use = pkgs.mkShell { nativeBuildInputs = with packages; [ vemod-no-check vmdls-no-check ]; };
           use-debug = pkgs.mkShell { nativeBuildInputs = with packages; [ vemod-debug vmdls-debug ]; };
         };
