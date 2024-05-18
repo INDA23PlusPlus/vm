@@ -20,8 +20,11 @@ bp: usize,
 alloc: Allocator,
 stack: Stack,
 refc: i64,
+write_buffer: *anyopaque,
+write_buffer_destroy_fn: *const fn (self: *Self) void,
+flush_fn: *const fn (write_buffer: *anyopaque) anyerror!void,
 write_ctxt: *const anyopaque,
-write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
+write_fn: *const fn (context: *anyopaque, bytes: []const u8) anyerror!usize,
 stderr_write_ctxt: *const anyopaque,
 stderr_write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 debug_output: bool,
@@ -105,9 +108,29 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         else => @compileError("error_writer has to be a pointer to a writer"),
     }
 
+    const tmp = std.io.bufferedWriter(output_writer.*);
+    const BufType = @TypeOf(tmp);
+    const write_buf = try alloc.create(@TypeOf(tmp));
+    write_buf.* = tmp;
+
+    const flush_fn = struct {
+        fn flush(write_buffer: *anyopaque) !void {
+            const buf: *BufType = @ptrCast(@alignCast(write_buffer));
+            try buf.flush();
+        }
+    }.flush;
+
+    const write_buffer_destroy_fn = struct {
+        fn destroy_write_buffer(self: *Self) void {
+            const buf: *BufType = @ptrCast(@alignCast(self.write_buffer));
+            self.alloc.destroy(buf);
+        }
+    }.destroy_write_buffer;
+
     const write_fn = struct {
-        fn write(write_ctxt: *const anyopaque, data: []const u8) anyerror!usize {
-            return @as(@TypeOf(output_writer), @ptrCast(@alignCast(write_ctxt))).write(data);
+        fn write(write_buffer: *anyopaque, data: []const u8) anyerror!usize {
+            const buf: *BufType = @ptrCast(@alignCast(write_buffer));
+            return buf.write(data);
         }
     }.write;
 
@@ -124,6 +147,9 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .stack = Stack.init(alloc),
         .alloc = alloc,
         .refc = 0,
+        .write_buffer = write_buf,
+        .write_buffer_destroy_fn = write_buffer_destroy_fn,
+        .flush_fn = flush_fn,
         .write_ctxt = output_writer,
         .write_fn = write_fn,
         .stderr_write_ctxt = error_writer,
@@ -136,18 +162,22 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
     };
 }
 
+pub fn flush(self: *Self) !void {
+    try self.flush_fn(self.write_buffer);
+}
+
 pub fn reset(self: *Self) void {
+    self.flush() catch @panic("flush failed when resetting VMContext");
     self.pc = self.prog.entry;
     self.bp = 0;
-    for (self.stack.items) |*v| {
-        v.deinit();
+    for (self.stack.items) |_| {
         self.refc -= 1;
     }
     self.stack.clearAndFree();
 }
 
 pub fn write(self: *const Self, bytes: []const u8) anyerror!usize {
-    return self.write_fn(self.write_ctxt, bytes);
+    return self.write_fn(self.write_buffer, bytes);
 }
 
 pub fn writeStderr(self: *const Self, bytes: []const u8) anyerror!usize {
@@ -163,6 +193,8 @@ pub fn errWriter(self: *const Self) std.io.Writer(*const Self, anyerror, writeSt
 }
 
 pub fn deinit(self: *Self) void {
+    self.flush() catch @panic("flush failed");
+    self.write_buffer_destroy_fn(self);
     self.stack.deinit();
     self.jit_mask.deinit(self.alloc);
     if (self.jit_fn) |*jit_fn| {

@@ -509,12 +509,13 @@ fn printImpl(x: *Value, ctxt: *VMContext) anyerror!void {
 }
 
 fn printLn(x: *Value, ctxt: *VMContext) !void {
-    try @call(.always_inline, printImpl, .{ x, ctxt });
+    try printImpl(x, ctxt);
     _ = try ctxt.write("\n");
+    try ctxt.flush();
 }
 
 fn print(x: *Value, ctxt: *VMContext) !void {
-    try @call(.always_inline, printImpl, .{ x, ctxt });
+    try printImpl(x, ctxt);
 }
 
 // wrapper around std.debug.print, but marked as cold as a hint to the optimizer
@@ -525,6 +526,7 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
+    defer ctxt.reset();
     if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) {
         if (ctxt.jit_fn == null) {
             try jit_compile_full(ctxt);
@@ -726,6 +728,9 @@ pub fn run(ctxt: *VMContext) !i64 {
                         defer drop(ctxt, v);
 
                         try print(&v, ctxt);
+                    },
+                    2 => {
+                        try ctxt.flush();
                     },
                     else => |c| {
                         ctxt.rterror = .{
@@ -1443,10 +1448,23 @@ test "lists" {
         Instruction.ret(),
     }, 0, &.{}, &.{}), "", 1);
 
-    // TODO: test list_remove and list_concat
+    try testRun(
+        Program.init(&.{
+            Instruction.push(10),
+            Instruction.push(1),
+            Instruction.sub(),
+            Instruction.dup(),
+            Instruction.jmpnz(1),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        0,
+    );
+
+    // TODO: test list_remove
 }
 
-test "arithmetic" {
+test "binary arithmetic operations" {
     const util = struct {
         fn testBinaryOp(op: Opcode) !void {
             for (0..100) |a| {
@@ -1535,82 +1553,6 @@ test "arithmetic" {
     try util.testBinaryOp(.cmp_eq);
     try util.testBinaryOp(.cmp_ne);
 
-    try testRun(
-        Program.init(&.{
-            Instruction.push(0),
-            Instruction.dup(),
-            Instruction.pop(),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        0,
-    );
-
-    // decrement value, starting at 10, until its zero, 10 is not special, any value should work
-    try testRun(
-        Program.init(&.{
-            Instruction.push(10),
-            Instruction.push(1),
-            Instruction.sub(),
-            Instruction.dup(),
-            Instruction.jmpnz(1),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        0,
-    );
-    try testRun(
-        Program.init(&.{
-            Instruction.push(10),
-            Instruction.decrement(),
-            Instruction.dup(),
-            Instruction.jmpnz(1),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        0,
-    );
-
-    try testRun(
-        Program.init(&.{
-            Instruction.push(0),
-            Instruction.increment(),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        1,
-    );
-    try testRun(
-        Program.init(&.{
-            Instruction.push(0),
-            Instruction.decrement(),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        -1,
-    );
-    try testRun(
-        Program.init(&.{
-            Instruction.push(1),
-            Instruction.negate(),
-            Instruction.push(-1),
-            Instruction.equal(),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        1,
-    );
-    try testRun(
-        Program.init(&.{
-            Instruction.pushf(1.0),
-            Instruction.negate(),
-            Instruction.pushf(-1.0),
-            Instruction.equal(),
-            Instruction.ret(),
-        }, 0, &.{}, &.{}),
-        "",
-        1,
-    );
     // ensure a/b*b + a%b == a
     for (0..201) |i| {
         for (0..201) |j| {
@@ -1643,6 +1585,87 @@ test "arithmetic" {
             }, 0, &.{}, &.{}), "", 1);
         }
     }
+}
+
+test "unary arithmetic operations" {
+    try testRun(
+        Program.init(&.{
+            Instruction.push(0),
+            Instruction.dup(),
+            Instruction.pop(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        0,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.push(10),
+            Instruction.decrement(),
+            Instruction.dup(),
+            Instruction.jmpnz(1),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        0,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.push(0),
+            Instruction.increment(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        1,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.push(0),
+            Instruction.decrement(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        -1,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.push(1),
+            Instruction.negate(),
+            Instruction.push(-1),
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        1,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.pushf(1.0),
+            Instruction.negate(),
+            Instruction.pushf(-1.0),
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        1,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.push(1),
+            Instruction.bitwiseNot(),
+            Instruction.push(-2),
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        1,
+    );
 }
 
 test "fibonacci" {
