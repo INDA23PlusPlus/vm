@@ -542,8 +542,6 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
-    var tailcalls: f64 = 0;
-    var non_tailcalls: f64 = 0;
     defer ctxt.reset();
     if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) {
         if (ctxt.jit_fn == null) {
@@ -562,7 +560,6 @@ pub fn run(ctxt: *VMContext) !i64 {
     var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
     defer mem.deinit();
     while (true) {
-        // std.time.sleep(10 << 20);
         if (ctxt.pc >= ctxt.prog.code.len) {
             return error.InvalidProgramCounter;
         }
@@ -774,9 +771,6 @@ pub fn run(ctxt: *VMContext) !i64 {
             .call => {
                 const loc = insn.operand.location;
 
-                if (ctxt.debug_output) {
-                    debug_log("<CALL>: {any}\n", .{ctxt.stack.items});
-                }
                 if (ctxt.jit_enabled and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) {
                     const N_val = try pop(ctxt);
                     defer drop(ctxt, N_val);
@@ -816,7 +810,6 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                     // tailcall if the next instruction is a return
                     if (ctxt.prog.code[ctxt.pc].op == .ret and N < TailCallArgLimit and !is_main) {
-                        tailcalls += 1.0;
                         var args: [TailCallArgLimit]Value = undefined;
                         @memcpy(args[0..N], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
 
@@ -840,8 +833,6 @@ pub fn run(ctxt: *VMContext) !i64 {
                         }
                         ctxt.pc = loc;
                     } else {
-                        non_tailcalls += 1.0;
-
                         const ra = Value.from(ctxt.pc);
                         const bp = Value.from(ctxt.bp);
 
@@ -851,10 +842,6 @@ pub fn run(ctxt: *VMContext) !i64 {
                         ctxt.bp = ctxt.stack.items.len;
                         ctxt.pc = loc;
                     }
-                }
-
-                if (ctxt.debug_output) {
-                    debug_log("<CALL/>: {any}\n", .{ctxt.stack.items});
                 }
             },
             .ret => {
@@ -1167,7 +1154,6 @@ pub fn run(ctxt: *VMContext) !i64 {
         return e;
     };
 
-    // debug_log("tail:{d} nontail:{d} portion tailcalls:{d}", .{ tailcalls, non_tailcalls, tailcalls / @max(tailcalls + non_tailcalls, 1.0) });
     return r;
 }
 
