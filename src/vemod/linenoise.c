@@ -1121,6 +1121,10 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
             }
         }
         break;
+    case TAB:
+        if (linenoiseEditInsert(l,' ')) return NULL;
+        if (linenoiseEditInsert(l,' ')) return NULL;
+        break;
     default:
         if (linenoiseEditInsert(l,c)) return NULL;
         break;
