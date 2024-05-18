@@ -170,6 +170,7 @@ pub const DiagnosticList = struct {
             if (diagnostic.primary) try writer.writeAll("=" ** 80 ++ "\n");
             try self.printSingleDiagnostic(diagnostic, writer);
         }
+        try writer.writeAll("=" ** 80 ++ "\n");
     }
 
     pub fn iterator(self: *const DiagnosticList) Iterator {
