@@ -34,6 +34,7 @@ label_counter: usize,
 string_ids: ArrayList(usize),
 allocator: Allocator,
 prong_labels: ArrayList(ArrayList(usize)),
+curr_is_discarded: bool,
 
 pub fn init(
     ast: *Ast,
@@ -54,6 +55,7 @@ pub fn init(
         .param_counts = ArrayList(usize).init(allocator),
         .string_ids = ArrayList(usize).init(allocator),
         .prong_labels = ArrayList(ArrayList(usize)).init(allocator),
+        .curr_is_discarded = false,
     };
 }
 
@@ -336,16 +338,29 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
         .print => |v| {
             try self.genNode(v);
             try self.writeInstr(.syscall, .{ .int = 1 }, self.placeholderToken());
-            try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
+            // avoid stack_alloc if it's discarded immediately
+            if (!self.curr_is_discarded) {
+                try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
+            }
         },
         .println => |v| {
             try self.genNode(v);
             try self.writeInstr(.syscall, .{ .int = 0 }, self.placeholderToken());
-            try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
+            // avoid stack_alloc if it's discarded immediately
+            if (!self.curr_is_discarded) {
+                try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
+            }
         },
         .compound => |v| {
+            self.curr_is_discarded = true;
             try self.genNode(v.discard);
-            try self.writeInstr(.pop, .none, self.placeholderToken());
+            self.curr_is_discarded = false;
+            // if the discarded expression is a print variant,
+            // there is nothing to pop
+            switch (self.ast.getNode(v.discard).*) {
+                .print, .println => {},
+                else => try self.writeInstr(.pop, .none, self.placeholderToken()),
+            }
             try self.genNode(v.keep);
         },
         .list => |v| {
