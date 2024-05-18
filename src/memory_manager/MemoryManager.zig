@@ -88,10 +88,6 @@ pub fn alloc_list(self: *Self) ListRef {
 }
 
 fn maybe_gc(self: *Self) void {
-    // self.gc_pass();
-    // if (self.allObjects.items.len + self.allLists.items.len > 2_500_000) {
-    //     self.gc_pass();
-    // }
     self.allocs_until_next_sweep -= 1;
     if (self.allocs_until_next_sweep == 0) {
         self.gc_pass();
@@ -100,8 +96,6 @@ fn maybe_gc(self: *Self) void {
 }
 
 pub fn gc_pass(self: *Self) void {
-    // std.debug.print("[vemod] Garbage collecting.\n", .{});
-
     // Mark all objects that are reachable from the stack
     self.mark_items_in_stack();
 
@@ -110,24 +104,18 @@ pub fn gc_pass(self: *Self) void {
 }
 
 fn mark_items_in_stack(self: *Self) void {
-    for (self.stack.items) |*item| {
-        mark_item(item);
-    }
-}
-
-fn mark_item(item: *APITypes.Value) void {
-    switch (item.*) {
+    for (self.stack.items) |item| switch (item) {
         .object => |obj| mark_object(obj.ref),
         .list => |list| mark_list(list.ref),
         else => {},
-    }
+    };
 }
 
 fn mark_list(list: *List) void {
     if (!list.refs.mark) {
         list.refs.mark = true;
         for (list.items.items) |*inner_item| {
-            mark_item(inner_item);
+            mark_list(inner_item.list.ref);
         }
     }
 }
@@ -137,7 +125,7 @@ fn mark_object(obj: *Object) void {
         obj.refs.mark = true;
         var it = obj.map.valueIterator();
         while (it.next()) |inner_item| {
-            mark_item(inner_item);
+            mark_object(inner_item.object.ref);
         }
     }
 }
