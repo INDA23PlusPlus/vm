@@ -535,6 +535,8 @@ static const char *blue_keywords[] = { "let", "in", "match", "with", "if", "then
 static const char *blue_builtins[] = { "print", "println", "len", NULL };
 
 static const char *esc_red = "\x1b[31m";
+static const char *esc_green = "\x1b[32m";
+static const char *esc_yellow = "\x1b[33m";
 static const char *esc_blue = "\x1b[34m";
 static const char *esc_default = "\x1b[39m";
 
@@ -556,7 +558,7 @@ static const char *colorWord(const char *word, size_t len) {
         ptr++;
     }
 
-    return esc_default;
+    return word[0] == '\'' ? esc_green : esc_yellow;
 }
 
 /* Adds Blue syntax hightlighting to the current line. */
@@ -565,7 +567,8 @@ static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
 
     for (pos = 0; pos < len; ++pos)
     {
-        if (isalpha(buf[pos]))
+        if (isalpha(buf[pos]) || buf[pos] == '\'' ||
+            (start >= 0 && (buf[pos] == '_' || isdigit(buf[pos]))))
         {
             if (start < 0)
             {
