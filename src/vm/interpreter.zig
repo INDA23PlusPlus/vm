@@ -823,7 +823,6 @@ pub fn run(ctxt: *VMContext) !i64 {
                         const bp = ctxt.stack.items[ctxt.bp - 2];
                         const ra = ctxt.stack.items[ctxt.bp - 1];
 
-
                         // drop everything in the current stack frame that isnt an argument
                         ctxt.bp = ctxt.bp + N - oldN;
                         try ctxt.stack.resize(ctxt.bp);
