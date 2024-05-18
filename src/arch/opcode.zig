@@ -60,12 +60,28 @@ pub const Opcode = enum(u8) {
     list_remove,
     list_concat,
 
-    // TODO
-    // pub fn isNullary(self: Opcode) bool {
-    //     return switch (self) {
-    //         .push,.pushf, .pushs, .struct_alloc, .list_alloc,.
-    //     };
-    // }
+    pub fn arity(self: Opcode) ?usize {
+        if (self.isNullary()) return 0;
+        if (self.isUnary()) return 1;
+        if (self.isBinary()) return 2;
+        if (self.isTernary()) return 3;
+        return null;
+    }
+
+    pub fn isNullary(self: Opcode) bool {
+        return switch (self) {
+            .push,
+            .pushf,
+            .pushs,
+            .struct_alloc,
+            .list_alloc,
+            .jmp,
+            .load,
+            .pop,
+            => true,
+            else => false,
+        };
+    }
 
     pub fn isUnary(self: Opcode) bool {
         return switch (self) {
@@ -77,6 +93,39 @@ pub const Opcode = enum(u8) {
             .list_length,
             .list_pop,
             .ret,
+            .jmpnz,
+            => true,
+            else => false,
+        };
+    }
+
+    pub fn isBinary(self: Opcode) bool {
+        return switch (self) {
+            .add,
+            .sub,
+            .mul,
+            .div,
+            .mod,
+            .log_or,
+            .log_and,
+            .cmp_lt,
+            .cmp_gt,
+            .cmp_le,
+            .cmp_ge,
+            .cmp_eq,
+            .cmp_ne,
+            .list_append,
+            .list_concat,
+            .list_load,
+            .list_remove,
+            => true,
+            else => false,
+        };
+    }
+
+    pub fn isTernary(self: Opcode) bool {
+        return switch (self) {
+            .list_store,
             => true,
             else => false,
         };

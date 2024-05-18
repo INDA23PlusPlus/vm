@@ -61,6 +61,75 @@ pub const text = blk: {
             ,
         },
         .{
+            .neg,
+            \\## Arithmetic Negation
+            \\
+            \\Negates the top value on the stack.
+            \\
+            ,
+        },
+        .{
+            .bit_not,
+            \\## Binary Negation
+            \\
+            \\Negates the bits of the top value on the stack.
+            \\
+            ,
+        },
+        .{
+            .log_not,
+            \\## Logical Negation
+            \\
+            \\Negates the bits of the top value on the stack.
+            \\
+            ,
+        },
+        .{
+            .log_or,
+            \\## Logical Disjunction
+            \\
+            \\Pops the top two elements from the stack.
+            \\Pushes 1 if either element is disjoint from zero
+            \\
+            ,
+        },
+        .{
+            .log_and,
+            \\## Logical Conjunction
+            \\
+            \\Pops the top two elements from the stack.
+            \\Pushes 1 if both elements are disjoint from zero
+            \\
+            ,
+        },
+        .{
+            .bit_or,
+            \\## Binary Disjunction
+            \\
+            \\Pops the top two elements from the stack.
+            \\Performs a bitwise binary disjunction and pushes the result to the stack.
+            \\
+            ,
+        },
+        .{
+            .bit_and,
+            \\## Binary Conjunction
+            \\
+            \\Pops the top two elements from the stack.
+            \\Performs a bitwise binary conjunction and pushes the result to the stack.
+            \\
+            ,
+        },
+        .{
+            .bit_xor,
+            \\## Binary Exlusive Disjunction
+            \\
+            \\Pops the top two elements from the stack.
+            \\Performs a bitwise binary exclusive disjunction and pushes the result to the stack.
+            \\
+            ,
+        },
+        .{
             .cmp_lt,
             \\## Less than
             \\
