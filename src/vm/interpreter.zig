@@ -14,10 +14,27 @@ const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
 const jit_mod = @import("jit");
 
+const TailCallArgLimit = 8;
+
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
         return error.AssertionFailed;
     }
+}
+
+inline fn unlikely_event() void {
+    @setCold(true);
+}
+
+// mark condition as unlikely (optimizer hint)
+inline fn unlikely(a: bool) bool {
+    if (a) unlikely_event();
+    return a;
+}
+
+// mark condition as likely (optimizer hint)
+inline fn likely(a: bool) bool {
+    return !unlikely(!a);
 }
 
 inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContext) !Value {
@@ -302,7 +319,7 @@ fn drop(ctxt: *VMContext, v: Value) void {
 inline fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Value {
     const base = if (from_bp) ctxt.bp else ctxt.stack.items.len;
     const idx: usize = if (pos < 0)
-        base - @as(usize, @intCast(-pos))
+        base -% @as(usize, @intCast(-pos))
     else
         base + @as(usize, @intCast(pos));
 
@@ -314,19 +331,11 @@ inline fn get(ctxt: *VMContext, from_bp: bool, pos: i64) !Value {
     return ctxt.stack.items[idx];
 }
 
-inline fn unlikely_event() void {
-    @setCold(true);
-}
+inline fn getParam(ctxt: *VMContext, num_params: usize, idx: usize) !Value {
+    const N: i64 = @intCast(num_params);
+    const M: i64 = @intCast(idx);
 
-// mark condition as unlikely (optimizer hint)
-inline fn unlikely(a: bool) bool {
-    if (a) unlikely_event();
-    return a;
-}
-
-// mark condition as likely (optimizer hint)
-inline fn likely(a: bool) bool {
-    return !unlikely(!a);
+    return get(ctxt, true, M - (N + 3));
 }
 
 inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Value) !void {
@@ -344,6 +353,13 @@ inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Value) !void {
     drop(ctxt, ctxt.stack.items[idx]);
 
     ctxt.stack.items[idx] = take(ctxt, v);
+}
+
+inline fn setParam(ctxt: *VMContext, num_params: usize, idx: usize, v: Value) !void {
+    const N: i64 = @intCast(num_params);
+    const M: i64 = @intCast(idx);
+
+    return set(ctxt, true, M - (N + 3), v);
 }
 
 fn push(ctxt: *VMContext, v: Value) !void {
@@ -526,6 +542,8 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
+    var tailcalls: f64 = 0;
+    var non_tailcalls: f64 = 0;
     defer ctxt.reset();
     if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) {
         if (ctxt.jit_fn == null) {
@@ -544,6 +562,7 @@ pub fn run(ctxt: *VMContext) !i64 {
     var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
     defer mem.deinit();
     while (true) {
+        // std.time.sleep(10 << 20);
         if (ctxt.pc >= ctxt.prog.code.len) {
             return error.InvalidProgramCounter;
         }
@@ -557,11 +576,22 @@ pub fn run(ctxt: *VMContext) !i64 {
         if (@intFromEnum(insn.op) < @intFromEnum(arch.Opcode.jmp)) {
             const stack_items = ctxt.stack.items;
             const stack_len = stack_items.len;
-            if (insn.op == .inc) {
-                stack_items[stack_len - 1].int += 1;
-                continue;
-            } else if (insn.op == .dec) {
-                stack_items[stack_len - 1].int -= 1;
+            if (insn.op.isUnary()) {
+                const val = &stack_items[stack_len - 1];
+                switch (insn.op) {
+                    .inc => val.*.int += 1,
+                    .dec => val.*.int -= 1,
+                    .neg => {
+                        if (val.* == .int) {
+                            val.*.int *= -1;
+                        } else {
+                            val.*.float *= -1.0;
+                        }
+                    },
+                    .log_not => val.*.int = @intFromBool(val.*.int == 0),
+                    .bit_not => val.*.int = ~val.*.int,
+                    else => unreachable,
+                }
                 continue;
             } else if ((stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Value.int))) {
                 const lhs = stack_items[stack_len - 2];
@@ -668,7 +698,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     };
                     return error.RuntimeError;
                 }
-                ctxt.stack.items[ctxt.stack.items.len - 1].int = @intFromBool(ctxt.stack.items[ctxt.stack.items.len - 1].int != 0);
+                ctxt.stack.items[ctxt.stack.items.len - 1].int = @intFromBool(ctxt.stack.items[ctxt.stack.items.len - 1].int == 0);
             },
             .bit_not => {
                 try assert(ctxt.stack.items.len > 0);
@@ -744,6 +774,9 @@ pub fn run(ctxt: *VMContext) !i64 {
             .call => {
                 const loc = insn.operand.location;
 
+                if (ctxt.debug_output) {
+                    debug_log("<CALL>: {any}\n", .{ctxt.stack.items});
+                }
                 if (ctxt.jit_enabled and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) {
                     const N_val = try pop(ctxt);
                     defer drop(ctxt, N_val);
@@ -777,14 +810,52 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                     try push(ctxt, Value.from(r));
                 } else {
-                    const ra = Value.from(ctxt.pc);
-                    const bp = Value.from(ctxt.bp);
+                    const is_main = ctxt.bp == 0;
+                    const oldN: usize = if (is_main) undefined else @intCast((try get(ctxt, true, -3)).int);
+                    const N: usize = @intCast(ctxt.stack.getLast().int);
 
-                    try push(ctxt, bp);
-                    try push(ctxt, ra);
+                    // tailcall if the next instruction is a return
+                    if (ctxt.prog.code[ctxt.pc].op == .ret and N < TailCallArgLimit and !is_main) {
+                        tailcalls += 1.0;
+                        var args: [TailCallArgLimit]Value = undefined;
+                        @memcpy(args[0..N], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
 
-                    ctxt.bp = ctxt.stack.items.len;
-                    ctxt.pc = loc;
+                        const bp = ctxt.stack.items[ctxt.bp - 2];
+                        const ra = ctxt.stack.items[ctxt.bp - 1];
+
+
+                        // drop everything in the current stack frame that isnt an argument
+                        ctxt.bp = ctxt.bp + N - oldN;
+                        try ctxt.stack.resize(ctxt.bp);
+
+                        if (std.debug.runtime_safety) {
+                            ctxt.refc += @intCast(N);
+                            ctxt.refc -= @intCast(oldN);
+                        }
+
+                        @memcpy(ctxt.stack.items[ctxt.bp - N - 3 .. ctxt.bp - 3], args[0..N]);
+                        if (N != oldN) {
+                            ctxt.stack.items[ctxt.bp - 3] = Value.from(N);
+                            ctxt.stack.items[ctxt.bp - 2] = bp;
+                            ctxt.stack.items[ctxt.bp - 1] = ra;
+                        }
+                        ctxt.pc = loc;
+                    } else {
+                        non_tailcalls += 1.0;
+
+                        const ra = Value.from(ctxt.pc);
+                        const bp = Value.from(ctxt.bp);
+
+                        try push(ctxt, bp);
+                        try push(ctxt, ra);
+
+                        ctxt.bp = ctxt.stack.items.len;
+                        ctxt.pc = loc;
+                    }
+                }
+
+                if (ctxt.debug_output) {
+                    debug_log("<CALL/>: {any}\n", .{ctxt.stack.items});
                 }
             },
             .ret => {
@@ -1097,6 +1168,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         return e;
     };
 
+    // debug_log("tail:{d} nontail:{d} portion tailcalls:{d}", .{ tailcalls, non_tailcalls, tailcalls / @max(tailcalls + non_tailcalls, 1.0) });
     return r;
 }
 
