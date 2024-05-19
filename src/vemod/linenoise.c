@@ -572,13 +572,28 @@ static const char *colorWord(const char *word, size_t len) {
 
 /* Adds Blue syntax hightlighting to the current line. */
 static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
-    int start = -1, pos;
+    int start = -1, strstart = -1, pos;
 
     for (pos = 0; pos < len; ++pos)
     {
-        if (isalpha(buf[pos]) || buf[pos] == '\'' ||
-            (start >= 0 && (buf[pos] == '_' || isdigit(buf[pos]))))
-        {
+        if (buf[pos] == '\"') {
+            if (start >= 0) {
+                const char *color = colorWord(buf + start, pos - start);
+                abAppend(ab, color, strlen(color));
+                abAppend(ab, buf + start, pos - start);
+                abAppend(ab, esc_default, strlen(esc_default));
+                start = -1;
+            }
+            if (strstart >= 0) {
+                abAppend(ab, esc_magenta, strlen(esc_magenta));
+                abAppend(ab, buf + strstart, pos - strstart + 1);
+                abAppend(ab, esc_default, strlen(esc_default));
+                strstart = -1;
+            } else {
+                strstart = pos;
+            }
+        } else if (strstart == - 1 && (isalpha(buf[pos]) || buf[pos] == '\'' ||
+                   (start >= 0 && (buf[pos] == '_' || isdigit(buf[pos]))))) {
             if (start < 0)
             {
                 start = pos;
@@ -594,7 +609,10 @@ static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
                 abAppend(ab, esc_default, strlen(esc_default));
                 start = -1;
             }
-            abAppend(ab, buf + pos, 1);
+            if (strstart == -1)
+            {
+                abAppend(ab, buf + pos, 1);
+            }
         }
     }
 
@@ -605,6 +623,14 @@ static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
         abAppend(ab, &buf[start], pos - start);
         abAppend(ab, esc_default, strlen(esc_default));
         start = -1;
+    }
+
+    if (strstart >= 0)
+    {
+        abAppend(ab, esc_magenta, strlen(esc_magenta));
+        abAppend(ab, buf + strstart, pos - strstart + 1);
+        abAppend(ab, esc_default, strlen(esc_default));
+        strstart = -1;
     }
 }
 
