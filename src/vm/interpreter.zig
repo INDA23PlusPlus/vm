@@ -15,8 +15,6 @@ const VMContext = @import("VMContext.zig");
 const jit_mod = @import("jit");
 const diagnostic = @import("diagnostic");
 
-const TailCallArgLimit = 8;
-
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
         return error.AssertionFailed;
@@ -562,6 +560,9 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 pub fn run(ctxt: *VMContext) !i64 {
     defer ctxt.reset();
     if (ctxt.jit_mode == .full or (ctxt.jit_mode == .auto and ctxt.jit_mask.isSet(ctxt.pc))) jit: {
+        if (ctxt.debug_output) {
+            debug_log("trying to JIT whole program\n", .{});
+        }
         if (ctxt.jit_fn == null) {
             jit_compile_full(ctxt) catch |e| {
                 if (ctxt.diagnostics) |dg| {
@@ -591,6 +592,10 @@ pub fn run(ctxt: *VMContext) !i64 {
             ctxt.rterror = ctxt.jit_fn.?.rterror;
             return e;
         };
+    } else {
+        if (ctxt.debug_output) {
+            debug_log("not trying to JIT whole program\n", .{});
+        }
     }
 
     try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
@@ -602,7 +607,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
         const insn = ctxt.prog.code[ctxt.pc];
         if (ctxt.debug_output) {
-            debug_log("@{}: {s}, sp: {}, bp: {}\n", .{ ctxt.pc, @tagName(insn.op), ctxt.stack.items.len, ctxt.bp });
+            debug_log("@{}: {s}, op: {any}, sp: {}, bp: {}, stack: {any}\n", .{ ctxt.pc, @tagName(insn.op), if (insn.op.hasOperand()) @as(u64, @bitCast(insn.operand)) else null, ctxt.stack.items.len, ctxt.bp, ctxt.stack.items });
         }
 
         ctxt.pc += 1;
@@ -808,6 +813,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .call => {
                 const loc = insn.operand.location;
 
+                var did_jit = false;
                 if (ctxt.jit_mode != .off and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) jit: {
                     const N_val = try pop(ctxt);
                     defer drop(ctxt, N_val);
@@ -818,7 +824,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     try ctxt.jit_args.resize(N);
 
                     if (ctxt.debug_output) {
-                        debug_log("popping {} items, sp: {}, bp: {}\n", .{ N_val, ctxt.stack.items.len, ctxt.bp });
+                        debug_log("popping {} items, sp: {}, bp: {}, items to be popped: {any}\n", .{ N_val, ctxt.stack.items.len, ctxt.bp, ctxt.stack.items[ctxt.stack.items.len - N ..] });
                     }
 
                     for (0..N) |i| {
@@ -831,6 +837,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                         jit_compile_partial(ctxt) catch |e| {
                             if (e == error.CompileError) {
                                 ctxt.jit_mask.setValue(loc, false);
+                                for (0..N) |i| {
+                                    try push(ctxt, Value.from(ctxt.jit_args.items[i]));
+                                }
+                                try push(ctxt, Value.from(N));
                                 break :jit;
                             } else {
                                 return e;
@@ -847,29 +857,31 @@ pub fn run(ctxt: *VMContext) !i64 {
                     };
 
                     try push(ctxt, Value.from(r));
-                } else {
+                    did_jit = true;
+                }
+                if (!did_jit) {
                     const is_main = ctxt.bp == 0;
                     const oldN: usize = if (is_main) undefined else @intCast((try get(ctxt, true, -3)).int);
                     const N: usize = @intCast(ctxt.stack.getLast().int);
 
                     // tailcall if the next instruction is a return
-                    if (ctxt.prog.code[ctxt.pc].op == .ret and N < TailCallArgLimit and !is_main and false) {
-                        var args: [TailCallArgLimit]Value = undefined;
-                        @memcpy(args[0..N], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
-
+                    if (ctxt.prog.code[ctxt.pc].op == .ret and !is_main) {
                         const bp = ctxt.stack.items[ctxt.bp - 2];
                         const ra = ctxt.stack.items[ctxt.bp - 1];
 
+                        @memcpy(ctxt.stack.items[ctxt.bp - N - 3 .. ctxt.bp - 3], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
+
                         // drop everything in the current stack frame that isnt an argument
                         ctxt.bp = ctxt.bp + N - oldN;
+                        const old_size = ctxt.stack.items.len;
                         try ctxt.stack.resize(ctxt.bp);
+                        const new_size = ctxt.stack.items.len;
 
                         if (std.debug.runtime_safety) {
-                            ctxt.refc += @intCast(N);
-                            ctxt.refc -= @intCast(oldN);
+                            ctxt.refc += @intCast(new_size);
+                            ctxt.refc -= @intCast(old_size);
                         }
 
-                        @memcpy(ctxt.stack.items[ctxt.bp - N - 3 .. ctxt.bp - 3], args[0..N]);
                         if (N != oldN) {
                             ctxt.stack.items[ctxt.bp - 3] = Value.from(N);
                             ctxt.stack.items[ctxt.bp - 2] = bp;

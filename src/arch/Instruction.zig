@@ -8,7 +8,7 @@ const Opcode = @import("opcode.zig").Opcode;
 const Self = @This();
 
 op: Opcode,
-operand: union {
+operand: packed union {
     int: i64,
     float: f64,
     location: usize,
