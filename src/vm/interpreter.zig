@@ -869,8 +869,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                         const bp = ctxt.stack.items[ctxt.bp - 2];
                         const ra = ctxt.stack.items[ctxt.bp - 1];
 
-                        @memcpy(ctxt.stack.items[ctxt.bp - N - 3 .. ctxt.bp - 3], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
-
+                        @memcpy(ctxt.stack.items[ctxt.bp - oldN - 3 .. ctxt.bp + N - oldN - 3], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
                         // drop everything in the current stack frame that isnt an argument
                         ctxt.bp = ctxt.bp + N - oldN;
                         const old_size = ctxt.stack.items.len;
