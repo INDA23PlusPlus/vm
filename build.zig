@@ -206,6 +206,7 @@ pub fn build(b: *std.Build) void {
     vm_mod.addImport("memory_manager", memory_manager_mod);
     vm_mod.addImport("asm", assembler_mod);
     vm_mod.addImport("jit", jit_mod);
+    vm_mod.addImport("diagnostic", diagnostic_mod);
     assembler_mod.addImport("vm", vm_mod);
     assembler_mod.addImport("arch", arch_mod);
     assembler_mod.addImport("diagnostic", diagnostic_mod);

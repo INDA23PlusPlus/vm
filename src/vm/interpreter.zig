@@ -13,6 +13,7 @@ const Mem = @import("memory_manager");
 const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
 const jit_mod = @import("jit");
+const diagnostic = @import("diagnostic");
 
 const TailCallArgLimit = 8;
 
@@ -270,11 +271,31 @@ inline fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
         return doBinaryOpSameType(a, op, b, ctxt);
     }
 
+    if ((a == .unit) != (b == .unit)) return switch (op) {
+        .cmp_eq => Value.from(compareEq(a, b)),
+        .cmp_ne => Value.from(!compareEq(a, b)),
+        else => {
+            ctxt.rterror = .{
+                .pc = ctxt.pc - 1,
+                .err = .{ .invalid_binop = .{
+                    .lt = a,
+                    .op = op,
+                    .rt = b,
+                } },
+            };
+            return error.RuntimeError;
+        },
+    };
+
     // if a and b are different type and theyre not `int` and `float` or `string_lit` and `string_ref` it's invalid and should end up triggering this
     if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
         ctxt.rterror = .{
             .pc = ctxt.pc - 1,
-            .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
+            .err = .{ .invalid_binop = .{
+                .lt = a,
+                .op = op,
+                .rt = b,
+            } },
         };
         return error.RuntimeError;
     }
@@ -350,6 +371,10 @@ inline fn set(ctxt: *VMContext, from_bp: bool, pos: i64, v: Value) !void {
         return e;
     };
 
+    if (ctxt.debug_output) {
+        debug_log("setting {s} to {s}\n", .{ @tagName(ctxt.stack.items[idx]), @tagName(v) });
+    }
+
     drop(ctxt, ctxt.stack.items[idx]);
 
     ctxt.stack.items[idx] = take(ctxt, v);
@@ -386,7 +411,7 @@ fn jit_compile_full(ctxt: *VMContext) !void {
     var jit = jit_mod.Jit.init(ctxt.alloc);
     defer jit.deinit();
 
-    var jit_fn = try jit.compile_program(ctxt.prog, null);
+    var jit_fn = try jit.compile_program(ctxt.prog, ctxt.diagnostics);
     jit_fn.set_writer(@as(*const VMContext, ctxt));
 
     ctxt.jit_fn = jit_fn;
@@ -411,7 +436,7 @@ fn jit_compile_partial(ctxt: *VMContext) !void {
         }
     }
 
-    var jit_fn = try jit.compile_partial(ctxt.prog, fns.items, null);
+    var jit_fn = try jit.compile_partial(ctxt.prog, fns.items, ctxt.diagnostics);
     jit_fn.set_writer(@as(*const VMContext, ctxt));
 
     ctxt.jit_fn = jit_fn;
@@ -474,21 +499,20 @@ fn floatValue(x: anytype) !f64 {
     return error.InvalidOperation;
 }
 
-fn printImpl(x: *Value, ctxt: *VMContext) anyerror!void {
+fn printImpl(x: Value, ctxt: *VMContext) anyerror!void {
     const writer = ctxt.writer();
-    switch (x.*) {
+    switch (x) {
         .unit => try writer.print("()", .{}),
         .int => |i| try writer.print("{}", .{i}),
         .float => |f| try writer.print("{d}", .{f}),
-        .string_lit, .string_ref => try writer.print("{s}", .{getstr(x.*)}),
+        .string_lit, .string_ref => try writer.print("{s}", .{getstr(x)}),
         .list => |*l| {
             const len = l.length();
 
             _ = try writer.write("[");
             for (0..len) |i| {
                 if (i > 0) _ = try writer.write(", ");
-                var tmp: Value = l.get(i);
-                try printImpl(&tmp, ctxt);
+                try printImpl(l.get(i), ctxt);
             }
             _ = try writer.write("]");
         },
@@ -502,39 +526,33 @@ fn printImpl(x: *Value, ctxt: *VMContext) anyerror!void {
                 try fields.append(k.*);
             }
 
-            const sortUtils = struct {
-                pub fn less(_: @TypeOf(.{}), a: usize, b: usize) bool {
-                    return a < b;
-                }
-            };
-
-            std.sort.pdq(usize, fields.items, .{}, sortUtils.less);
+            std.sort.pdq(usize, fields.items, void{}, std.sort.asc(usize));
 
             _ = try writer.write("{");
             var first = true;
             for (fields.items) |k| {
                 if (!first) _ = try writer.write(", ");
                 first = false;
-                var tmp: Value = o.get(k).?;
                 try writer.print("{s}: ", .{ctxt.prog.field_names[k]});
-                try printImpl(&tmp, ctxt);
+                try printImpl(o.get(k).?, ctxt);
             }
             _ = try writer.write("}");
         },
     }
 }
 
-fn printLn(x: *Value, ctxt: *VMContext) !void {
+inline fn printLn(x: Value, ctxt: *VMContext) !void {
     try printImpl(x, ctxt);
     _ = try ctxt.write("\n");
     try ctxt.flush();
 }
 
-fn print(x: *Value, ctxt: *VMContext) !void {
+inline fn print(x: Value, ctxt: *VMContext) !void {
     try printImpl(x, ctxt);
 }
 
 // wrapper around std.debug.print, but marked as cold as a hint to the optimizer
+// should only be called for errors in interpreter, that is, for bugs in the interpreter
 noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
     @setCold(true);
     std.debug.print(fmt, args);
@@ -543,17 +561,29 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
     defer ctxt.reset();
-    if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) jit: {
+    if (ctxt.jit_mode == .full or (ctxt.jit_mode == .auto and ctxt.jit_mask.isSet(ctxt.pc))) jit: {
         if (ctxt.jit_fn == null) {
             jit_compile_full(ctxt) catch |e| {
+                if (ctxt.diagnostics) |dg| {
+                    if (dg.hasDiagnosticsMinSeverity(.Hint)) {
+                        try dg.printAllDiagnostic(std.io.getStdErr().writer());
+                    }
+                }
                 if (e == error.CompileError) {
-                    ctxt.jit_mask.setValue(ctxt.pc, false);
+                    if (ctxt.jit_mode == .full) {
+                        return 1;
+                    }
                     break :jit;
                 } else {
                     return e;
                 }
+
+                if (ctxt.jit_mode == .full) {
+                    return 1;
+                }
             };
         }
+
         if (ctxt.debug_output) {
             debug_log("Running whole program compiled\n", .{});
         }
@@ -752,16 +782,16 @@ pub fn run(ctxt: *VMContext) !i64 {
             .syscall => {
                 switch (insn.operand.int) {
                     0 => {
-                        var v = try pop(ctxt);
+                        const v = try pop(ctxt);
                         defer drop(ctxt, v);
 
-                        try printLn(&v, ctxt);
+                        try printLn(v, ctxt);
                     },
                     1 => {
-                        var v = try pop(ctxt);
+                        const v = try pop(ctxt);
                         defer drop(ctxt, v);
 
-                        try print(&v, ctxt);
+                        try print(v, ctxt);
                     },
                     2 => {
                         try ctxt.flush();
@@ -778,7 +808,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .call => {
                 const loc = insn.operand.location;
 
-                if (ctxt.jit_enabled and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) jit: {
+                if (ctxt.jit_mode != .off and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) jit: {
                     const N_val = try pop(ctxt);
                     defer drop(ctxt, N_val);
 
@@ -823,7 +853,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     const N: usize = @intCast(ctxt.stack.getLast().int);
 
                     // tailcall if the next instruction is a return
-                    if (ctxt.prog.code[ctxt.pc].op == .ret and N < TailCallArgLimit and !is_main) {
+                    if (ctxt.prog.code[ctxt.pc].op == .ret and N < TailCallArgLimit and !is_main and false) {
                         var args: [TailCallArgLimit]Value = undefined;
                         @memcpy(args[0..N], ctxt.stack.items[ctxt.stack.items.len - N - 1 .. ctxt.stack.items.len - 1]);
 
@@ -1200,7 +1230,7 @@ fn testRunWithJit(prog: Program, expected_output: []const u8, expected_exit_code
         const jit_val: @TypeOf(jit_req) = if (ctxt.jit_mask.isSet(prog.entry)) .full else if (ctxt.jit_mask.count() != 0) .partial else .none;
         try std.testing.expectEqual(jit_req, jit_val);
     } else {
-        ctxt.jit_enabled = false;
+        ctxt.jit_mode = .off;
     }
 
     try std.testing.expectEqual(expected_exit_code, try run(&ctxt));

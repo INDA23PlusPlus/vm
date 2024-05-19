@@ -12,14 +12,15 @@ const Value = @import("memory_manager").APITypes.Value;
 const Stack = std.ArrayList(Value);
 const jit_mod = @import("jit");
 
+const diagnostic = @import("diagnostic");
 const Self = @This();
 
 prog: Program,
 pc: usize,
-bp: usize,
+bp: usize = 0,
 alloc: Allocator,
 stack: Stack,
-refc: i64,
+refc: i64 = 0,
 write_buffer: *anyopaque,
 write_buffer_destroy_fn: *const fn (self: *Self) void,
 flush_fn: *const fn (write_buffer: *anyopaque) anyerror!void,
@@ -29,10 +30,13 @@ stderr_write_ctxt: *const anyopaque,
 stderr_write_fn: *const fn (context: *const anyopaque, bytes: []const u8) anyerror!usize,
 debug_output: bool,
 rterror: ?RtError = null,
-jit_enabled: bool,
+jit_mode: JITMode = .auto,
 jit_mask: std.DynamicBitSetUnmanaged,
 jit_args: std.ArrayList(i64),
 jit_fn: ?jit_mod.Function,
+diagnostics: ?*diagnostic.DiagnosticList = null, // not owned by us, so we dont deinit it
+
+pub const JITMode = enum { full, auto, off };
 
 fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged {
     var visited = std.DynamicBitSet.initEmpty(alloc, program.code.len) catch @panic("oom");
@@ -143,10 +147,8 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
     return .{
         .prog = prog,
         .pc = prog.entry,
-        .bp = 0,
         .stack = Stack.init(alloc),
         .alloc = alloc,
-        .refc = 0,
         .write_buffer = write_buf,
         .write_buffer_destroy_fn = write_buffer_destroy_fn,
         .flush_fn = flush_fn,
@@ -155,7 +157,6 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .stderr_write_ctxt = error_writer,
         .stderr_write_fn = stderr_write_fn,
         .debug_output = debug_output,
-        .jit_enabled = true,
         .jit_mask = make_jit_mask(prog, alloc),
         .jit_args = std.ArrayList(i64).init(alloc),
         .jit_fn = null,

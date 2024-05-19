@@ -86,7 +86,7 @@ const Options = struct {
     input_basename: ?[]const u8 = null,
     extension: ?Extension = null,
     strip: bool = false,
-    jit: enum { full, auto, off } = .auto,
+    jit: Context.JITMode = .auto,
     output_asm: bool = false,
     cl_expr: ?[]const u8 = null,
     debug: bool = false,
@@ -377,74 +377,30 @@ pub fn main() !u8 {
             };
         },
         .run => {
-            if (options.jit == .full) {
-                var jit = Jit.init(allocator);
-                defer jit.deinit();
+            var context = try Context.init(program, allocator, &stdout, &stderr, options.debug);
+            defer context.deinit();
 
-                var diagnostics: ?DiagnosticList = null;
-                defer if (diagnostics) |*dg| dg.deinit();
+            var diagnostics: ?DiagnosticList = null;
+            defer if (diagnostics) |*dg| dg.deinit();
 
-                if (program.deinit_data) |deinit_data| {
-                    if (deinit_data.source) |src| {
-                        diagnostics = DiagnosticList.init(allocator, src);
-                        diagnostics.?.no_color = options.no_color;
-                    }
+            if (program.deinit_data) |deinit_data| {
+                if (deinit_data.source) |src| {
+                    diagnostics = DiagnosticList.init(allocator, src);
+                    diagnostics.?.no_color = options.no_color;
                 }
-
-                var jit_fn = jit.compile_program(program, if (diagnostics) |*dg| dg else null) catch |err| {
-                    if (diagnostics) |dg| {
-                        if (dg.hasDiagnosticsMinSeverity(.Hint)) {
-                            try dg.printAllDiagnostic(stderr);
-                        }
-                    }
-
-                    if (err == error.CompileError) {
-                        return 1;
-                    } else {
-                        return err;
-                    }
-                };
-                defer jit_fn.deinit();
-
-                if (diagnostics) |dg| {
-                    if (dg.hasDiagnosticsMinSeverity(.Hint)) {
-                        try dg.printAllDiagnostic(stderr);
-                    }
-
-                    if (dg.hasDiagnosticsMinSeverity(.Error)) {
-                        return 1;
-                    }
-                }
-
-                jit_fn.set_writer(&stdout);
-
-                const ret = jit_fn.execute() catch |err| {
-                    if (jit_fn.rterror) |rterror| {
-                        try print_rterror(program, rterror, stderr, options.no_color);
-                    } else {
-                        try stderr.print("error: {s}\n", .{@errorName(err)});
-                    }
-                    return 1;
-                };
-                return @intCast(ret);
-            } else {
-                var context = try Context.init(program, allocator, &stdout, &stderr, options.debug);
-                defer context.deinit();
-
-                if (options.jit == .off) {
-                    context.jit_enabled = false;
-                }
-
-                const ret = interpreter.run(&context) catch |err| {
-                    if (context.rterror) |rterror| {
-                        try print_rterror(program, rterror, stderr, options.no_color);
-                    } else {
-                        try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
-                    }
-                    return 1;
-                };
-                return @intCast(ret);
             }
+            context.diagnostics = if (diagnostics) |*diag| diag else null;
+            context.jit_mode = options.jit;
+
+            const ret = interpreter.run(&context) catch |err| {
+                if (context.rterror) |rterror| {
+                    try print_rterror(program, rterror, stderr, options.no_color);
+                } else {
+                    try stderr.print("error: unknown runtime error {s}\n", .{@errorName(err)});
+                }
+                return 1;
+            };
+            return @intCast(ret);
         },
     }
 
