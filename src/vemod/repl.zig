@@ -7,6 +7,7 @@ const Allocator = std.mem.Allocator;
 const io = std.io;
 const ArrayList = std.ArrayList;
 const ascii = std.ascii;
+const mem = std.mem;
 
 const blue = @import("blue");
 const Compilation = blue.Compilation;
@@ -60,7 +61,7 @@ pub fn main(
     var input_buffer = ArrayList(u8).init(allocator);
     defer input_buffer.deinit();
 
-    while (true) {
+    repl: while (true) {
         input_buffer.clearRetainingCapacity();
 
         var first = true;
@@ -82,6 +83,14 @@ pub fn main(
             try input_buffer.appendSlice(line);
             try input_buffer.append('\n');
             ln.linenoiseFree(cstr);
+
+            const maybe_cmd = mem.trim(u8, input_buffer.items, " \n\t");
+            if (mem.eql(u8, maybe_cmd, "clear")) {
+                try stdout.writeAll("\x1b[2J");
+                continue :repl;
+            } else if (mem.eql(u8, maybe_cmd, "exit")) {
+                return;
+            }
         }
 
         // ignore empty input

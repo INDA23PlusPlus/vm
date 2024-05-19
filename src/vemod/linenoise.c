@@ -533,11 +533,13 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
 
 static const char *blue_keywords[] = { "let", "in", "match", "with", "if", "then", "else", "const", NULL };
 static const char *blue_builtins[] = { "print", "println", "len", NULL };
+static const char *repl_commands[] = { "clear", "exit", NULL };
 
 static const char *esc_red = "\x1b[31m";
 static const char *esc_green = "\x1b[32m";
 static const char *esc_yellow = "\x1b[33m";
 static const char *esc_blue = "\x1b[34m";
+static const char *esc_magenta = "\x1b[35m";
 static const char *esc_default = "\x1b[39m";
 
 static const char *colorWord(const char *word, size_t len) {
@@ -555,6 +557,13 @@ static const char *colorWord(const char *word, size_t len) {
     while (*ptr) {
         mlen = strlen(*ptr);
         if (len == mlen && strncmp(word, *ptr, mlen) == 0) return esc_blue;
+        ptr++;
+    }
+
+    ptr = repl_commands;
+    while (*ptr) {
+        mlen = strlen(*ptr);
+        if (len == mlen && strncmp(word, *ptr, mlen) == 0) return esc_magenta;
         ptr++;
     }
 
