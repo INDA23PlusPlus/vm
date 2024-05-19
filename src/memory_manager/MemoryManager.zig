@@ -104,18 +104,24 @@ pub fn gc_pass(self: *Self) void {
 }
 
 fn mark_items_in_stack(self: *Self) void {
-    for (self.stack.items) |item| switch (item) {
+    for (self.stack.items) |item| {
+        mark_item(item);
+    }
+}
+
+fn mark_item(item: APITypes.Value) void {
+    switch (item) {
         .object => |obj| mark_object(obj.ref),
         .list => |list| mark_list(list.ref),
         else => {},
-    };
+    }
 }
 
 fn mark_list(list: *List) void {
     if (!list.refs.mark) {
         list.refs.mark = true;
-        for (list.items.items) |*inner_item| {
-            mark_list(inner_item.list.ref);
+        for (list.items.items) |inner_item| {
+            mark_item(inner_item);
         }
     }
 }
@@ -125,7 +131,7 @@ fn mark_object(obj: *Object) void {
         obj.refs.mark = true;
         var it = obj.map.valueIterator();
         while (it.next()) |inner_item| {
-            mark_object(inner_item.object.ref);
+            mark_item(inner_item.*);
         }
     }
 }
