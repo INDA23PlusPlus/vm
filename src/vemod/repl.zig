@@ -86,7 +86,7 @@ pub fn main(
 
             const maybe_cmd = mem.trim(u8, input_buffer.items, " \n\t");
             if (mem.eql(u8, maybe_cmd, "clear")) {
-                try stdout.writeAll("\x1b[2J");
+                try stdout.writeAll("\x1b[2J\x1b[H");
                 continue :repl;
             } else if (mem.eql(u8, maybe_cmd, "exit")) {
                 return;
