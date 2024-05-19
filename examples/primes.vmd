@@ -6,11 +6,11 @@
 	# n (%0): The number to be checked for primeness.
 	# d (%1): Divisor.
 	# p (%2): Flag indicating whether a number is prime.
-	stack_alloc %3
 
 	# Initialize n = 2
 	push %2
-	store %0
+	push %2
+	push %1
 
 .loop
 	# Check the first 10000 numbers for primality
