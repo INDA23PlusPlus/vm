@@ -391,11 +391,25 @@ pub fn main() !u8 {
                     }
                 }
 
-                var jit_fn = try jit.compile_program(program, if (diagnostics) |*dg| dg else null);
+                var jit_fn = jit.compile_program(program, if (diagnostics) |*dg| dg else null) catch |err| {
+                    if (diagnostics) |dg| {
+                        if (dg.hasDiagnosticsMinSeverity(.Hint)) {
+                            try dg.printAllDiagnostic(stderr);
+                        }
+                    }
+
+                    if (err == error.CompileError) {
+                        return 1;
+                    } else {
+                        return err;
+                    }
+                };
                 defer jit_fn.deinit();
 
                 if (diagnostics) |dg| {
-                    try dg.printAllDiagnostic(stderr);
+                    if (dg.hasDiagnosticsMinSeverity(.Hint)) {
+                        try dg.printAllDiagnostic(stderr);
+                    }
 
                     if (dg.hasDiagnosticsMinSeverity(.Error)) {
                         return 1;

@@ -3,10 +3,10 @@
 dbgjit="${DBGJIT:-start}"
 filename=""
 silence=""
-jitflag="-j full"
+jitopt="full"
 
 usage() {
-	echo "usage: ${0} [-b <break-instructions>] <script-file>"
+	echo "usage: ${0} [-b <break-instructions>] [-j (full|auto|off)] <script-file>"
 	exit 1
 }
 
@@ -17,8 +17,17 @@ while [ ! x"${1}" = x"" ]; do
 		if [ x"${1}" = "" ]; then usage; fi
 		dbgjit="${1}"
 		;;
-	-i)
-		jitflag="-j auto"
+	-j)
+        shift
+		if [ x"${1}" = "" ]; then usage; fi
+		jitopt="${1}"
+        case "${jitopt}" in
+            full|auto|off)
+                ;;
+            *)
+                usage
+                ;;
+        esac
 		;;
 	-s)
 		silence="-ex 'tty /dev/null'"
@@ -33,7 +42,6 @@ done
 
 if [ x"${filename}" = x"" ]; then usage; fi
 
-DBGJIT="${DBGJIT}${DBGJIT:+,}${dbgjit}"
-export DBGJIT
+zig build vemod || exit $?
 
-exec /bin/sh -c "zig build vemod && gdb -q --tui ${silence} -ex 'layout asm' -ex 'layout regs' -ex 'r' --args zig-out/bin/vemod ${jitflag} \"${filename}\""
+DBGJIT="${DBGJIT}${DBGJIT:+,}${dbgjit}" gdb -q --tui ${silence} -ex 'layout asm' -ex 'layout regs' -ex 'r' --args zig-out/bin/vemod -j ${jitopt} "${filename}"

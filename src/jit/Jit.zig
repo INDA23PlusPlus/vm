@@ -19,11 +19,47 @@ const Lbl = struct {
     ref: usize,
 };
 
+const VmdVal = struct {
+    pc: usize,
+    tag: ?arch.Type = null,
+    val: union(enum) {
+        unit,
+        sprel: i32,
+        bprel: i32,
+        imm: i64,
+        asm_reg: as_lib.R64,
+        asm_cc: as_lib.CC,
+    },
+};
+
+const AsmVal = struct {
+    tag: ?arch.Type = null,
+    val: union(enum) {
+        top, // Top of the real stack
+        mem: as_lib.Mem, // Memory address (RSP displacement subject to adjustment)
+        reg: as_lib.R64, // Register
+        imm: i64, // Immediate value
+    },
+    sp: i32 = undefined, // sp reference value for sp-relative memory addres
+};
+
 alloc: std.mem.Allocator,
 as: as_lib.As,
 pc_map: []usize,
 relocs: std.ArrayList(Reloc),
 dbgjit: ?[]const u8,
+errors: enum { abort, ignore },
+prog: *const arch.Program,
+diags: ?*Diagnostics,
+
+// Virtal stack of values not yet committed to the real stack
+vstk: std.ArrayList(VmdVal),
+
+// Reference value for the "real" sp, used to adjust sp-relative memory accesses
+sp: i32,
+
+// bp-offset of the bottom of the virtual stack, if known
+vstk_bp: ?i32,
 
 pub fn init(alloc: std.mem.Allocator) Self {
     return .{
@@ -32,17 +68,27 @@ pub fn init(alloc: std.mem.Allocator) Self {
         .pc_map = undefined,
         .relocs = std.ArrayList(Reloc).init(alloc),
         .dbgjit = std.posix.getenv("DBGJIT"),
+        .errors = .abort,
+        .prog = undefined,
+        .diags = null,
+        .vstk = std.ArrayList(VmdVal).init(alloc),
+        .sp = 0,
+        .vstk_bp = 0,
     };
 }
 
 pub fn deinit(self: *Self) void {
     self.as.deinit();
     self.relocs.deinit();
+    self.vstk.deinit();
 }
 
 inline fn reset(self: *Self) void {
     self.as.reset();
     self.relocs.clearRetainingCapacity();
+    self.vstk.clearRetainingCapacity();
+    self.sp = 0;
+    self.vstk_bp = 0;
 }
 
 inline fn imm_size(imm: i64) usize {
@@ -137,223 +183,228 @@ inline fn dbg_break(self: *Self, tag: ?[]const u8) !void {
     }
 }
 
-const Context = struct {
-    const VmdVal = struct {
-        tag: ?arch.Type = null,
-        val: union(enum) {
-            unit,
-            sprel: i32,
-            bprel: i32,
-            imm: i64,
-            asm_reg: as_lib.R64,
-            asm_cc: as_lib.CC,
-        },
-    };
+fn vstk_push(self: *Self, value: VmdVal) !void {
+    try self.vstk.append(value);
+}
 
-    const AsmVal = struct {
-        tag: ?arch.Type = null,
-        val: union(enum) {
-            top, // Top of the real stack
-            mem: as_lib.Mem, // Memory address (RSP displacement subject to adjustment)
-            reg: as_lib.R64, // Register
-            imm: i64, // Immediate value
-        },
-        sp: i32 = undefined, // sp reference value for sp-relative memory addres
-    };
-
-    // Virtal stack of values not yet committed to the real stack
-    vstk: std.ArrayList(VmdVal),
-
-    // Reference value for the "real" sp, used to adjust sp-relative memory accesses
-    sp: i32,
-
-    pub fn init(alloc: std.mem.Allocator) Context {
-        return .{ .vstk = std.ArrayList(VmdVal).init(alloc), .sp = 0 };
+fn vstk_pop(self: *Self) ?VmdVal {
+    if (self.vstk.items.len != 0) {
+        return self.vstk.pop();
+    } else {
+        return null;
     }
+}
 
-    pub fn deinit(self: *Context) void {
-        self.vstk.deinit();
+fn vstk_get(self: *const Self, offset: i64) ?VmdVal {
+    const n = @as(i64, @intCast(self.vstk.items.len)) + offset;
+
+    if (n >= 0 and n < self.vstk.items.len) {
+        return self.vstk.items[@as(usize, @intCast(n))];
+    } else {
+        return null;
     }
+}
 
-    pub fn vstk_push(self: *Context, value: VmdVal) !void {
-        try self.vstk.append(value);
-    }
+fn vstk_sync(self: *Self, offset: i64) !void {
+    const as = &self.as;
+    var units: i32 = 0;
+    var unit_pc: usize = undefined;
 
-    pub fn vstk_pop(self: *Context) ?VmdVal {
-        if (self.vstk.items.len != 0) {
-            return self.vstk.pop();
+    while (@as(i64, @intCast(self.vstk.items.len)) + offset > 0) {
+        const v = self.vstk.orderedRemove(0);
+
+        if (v.val == .unit) {
+            units += 1;
+            unit_pc = v.pc;
         } else {
-            return null;
-        }
-    }
-
-    pub fn vstk_get(self: *const Context, offset: i64) ?VmdVal {
-        const n = @as(i64, @intCast(self.vstk.items.len)) + offset - 1;
-
-        if (n >= 0 and n < self.vstk.items.len) {
-            return self.vstk.items[@as(usize, @intCast(n))];
-        } else {
-            return null;
-        }
-    }
-
-    pub fn vstk_sync(self: *Context, offset: i64, as: *as_lib.As) !void {
-        var units: i32 = 0;
-
-        while (@as(i64, @intCast(self.vstk.items.len)) + offset > 0) {
-            const v = self.vstk.orderedRemove(0);
-
-            if (v.val == .unit) {
-                units += 1;
-            } else {
-                if (units != 0) {
-                    try as.lea_r64(.RSP, .{ .base = .RSP, .disp = -units * 8 });
-                    self.sp += units;
-                    units = 0;
-                }
-                switch (v.val) {
-                    .unit => unreachable,
-                    .sprel => |sprel| {
-                        try as.push_rm64(.{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1) } });
-                    },
-                    .bprel => |bprel| {
-                        try as.push_rm64(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
-                    },
-                    .imm => |imm| {
-                        if (imm_size(imm) > 4) {
-                            try as.mov_r64_imm64(.RSI, imm);
-                            try as.push_r64(.RSI);
-                        } else {
-                            try as.push_imm32(@intCast(imm));
-                        }
-                    },
-                    .asm_reg => |reg| {
-                        try as.push_r64(reg);
-                    },
-                    .asm_cc => |cc| {
-                        try as.setcc_rm8(cc, .{ .reg = .CL });
-                        try as.movzx_r64_rm8(.RCX, .{ .reg = .CL });
-                        try as.push_r64(.RCX);
-                    },
-                }
-                self.sp += 1;
+            if (units != 0) {
+                try self.add_diag(unit_pc, "uninitialized values cannot be compiled", .{});
+                try as.lea_r64(.RSP, .{ .base = .RSP, .disp = -units * 8 });
+                self.sp += units;
+                units = 0;
             }
-        }
-
-        if (units != 0) {
-            try as.lea_r64(.RSP, .{ .base = .RSP, .disp = -units * 8 });
-            self.sp += units;
-        }
-    }
-
-    pub fn vstk_full_sync(self: *Context, as: *as_lib.As) !void {
-        try self.vstk_sync(0, as);
-        self.sp = 0;
-    }
-
-    pub fn clobber_reg(self: *Context, reg: as_lib.R64, as: *as_lib.As) !void {
-        const b = 1 - @as(i64, @intCast(self.vstk.items.len));
-
-        for (0..self.vstk.items.len) |i| {
-            const j = self.vstk.items.len - 1 - i;
-            const v = self.vstk.items[j];
-            if (v.val == .asm_reg and v.val.asm_reg == reg) {
-                return self.vstk_sync(b + @as(i64, @intCast(j)), as);
-            }
-        }
-    }
-
-    pub fn clobber_cc(self: *Context, as: *as_lib.As) !void {
-        const b = 1 - @as(i64, @intCast(self.vstk.items.len));
-
-        for (0..self.vstk.items.len) |i| {
-            const j = self.vstk.items.len - 1 - i;
-            const v = self.vstk.items[j];
-            if (v.val == .asm_cc) {
-                return self.vstk_sync(b + @as(i64, @intCast(i)), as);
-            }
-        }
-    }
-
-    pub fn clobber_bprel(self: *Context, bprel: i32, as: *as_lib.As) !void {
-        const b = 1 - @as(i64, @intCast(self.vstk.items.len));
-
-        for (0..self.vstk.items.len) |i| {
-            const j = self.vstk.items.len - 1 - i;
-            const v = self.vstk.items[j];
-            if (v.val == .bprel and v.val.bprel == bprel) {
-                return self.vstk_sync(b + @as(i64, @intCast(i)), as);
-            }
-        }
-    }
-
-    pub fn vstk_pop_asm(self: *Context, as: *as_lib.As) !AsmVal {
-        if (self.vstk_pop()) |v| {
             switch (v.val) {
-                .unit => {
-                    return .{ .tag = v.tag, .val = .{ .imm = 0 } };
-                },
+                .unit => unreachable,
                 .sprel => |sprel| {
-                    try self.vstk_sync(sprel + 1, as);
-                    return .{ .tag = v.tag, .val = .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(self.vstk.items.len))) } }, .sp = self.sp };
+                    try as.push_rm64(.{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1) } });
                 },
                 .bprel => |bprel| {
-                    return .{ .tag = v.tag, .val = .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } } };
+                    try as.push_rm64(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                 },
                 .imm => |imm| {
-                    return .{ .tag = v.tag, .val = .{ .imm = imm } };
+                    if (imm_size(imm) > 4) {
+                        try as.mov_r64_imm64(.RSI, imm);
+                        try as.push_r64(.RSI);
+                    } else {
+                        try as.push_imm32(@intCast(imm));
+                    }
                 },
                 .asm_reg => |reg| {
-                    return .{ .tag = v.tag, .val = .{ .reg = reg } };
+                    try as.push_r64(reg);
                 },
                 .asm_cc => |cc| {
-                    try as.setcc_rm8(cc, .{ .reg = .R8L });
-                    try as.movzx_r64_rm8(.R8, .{ .reg = .R8L });
-                    return .{ .tag = .int, .val = .{ .reg = .R8 } };
+                    try as.setcc_rm8(cc, .{ .reg = .CL });
+                    try as.movzx_r64_rm8(.RCX, .{ .reg = .CL });
+                    try as.push_r64(.RCX);
                 },
             }
-        } else {
-            return .{ .val = .top };
+            self.sp += 1;
         }
     }
 
-    // Emit a push instruction and adjust reference sp
-    pub fn push_rm64(self: *Context, rm: as_lib.RM64, as: *as_lib.As) !void {
-        try as.push_rm64(rm);
-
-        self.sp += 1;
+    if (units != 0) {
+        try self.add_diag(unit_pc, "uninitialized values cannot be compiled", .{});
+        try as.lea_r64(.RSP, .{ .base = .RSP, .disp = -units * 8 });
+        self.sp += units;
     }
+}
 
-    // Emit a pop instruction and adjust reference sp
-    pub fn pop_r64(self: *Context, reg: as_lib.R64, as: *as_lib.As) !void {
-        try as.pop_r64(reg);
+fn vstk_full_sync(self: *Self) !void {
+    try self.vstk_sync(0);
+    self.sp = 0;
+    self.vstk_bp = null;
+}
 
-        self.sp -= 1;
-    }
+fn clobber_reg(self: *Self, reg: as_lib.R64) !void {
+    const b = 1 - @as(i64, @intCast(self.vstk.items.len));
 
-    // Adjust the displacement of a memory asm val according to the reference sp
-    pub fn asm_val_mem(self: *Context, v: AsmVal) as_lib.Mem {
-        var mem = v.val.mem;
-
-        if (mem.base == .RSP) {
-            mem.disp -= (v.sp - self.sp) * 8;
+    for (0..self.vstk.items.len) |i| {
+        const j = self.vstk.items.len - 1 - i;
+        const v = self.vstk.items[j];
+        if (v.val == .asm_reg and v.val.asm_reg == reg) {
+            return self.vstk_sync(b + @as(i64, @intCast(j)));
         }
-
-        return mem;
     }
-};
+}
 
-fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction, start_pc: usize, diags: ?*Diagnostics) !void {
+fn clobber_cc(self: *Self) !void {
+    const b = 1 - @as(i64, @intCast(self.vstk.items.len));
+
+    for (0..self.vstk.items.len) |i| {
+        const j = self.vstk.items.len - 1 - i;
+        const v = self.vstk.items[j];
+        if (v.val == .asm_cc) {
+            return self.vstk_sync(b + @as(i64, @intCast(i)));
+        }
+    }
+}
+
+fn clobber_bprel(self: *Self, bprel: i32) !void {
+    const b = 1 - @as(i64, @intCast(self.vstk.items.len));
+
+    for (0..self.vstk.items.len) |i| {
+        const j = self.vstk.items.len - 1 - i;
+        const v = self.vstk.items[j];
+        if (v.val == .bprel and v.val.bprel == bprel) {
+            return self.vstk_sync(b + @as(i64, @intCast(i)));
+        }
+    }
+}
+
+fn vstk_pop_asm(self: *Self) !AsmVal {
     const as = &self.as;
 
-    var ctxt = Context.init(self.alloc);
-    defer ctxt.deinit();
+    if (self.vstk_pop()) |v| {
+        switch (v.val) {
+            .unit => {
+                try self.add_diag(v.pc, "uninitialized values cannot be compiled", .{});
+                return .{ .tag = v.tag, .val = .{ .imm = 0 } };
+            },
+            .sprel => |sprel| {
+                try self.vstk_sync(sprel + 1);
+                return .{ .tag = v.tag, .val = .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(self.vstk.items.len))) } }, .sp = self.sp };
+            },
+            .bprel => |bprel| {
+                return .{ .tag = v.tag, .val = .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } } };
+            },
+            .imm => |imm| {
+                return .{ .tag = v.tag, .val = .{ .imm = imm } };
+            },
+            .asm_reg => |reg| {
+                return .{ .tag = v.tag, .val = .{ .reg = reg } };
+            },
+            .asm_cc => |cc| {
+                try as.setcc_rm8(cc, .{ .reg = .R8L });
+                try as.movzx_r64_rm8(.R8, .{ .reg = .R8L });
+                return .{ .tag = .int, .val = .{ .reg = .R8 } };
+            },
+        }
+    } else {
+        return .{ .val = .top };
+    }
+}
 
+// Emit a push instruction and adjust reference sp
+fn push_rm64(self: *Self, rm: as_lib.RM64) !void {
+    try self.as.push_rm64(rm);
+
+    self.sp += 1;
+}
+
+// Emit a pop instruction and adjust reference sp
+fn pop_r64(self: *Self, reg: as_lib.R64) !void {
+    try self.as.pop_r64(reg);
+
+    self.sp -= 1;
+}
+
+// Adjust the displacement of a memory asm val according to the reference sp
+fn asm_val_mem(self: *Self, v: AsmVal) as_lib.Mem {
+    var mem = v.val.mem;
+
+    if (mem.base == .RSP) {
+        mem.disp -= (v.sp - self.sp) * 8;
+    }
+
+    return mem;
+}
+
+inline fn add_diag(self: *Self, pc: ?usize, fmt: []const u8, args: anytype) !void {
+    if (self.diags) |dg| {
+        var loc: ?[]const u8 = null;
+
+        if (self.prog.tokens) |t| {
+            if (pc) |p| {
+                if (p < t.len and t[p].len != 0) {
+                    loc = t[p];
+                }
+            }
+        }
+
+        try dg.addDiagnostic(.{
+            .description = .{ .dynamic = try dg.newDynamicDescription(fmt, args) },
+            .location = loc,
+        });
+    }
+
+    if (self.errors == .abort) {
+        return error.CompileError;
+    }
+}
+
+fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !void {
+    const as = &self.as;
+
+    const func_map = try self.alloc.alloc(bool, code.len);
     const edge_map = try self.alloc.alloc(bool, code.len);
+    defer self.alloc.free(func_map);
     defer self.alloc.free(edge_map);
+
+    @memset(func_map, false);
+    @memset(edge_map, false);
+
+    if (self.prog.entry >= start_pc and self.prog.entry < start_pc + code.len) {
+        func_map[self.prog.entry - start_pc] = true;
+    }
 
     for (code) |insn| {
         switch (insn.op) {
+            .call => {
+                const loc = insn.operand.location;
+                if (loc >= start_pc and loc < start_pc + code.len) {
+                    func_map[loc - start_pc] = true;
+                }
+            },
             .jmp, .jmpnz => {
                 const loc = insn.operand.location;
                 if (loc < start_pc or loc >= start_pc + code.len) {
@@ -368,13 +419,23 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
     for (0.., code) |i, insn| {
         const pc = start_pc + i;
 
+        if (func_map[i]) {
+            self.vstk_bp = 0;
+        }
+
         if (edge_map[i]) {
-            try ctxt.vstk_full_sync(as);
+            for (self.vstk.items) |v| {
+                if (v.tag == .unit) {
+                    try self.add_diag(v.pc, "uninitialized values cannot be compiled", .{});
+                }
+            }
+
+            try self.vstk_full_sync();
         }
 
         switch (insn.op) {
             .add => {
-                try ctxt.vstk_full_sync(as);
+                try self.vstk_full_sync();
 
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
@@ -383,7 +444,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 try as.add_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RCX);
             },
             .sub => {
-                try ctxt.vstk_full_sync(as);
+                try self.vstk_full_sync();
 
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
@@ -392,12 +453,12 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 try as.sub_rm64_r64(.{ .mem = .{ .base = .RSP } }, .RCX);
             },
             .mul => {
-                var b = try ctxt.vstk_pop_asm(as);
-                var a = try ctxt.vstk_pop_asm(as);
+                var b = try self.vstk_pop_asm();
+                var a = try self.vstk_pop_asm();
 
-                try ctxt.clobber_reg(.RAX, as);
-                try ctxt.clobber_reg(.RDX, as);
-                try ctxt.clobber_cc(as);
+                try self.clobber_reg(.RAX);
+                try self.clobber_reg(.RDX);
+                try self.clobber_cc();
 
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
@@ -410,10 +471,10 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                 switch (b.val) {
                     .top => {
-                        try ctxt.pop_r64(.RAX, as);
+                        try self.pop_r64(.RAX);
                     },
                     .mem => {
-                        try as.mov_r64_rm64(.RAX, .{ .mem = ctxt.asm_val_mem(b) });
+                        try as.mov_r64_rm64(.RAX, .{ .mem = self.asm_val_mem(b) });
                     },
                     .reg => |reg| {
                         if (reg != .RAX) {
@@ -427,11 +488,11 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                 switch (a.val) {
                     .top => {
-                        try ctxt.pop_r64(.RCX, as);
+                        try self.pop_r64(.RCX);
                         try as.imul_rm64(.{ .reg = .RCX });
                     },
                     .mem => {
-                        try as.imul_rm64(.{ .mem = ctxt.asm_val_mem(a) });
+                        try as.imul_rm64(.{ .mem = self.asm_val_mem(a) });
                     },
                     .reg => |reg| {
                         try as.imul_rm64(.{ .reg = reg });
@@ -442,22 +503,22 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                     },
                 }
 
-                try ctxt.vstk_push(.{ .tag = .int, .val = .{ .asm_reg = .RAX } });
+                try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .asm_reg = .RAX } });
             },
             .div, .mod => {
-                var b = try ctxt.vstk_pop_asm(as);
-                const a = try ctxt.vstk_pop_asm(as);
+                var b = try self.vstk_pop_asm();
+                const a = try self.vstk_pop_asm();
 
-                try ctxt.clobber_reg(.RAX, as);
-                try ctxt.clobber_reg(.RDX, as);
-                try ctxt.clobber_cc(as);
+                try self.clobber_reg(.RAX);
+                try self.clobber_reg(.RDX);
+                try self.clobber_cc();
 
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
 
                 switch (b.val) {
                     .top => {
-                        try ctxt.pop_r64(.RCX, as);
+                        try self.pop_r64(.RCX);
                         b.val = .{ .reg = .RCX };
                     },
                     .reg => |reg| {
@@ -475,10 +536,10 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                 switch (a.val) {
                     .top => {
-                        try ctxt.pop_r64(.RAX, as);
+                        try self.pop_r64(.RAX);
                     },
                     .mem => {
-                        try as.mov_r64_rm64(.RAX, .{ .mem = ctxt.asm_val_mem(a) });
+                        try as.mov_r64_rm64(.RAX, .{ .mem = self.asm_val_mem(a) });
                     },
                     .reg => |reg| {
                         if (reg != .RAX) {
@@ -494,7 +555,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                 switch (b.val) {
                     .mem => {
-                        try as.idiv_rm64(.{ .mem = ctxt.asm_val_mem(b) });
+                        try as.idiv_rm64(.{ .mem = self.asm_val_mem(b) });
                     },
                     .reg => |reg| {
                         try as.idiv_rm64(.{ .reg = reg });
@@ -503,16 +564,16 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 }
 
                 if (insn.op == .div) {
-                    try ctxt.vstk_push(.{ .tag = .int, .val = .{ .asm_reg = .RAX } });
+                    try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .asm_reg = .RAX } });
                 } else {
-                    try ctxt.vstk_push(.{ .tag = .int, .val = .{ .asm_reg = .RDX } });
+                    try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .asm_reg = .RDX } });
                 }
             },
             .inc, .dec => {
-                const v = try ctxt.vstk_pop_asm(as);
+                const v = try self.vstk_pop_asm();
 
                 if (v.val != .top) {
-                    try ctxt.clobber_reg(.RAX, as);
+                    try self.clobber_reg(.RAX);
                 }
 
                 self.pc_map[pc] = as.offset();
@@ -527,25 +588,27 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                         }
                     },
                     .mem => {
-                        try as.mov_r64_rm64(.RAX, .{ .mem = ctxt.asm_val_mem(v) });
+                        try as.mov_r64_rm64(.RAX, .{ .mem = self.asm_val_mem(v) });
                         if (insn.op == .inc) {
                             try as.inc_rm64(.{ .reg = .RAX });
                         } else {
                             try as.dec_rm64(.{ .reg = .RAX });
                         }
-                        try ctxt.vstk_push(.{ .tag = .int, .val = .{ .asm_reg = .RAX } });
+                        try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .asm_reg = .RAX } });
                     },
                     .reg => |reg| {
-                        try as.mov_r64_rm64(.RAX, .{ .reg = reg });
+                        if (reg != .RAX) {
+                            try as.mov_r64_rm64(.RAX, .{ .reg = reg });
+                        }
                         if (insn.op == .inc) {
                             try as.inc_rm64(.{ .reg = .RAX });
                         } else {
                             try as.dec_rm64(.{ .reg = .RAX });
                         }
-                        try ctxt.vstk_push(.{ .tag = .int, .val = .{ .asm_reg = .RAX } });
+                        try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .asm_reg = .RAX } });
                     },
                     .imm => |imm| {
-                        try ctxt.vstk_push(.{ .tag = .int, .val = .{ .imm = imm + 1 } });
+                        try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .imm = imm + 1 } });
                     },
                 }
             },
@@ -553,14 +616,14 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
 
-                if (ctxt.vstk_get(0)) |v| {
+                if (self.vstk_get(-1)) |v| {
                     if (v.val == .sprel) {
-                        try ctxt.vstk_push(.{ .tag = v.tag, .val = .{ .sprel = v.val.sprel - 1 } });
+                        try self.vstk_push(.{ .pc = pc, .tag = v.tag, .val = .{ .sprel = v.val.sprel - 1 } });
                     } else {
-                        try ctxt.vstk_push(v);
+                        try self.vstk_push(v);
                     }
                 } else {
-                    try ctxt.vstk_push(.{ .val = .{ .sprel = -1 } });
+                    try self.vstk_push(.{ .pc = pc, .val = .{ .sprel = -1 } });
                 }
             },
             .stack_alloc => {
@@ -568,15 +631,15 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 try self.dbg_break(@tagName(insn.op));
 
                 for (0..@as(usize, @intCast(insn.operand.int))) |_| {
-                    try ctxt.vstk_push(.{ .tag = .unit, .val = .unit });
+                    try self.vstk_push(.{ .pc = pc, .tag = .unit, .val = .unit });
                 }
             },
             inline .cmp_lt, .cmp_gt, .cmp_le, .cmp_ge, .cmp_eq, .cmp_ne => |cmp| insn: {
-                var b = try ctxt.vstk_pop_asm(as);
-                var a = try ctxt.vstk_pop_asm(as);
+                var b = try self.vstk_pop_asm();
+                var a = try self.vstk_pop_asm();
                 var r = false;
 
-                try ctxt.clobber_cc(as);
+                try self.clobber_cc();
 
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
@@ -591,13 +654,13 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                 switch (b.val) {
                     .top => {
-                        try ctxt.pop_r64(.RSI, as);
+                        try self.pop_r64(.RSI);
                         b.val = .{ .reg = .RSI };
                     },
                     .mem => {
                         // Only one memory operand is allowed
                         if (a.val == .mem) {
-                            try as.mov_r64_rm64(.RSI, .{ .mem = ctxt.asm_val_mem(b) });
+                            try as.mov_r64_rm64(.RSI, .{ .mem = self.asm_val_mem(b) });
                             b.val = .{ .reg = .RSI };
                         }
                     },
@@ -612,7 +675,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                 switch (a.val) {
                     .top => {
-                        try ctxt.pop_r64(.RCX, as);
+                        try self.pop_r64(.RCX);
                         a.val = .{ .reg = .RCX };
                     },
                     else => {},
@@ -622,10 +685,10 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                     .mem => {
                         switch (b.val) {
                             .reg => |reg_b| {
-                                try as.cmp_rm64_r64(.{ .mem = ctxt.asm_val_mem(a) }, reg_b);
+                                try as.cmp_rm64_r64(.{ .mem = self.asm_val_mem(a) }, reg_b);
                             },
                             .imm => |imm_b| {
-                                try as.cmp_rm64_imm32(.{ .mem = ctxt.asm_val_mem(a) }, @intCast(imm_b));
+                                try as.cmp_rm64_imm32(.{ .mem = self.asm_val_mem(a) }, @intCast(imm_b));
                             },
                             else => unreachable,
                         }
@@ -655,40 +718,62 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                             else => unreachable,
                         };
 
-                        try ctxt.vstk_push(.{ .tag = .int, .val = .{ .imm = if (v) 1 else 0 } });
+                        try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .imm = if (v) 1 else 0 } });
 
                         break :insn;
                     },
                     else => unreachable,
                 }
 
-                try ctxt.vstk_push(.{ .tag = .int, .val = .{ .asm_cc = if (r) opcode_cc(cmp).reverse() else opcode_cc(cmp) } });
+                try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .asm_cc = if (r) opcode_cc(cmp).reverse() else opcode_cc(cmp) } });
             },
             .call => {
-                try ctxt.vstk_full_sync(as);
+                const v = self.vstk_get(-1);
 
-                self.pc_map[pc] = as.offset();
-                try self.dbg_break(@tagName(insn.op));
+                if (v != null and v.?.val == .imm) {
+                    const n: i32 = @intCast(v.?.val.imm);
 
-                try as.push_r64(.RBP);
-                try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
-                try self.call_loc(insn.operand.location);
-                try self.dbg_break("call_ret");
+                    try self.vstk_sync(0);
 
-                try as.pop_r64(.RBP);
-                try as.pop_r64(.RCX);
-                try as.lea_r64(.RSP, .{ .base = .RSP, .index = .{ .reg = .RCX, .scale = 8 } });
+                    self.pc_map[pc] = as.offset();
+                    try self.dbg_break(@tagName(insn.op));
 
-                try ctxt.vstk_push(.{ .val = .{ .asm_reg = .RAX } });
+                    try as.push_r64(.RBP);
+                    try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
+                    try self.call_loc(insn.operand.location);
+                    try self.dbg_break("call_ret");
+
+                    try as.pop_r64(.RBP);
+                    try as.lea_r64(.RSP, .{ .base = .RSP, .disp = 8 * (n + 1) });
+                    self.sp -= n + 1;
+
+                    try self.vstk_push(.{ .pc = pc, .val = .{ .asm_reg = .RAX } });
+                } else {
+                    try self.vstk_full_sync();
+
+                    self.pc_map[pc] = as.offset();
+                    try self.dbg_break(@tagName(insn.op));
+
+                    try as.push_r64(.RBP);
+                    try as.lea_r64(.RBP, .{ .base = .RSP, .disp = -8 });
+                    try self.call_loc(insn.operand.location);
+                    try self.dbg_break("call_ret");
+
+                    try as.pop_r64(.RBP);
+                    try as.pop_r64(.RCX);
+                    try as.lea_r64(.RSP, .{ .base = .RSP, .index = .{ .reg = .RCX, .scale = 8 } });
+
+                    try self.vstk_push(.{ .pc = pc, .val = .{ .asm_reg = .RAX } });
+                }
             },
             .syscall => {
-                try ctxt.vstk_full_sync(as);
-
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
 
                 switch (insn.operand.int) {
                     0...1 => |syscall| {
+                        try self.vstk_sync(0);
+
                         try as.mov_r64_rm64(.RDI, .{ .reg = .R15 });
                         try as.mov_r64_rm64(.RSI, .{ .mem = .{ .base = .RSP } });
                         try as.lea_r64(.RCX, .{ .base = .RSP, .disp = 8 });
@@ -697,16 +782,18 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                         try as.call_rm64(.{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "syscall_tbl") + @as(i32, @intCast(syscall * 8)) } });
                         try self.dbg_break("syscall_ret");
                         try as.pop_r64(.RSP);
+
+                        self.sp -= 1;
                     },
                     else => {},
                 }
             },
             .ret => {
-                if (ctxt.vstk_pop()) |v| {
+                if (self.vstk_pop()) |v| {
                     if (v.val == .sprel) {
-                        try ctxt.vstk_sync(v.val.sprel + 1, as);
+                        try self.vstk_sync(v.val.sprel + 1);
                     } else {
-                        // stack is being cleared, no need to sync ctxt
+                        // stack is being cleared, no need to sync vstk
                     }
 
                     self.pc_map[pc] = as.offset();
@@ -714,10 +801,11 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
                     switch (v.val) {
                         .unit => {
+                            try self.add_diag(v.pc, "uninitialized values cannot be compiled", .{});
                             try as.xor_r64_rm64(.RAX, .{ .reg = .RAX });
                         },
                         .sprel => |sprel| {
-                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(ctxt.vstk.items.len))) } });
+                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RSP, .disp = -8 * (sprel + 1 + @as(i32, @intCast(self.vstk.items.len))) } });
                         },
                         .bprel => |bprel| {
                             try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
@@ -736,7 +824,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                         },
                     }
                 } else {
-                    // ctxt empty, no need to sync
+                    // vstk empty, no need to sync
                     self.pc_map[pc] = as.offset();
                     try self.dbg_break(@tagName(insn.op));
 
@@ -746,7 +834,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 try as.ret_near();
             },
             .jmp => {
-                try ctxt.vstk_full_sync(as);
+                try self.vstk_sync(0);
 
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
@@ -754,14 +842,16 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 try self.jmp_loc(insn.operand.location);
             },
             .jmpnz => {
-                if (ctxt.vstk_pop()) |v| {
-                    try ctxt.vstk_full_sync(as);
+                if (self.vstk_pop()) |v| {
+                    try self.vstk_sync(0);
 
                     self.pc_map[pc] = as.offset();
                     try self.dbg_break(@tagName(insn.op));
 
                     switch (v.val) {
-                        .unit => {},
+                        .unit => {
+                            try self.add_diag(v.pc, "uninitialized values cannot be compiled", .{});
+                        },
                         .sprel => |sprel| {
                             try as.mov_r64_rm64(.RCX, .{ .mem = .{ .base = .RSP, .disp = @intCast(-8 * (sprel + 1)) } });
                             try as.test_rm64_r64(.{ .reg = .RCX }, .RCX);
@@ -786,7 +876,7 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                         },
                     }
                 } else {
-                    try ctxt.vstk_full_sync(as);
+                    try self.vstk_sync(0);
 
                     self.pc_map[pc] = as.offset();
                     try self.dbg_break(@tagName(insn.op));
@@ -800,76 +890,84 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
 
-                try ctxt.vstk_push(.{ .tag = .int, .val = .{ .imm = insn.operand.int } });
+                try self.vstk_push(.{ .pc = pc, .tag = .int, .val = .{ .imm = insn.operand.int } });
             },
             .pop => {
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
 
-                if (ctxt.vstk_pop()) |_| {} else {
+                if (self.vstk_pop()) |_| {} else {
                     try as.lea_r64(.RSP, .{ .base = .RSP, .disp = 8 });
-                    ctxt.sp -= 1;
+                    self.sp -= 1;
                 }
             },
             .load => {
+                const offset = insn.operand.int;
+
                 self.pc_map[pc] = as.offset();
                 try self.dbg_break(@tagName(insn.op));
 
-                try ctxt.vstk_push(.{ .val = .{ .bprel = @intCast(insn.operand.int) } });
+                if (self.vstk_bp != null and offset >= self.vstk_bp.? + self.sp) {
+                    if (offset - (self.vstk_bp.? + self.sp) >= self.vstk.items.len) {
+                        try self.add_diag(pc, "load above stack pointer", .{});
+                    } else {
+                        var v = self.vstk.items[@intCast(offset - (self.vstk_bp.? + self.sp))];
+                        v.pc = pc;
+
+                        try self.vstk_push(v);
+                    }
+                } else {
+                    try self.vstk_push(.{ .pc = pc, .val = .{ .bprel = @intCast(offset) } });
+                }
             },
             .store => {
-                const rm = as_lib.RM64{ .mem = .{ .base = .RBP, .disp = @intCast(-8 * (1 + insn.operand.int)) } };
-                const v = try ctxt.vstk_pop_asm(as);
+                const offset = insn.operand.int;
 
-                try ctxt.clobber_bprel(@intCast(insn.operand.int), as);
+                if (self.vstk_bp != null and offset >= self.vstk_bp.? + self.sp and self.vstk.items.len != 0) {
+                    if (offset - (self.vstk_bp.? + self.sp) >= self.vstk.items.len) {
+                        try self.add_diag(pc, "store above stack pointer", .{});
+                    } else {
+                        const from = self.vstk.items.len - 1;
+                        const to = offset - (self.vstk_bp.? + self.sp);
 
-                self.pc_map[pc] = as.offset();
-                try self.dbg_break(@tagName(insn.op));
-
-                switch (v.val) {
-                    .top => {
-                        try ctxt.pop_r64(.RCX, as);
-                        try as.mov_rm64_r64(rm, .RCX);
-                    },
-                    .mem => {
-                        try as.mov_r64_rm64(.RCX, .{ .mem = ctxt.asm_val_mem(v) });
-                        try as.mov_rm64_r64(rm, .RCX);
-                    },
-                    .reg => |reg| {
-                        try as.mov_rm64_r64(rm, reg);
-                    },
-                    .imm => |imm| {
-                        if (imm_size(imm) > 4) {
-                            try as.mov_r64_imm64(.RCX, imm);
-                            try as.mov_rm64_r64(rm, .RCX);
-                        } else {
-                            try as.mov_rm64_imm32(rm, @intCast(imm));
+                        if (from != to) {
+                            self.vstk.items[@intCast(to)] = self.vstk.pop();
                         }
-                    },
+                    }
+                } else {
+                    const rm = as_lib.RM64{ .mem = .{ .base = .RBP, .disp = @intCast(-8 * (1 + insn.operand.int)) } };
+                    const v = try self.vstk_pop_asm();
+
+                    try self.clobber_bprel(@intCast(insn.operand.int));
+
+                    self.pc_map[pc] = as.offset();
+                    try self.dbg_break(@tagName(insn.op));
+
+                    switch (v.val) {
+                        .top => {
+                            try self.pop_r64(.RCX);
+                            try as.mov_rm64_r64(rm, .RCX);
+                        },
+                        .mem => {
+                            try as.mov_r64_rm64(.RCX, .{ .mem = self.asm_val_mem(v) });
+                            try as.mov_rm64_r64(rm, .RCX);
+                        },
+                        .reg => |reg| {
+                            try as.mov_rm64_r64(rm, reg);
+                        },
+                        .imm => |imm| {
+                            if (imm_size(imm) > 4) {
+                                try as.mov_r64_imm64(.RCX, imm);
+                                try as.mov_rm64_r64(rm, .RCX);
+                            } else {
+                                try as.mov_rm64_imm32(rm, @intCast(imm));
+                            }
+                        },
+                    }
                 }
             },
             else => {
-                if (diags) |dg| {
-                    var loc: ?[]const u8 = null;
-                    if (prog.tokens) |t| {
-                        if (pc < t.len) {
-                            loc = t[pc];
-                            // ignore placeholder tokens from embedded Blue code
-                            // these always come after a related "non-compilable"-error,
-                            // for example [1] generates `list_alloc`, then a `list_store` with
-                            // a placeholder token
-                            if (loc.?.len == 0) {
-                                continue;
-                            }
-                        }
-                    }
-                    try dg.addDiagnostic(.{
-                        .description = .{
-                            .dynamic = try dg.newDynamicDescription("operation not compilable: {s}", .{@tagName(insn.op)}),
-                        },
-                        .location = loc,
-                    });
-                }
+                try self.add_diag(pc, "operation not compilable: {s}", .{@tagName(insn.op)});
             },
         }
     }
@@ -877,6 +975,9 @@ fn compile_slice(self: *Self, prog: arch.Program, code: []const arch.Instruction
 
 pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !Function {
     self.reset();
+
+    self.prog = &prog;
+    self.diags = diags;
 
     const as = &self.as;
 
@@ -907,7 +1008,7 @@ pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !F
     self.pc_map = try self.alloc.alloc(usize, prog.code.len + 1);
     errdefer self.alloc.free(self.pc_map);
 
-    try self.compile_slice(prog, prog.code, 0, diags);
+    try self.compile_slice(prog.code, 0);
 
     self.pc_map[prog.code.len] = self.as.offset();
     self.relocate_all();
@@ -917,6 +1018,9 @@ pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !F
 
 pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const arch.Instruction, diags: ?*Diagnostics) !Function {
     self.reset();
+
+    self.prog = &prog;
+    self.diags = diags;
 
     const as = &self.as;
 
@@ -959,7 +1063,7 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
 
     for (slices) |s| {
         const start = (@intFromPtr(s.ptr) - @intFromPtr(prog.code.ptr)) / @sizeOf(@TypeOf(s[0]));
-        try self.compile_slice(prog, s, start, diags);
+        try self.compile_slice(s, start);
     }
 
     self.pc_map[prog.code.len] = self.as.offset();

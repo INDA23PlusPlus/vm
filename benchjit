@@ -1,5 +1,30 @@
 #!/bin/bash
 
+jitopt="full"
+
+usage() {
+	echo "usage: ${0} [-j (full|auto|off)]"
+	exit 1
+}
+
+while [ ! x"${1}" = x"" ]; do
+	case "${1}" in
+	-j)
+        shift
+		if [ x"${1}" = "" ]; then usage; fi
+		jitopt="${1}"
+        case "${jitopt}" in
+            full|auto|off)
+                ;;
+            *)
+                usage
+                ;;
+        esac
+		;;
+	esac
+	shift
+done
+
 zig build vemod || exit $?
 
 benchmark() {
@@ -14,7 +39,7 @@ benchmark() {
 
 	echo "Running benchmarks on '${prog}'"
 
-	benchmarks=("zig-out/bin/vemod -j full 'comparisons/${prog}.vmd'")
+	benchmarks=("zig-out/bin/vemod -j ${jitopt} 'comparisons/${prog}.vmd'")
 
 	if which luajit >/dev/null; then
 		benchmarks[${#benchmarks[@]}]="luajit 'comparisons/${prog}.lua'"

@@ -543,9 +543,16 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
     defer ctxt.reset();
-    if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) {
+    if (ctxt.jit_enabled and ctxt.jit_mask.isSet(ctxt.pc)) jit: {
         if (ctxt.jit_fn == null) {
-            try jit_compile_full(ctxt);
+            jit_compile_full(ctxt) catch |e| {
+                if (e == error.CompileError) {
+                    ctxt.jit_mask.setValue(ctxt.pc, false);
+                    break :jit;
+                } else {
+                    return e;
+                }
+            };
         }
         if (ctxt.debug_output) {
             debug_log("Running whole program compiled\n", .{});
@@ -771,7 +778,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .call => {
                 const loc = insn.operand.location;
 
-                if (ctxt.jit_enabled and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) {
+                if (ctxt.jit_enabled and ctxt.jit_mask.isSet(loc) and is_jitable_call(ctxt)) jit: {
                     const N_val = try pop(ctxt);
                     defer drop(ctxt, N_val);
 
@@ -791,7 +798,14 @@ pub fn run(ctxt: *VMContext) !i64 {
                     }
 
                     if (ctxt.jit_fn == null) {
-                        try jit_compile_partial(ctxt);
+                        jit_compile_partial(ctxt) catch |e| {
+                            if (e == error.CompileError) {
+                                ctxt.jit_mask.setValue(loc, false);
+                                break :jit;
+                            } else {
+                                return e;
+                            }
+                        };
                     }
 
                     if (ctxt.debug_output) {
