@@ -565,9 +565,11 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
         if (ctxt.jit_fn == null) {
             jit_compile_full(ctxt) catch |e| {
-                if (ctxt.diagnostics) |dg| {
-                    if (dg.hasDiagnosticsMinSeverity(.Hint)) {
-                        try dg.printAllDiagnostic(std.io.getStdErr().writer());
+                if (ctxt.jit_mode == .full) {
+                    if (ctxt.diagnostics) |dg| {
+                        if (dg.hasDiagnosticsMinSeverity(.Hint)) {
+                            try dg.printAllDiagnostic(std.io.getStdErr().writer());
+                        }
                     }
                 }
                 if (e == error.CompileError) {
