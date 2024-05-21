@@ -118,8 +118,8 @@ fn mark_item(item: APITypes.Value) void {
 }
 
 fn mark_list(list: *List) void {
-    if (!list.refs.mark) {
-        list.refs.mark = true;
+    if (!list.metadata.mark) {
+        list.metadata.mark = true;
         for (list.items.items) |inner_item| {
             mark_item(inner_item);
         }
@@ -127,8 +127,8 @@ fn mark_list(list: *List) void {
 }
 
 fn mark_object(obj: *Object) void {
-    if (!obj.refs.mark) {
-        obj.refs.mark = true;
+    if (!obj.metadata.mark) {
+        obj.metadata.mark = true;
         var it = obj.map.valueIterator();
         while (it.next()) |inner_item| {
             mark_item(inner_item.*);
@@ -149,10 +149,10 @@ fn sweep(self: *Self, comptime T: type, list: *UnmanagedObjectList(T)) void {
 
     while (read < list.items.len) {
         const obj = list.items[read];
-        if (obj.refs.mark) {
+        if (obj.metadata.mark) {
             // Keep this object
             list.items[write] = obj;
-            obj.refs.mark = false;
+            obj.metadata.mark = false;
             write += 1;
         } else {
             // Drop this garbage since it was not marked

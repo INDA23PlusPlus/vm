@@ -11,7 +11,6 @@ pub const ListRef = struct {
     const Self = @This();
     ref: *List,
 
-    // Initialize the list, refcount is 1
     pub fn init(allocator: std.mem.Allocator) !Self {
         const list = try allocator.create(List);
         list.* = List.init(allocator);
@@ -142,6 +141,7 @@ comptime {
             .object,
         }) |e2| {
             // should only happen on valid comparisons
+            // TODO: comparing unit with any other type is also allowed
             if (@intFromEnum(e1) ^ @intFromEnum(e2) < 2) {
                 // should only be valid if one is int and one is float, or both are some kind of string
                 if (e1 != e2) {
