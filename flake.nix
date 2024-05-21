@@ -39,6 +39,7 @@
                   export XDG_CACHE_HOME=$(mktemp -d)
                   zig fmt --check .
                   zig build test
+                  zig build end-to-end-test
                   rm -rf $XDG_CACHE_HOME
                 '';
               };
