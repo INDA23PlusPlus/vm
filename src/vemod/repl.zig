@@ -97,51 +97,51 @@ pub fn main(
         if (isOnlyWhitespace(input_buffer.items)) continue;
 
         // evaluate the expression
-        {
-            const source = input_buffer.items;
-
-            var diagnostics = DiagnosticList.init(allocator, source);
-            diagnostics.no_color = no_color;
-            defer diagnostics.deinit();
-            var compilation = blue.compile(
-                source,
-                allocator,
-                &diagnostics,
-                false,
-                astOverlay,
-            ) catch {
-                try diagnostics.printAllDiagnostic(stdout);
-                continue;
-            };
-            defer compilation.deinit();
-
-            var assembler = Asm.init(compilation.result, allocator, &diagnostics);
-            defer assembler.deinit();
-            try assembler.assemble();
-            if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
-                try diagnostics.printAllDiagnostic(stdout);
-                if (diagnostics.hasDiagnosticsMinSeverity(.Error)) continue;
-            }
-
-            const src_opts: EmbeddedSourceOptions = .{
-                .frontend = .{
-                    .tokens = compilation.tokens,
-                    .source = source,
-                },
-            };
-            var program = try assembler.getProgram(allocator, src_opts);
-            defer program.deinit();
-
-            var context = try VMContext.init(program, allocator, &stdout, &stdout, false);
-            defer context.deinit();
-
-            _ = interpreter.run(&context) catch |err| {
-                if (context.rterror) |rterror| {
-                    try print_rterror(program, rterror, stdout, no_color);
-                } else {
-                    return err;
-                }
-            };
-        }
+        try eval(input_buffer.items, allocator, stdout, no_color);
     }
+}
+
+fn eval(expr: []const u8, allocator: Allocator, stdout: anytype, no_color: bool) !void {
+    var diagnostics = DiagnosticList.init(allocator, expr);
+    diagnostics.no_color = no_color;
+    defer diagnostics.deinit();
+    var compilation = blue.compile(
+        expr,
+        allocator,
+        &diagnostics,
+        false,
+        astOverlay,
+    ) catch {
+        try diagnostics.printAllDiagnostic(stdout);
+        return;
+    };
+    defer compilation.deinit();
+
+    var assembler = Asm.init(compilation.result, allocator, &diagnostics);
+    defer assembler.deinit();
+    try assembler.assemble();
+    if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
+        try diagnostics.printAllDiagnostic(stdout);
+        if (diagnostics.hasDiagnosticsMinSeverity(.Error)) return;
+    }
+
+    const src_opts: EmbeddedSourceOptions = .{
+        .frontend = .{
+            .tokens = compilation.tokens,
+            .source = expr,
+        },
+    };
+    var program = try assembler.getProgram(allocator, src_opts);
+    defer program.deinit();
+
+    var context = try VMContext.init(program, allocator, &stdout, &stdout, false);
+    defer context.deinit();
+
+    _ = interpreter.run(&context) catch |err| {
+        if (context.rterror) |rterror| {
+            try print_rterror(program, rterror, stdout, no_color);
+        } else {
+            return err;
+        }
+    };
 }
