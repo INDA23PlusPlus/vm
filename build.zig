@@ -294,7 +294,6 @@ pub fn build(b: *std.Build) void {
         var pathstream = std.io.fixedBufferStream(&pathbuf);
         _ = pathstream.write(b.install_prefix) catch unreachable;
         _ = pathstream.write("/bin/vemod") catch unreachable;
-        std.debug.print("{s}\n", .{pathstream.getWritten()});
         break :blk pathstream.getWritten();
     };
 
