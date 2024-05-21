@@ -47,7 +47,6 @@ fn case(
         debug.panic(
             \\
             \\Error: unable to run {s}: {s}
-            \\You may need to set path for vemod explicitly with -Dvemod-path=<...>
             \\
             \\
         ,
