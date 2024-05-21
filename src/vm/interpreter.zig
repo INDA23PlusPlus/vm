@@ -1575,7 +1575,43 @@ test "lists" {
         0,
     );
 
-    // TODO: test list_remove
+    try testRun(
+        Program.init(&.{
+            Instruction.listAlloc(),
+            Instruction.listAlloc(),
+
+            Instruction.load(0),
+            Instruction.push(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(1),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(2),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(1),
+            Instruction.listRemove(),
+
+            Instruction.load(1),
+            Instruction.push(0),
+            Instruction.listAppend(),
+
+            Instruction.load(1),
+            Instruction.push(2),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.load(1),
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}),
+        "",
+        1,
+    );
 }
 
 test "binary arithmetic operations" {
