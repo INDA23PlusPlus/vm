@@ -55,16 +55,13 @@ pub fn main(
     stdin: anytype,
     stderr: anytype,
     no_color: bool,
-) !void {
-    _ = stderr;
-
+) !u8 {
     if (!isatty(stdin.context)) {
         // read expression from stdin and evaluate once
         const expr = try stdin.readAllAlloc(allocator, std.math.maxInt(usize));
         defer allocator.free(expr);
 
-        try eval(expr, allocator, stdout, no_color);
-        return;
+        return try eval(expr, allocator, stdout, stderr, no_color);
     }
 
     var input_buffer = ArrayList(u8).init(allocator);
@@ -80,7 +77,7 @@ pub fn main(
             first = false;
 
             const cstr = ln.linenoise(prompt);
-            if (@as(?*anyopaque, cstr) == ln.NULL) return;
+            if (@as(?*anyopaque, cstr) == ln.NULL) return 0;
             _ = ln.linenoiseHistoryAdd(cstr);
             const line = std.mem.span(cstr);
 
@@ -98,7 +95,7 @@ pub fn main(
                 try stdout.writeAll("\x1b[2J\x1b[H");
                 continue :repl;
             } else if (mem.eql(u8, maybe_cmd, "exit")) {
-                return;
+                return 0;
             }
         }
 
@@ -106,11 +103,18 @@ pub fn main(
         if (isOnlyWhitespace(input_buffer.items)) continue;
 
         // evaluate the expression
-        try eval(input_buffer.items, allocator, stdout, no_color);
+        // replace stderr with stdout and ignore error codes
+        _ = try eval(input_buffer.items, allocator, stdout, stdout, no_color);
     }
 }
 
-fn eval(expr: []const u8, allocator: Allocator, stdout: anytype, no_color: bool) !void {
+fn eval(
+    expr: []const u8,
+    allocator: Allocator,
+    stdout: anytype,
+    stderr: anytype,
+    no_color: bool,
+) !u8 {
     var diagnostics = DiagnosticList.init(allocator, expr);
     diagnostics.no_color = no_color;
     defer diagnostics.deinit();
@@ -121,8 +125,8 @@ fn eval(expr: []const u8, allocator: Allocator, stdout: anytype, no_color: bool)
         false,
         astOverlay,
     ) catch {
-        try diagnostics.printAllDiagnostic(stdout);
-        return;
+        try diagnostics.printAllDiagnostic(stderr);
+        return 1;
     };
     defer compilation.deinit();
 
@@ -130,8 +134,8 @@ fn eval(expr: []const u8, allocator: Allocator, stdout: anytype, no_color: bool)
     defer assembler.deinit();
     try assembler.assemble();
     if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
-        try diagnostics.printAllDiagnostic(stdout);
-        if (diagnostics.hasDiagnosticsMinSeverity(.Error)) return;
+        try diagnostics.printAllDiagnostic(stderr);
+        if (diagnostics.hasDiagnosticsMinSeverity(.Error)) return 1;
     }
 
     const src_opts: EmbeddedSourceOptions = .{
@@ -143,14 +147,17 @@ fn eval(expr: []const u8, allocator: Allocator, stdout: anytype, no_color: bool)
     var program = try assembler.getProgram(allocator, src_opts);
     defer program.deinit();
 
-    var context = try VMContext.init(program, allocator, &stdout, &stdout, false);
+    var context = try VMContext.init(program, allocator, &stdout, &stderr, false);
     defer context.deinit();
 
-    _ = interpreter.run(&context) catch |err| {
+    const ret = interpreter.run(&context) catch |err| {
         if (context.rterror) |rterror| {
-            try print_rterror(program, rterror, stdout, no_color);
+            try print_rterror(program, rterror, stderr, no_color);
+            return 1;
         } else {
             return err;
         }
     };
+
+    return @intCast(ret);
 }

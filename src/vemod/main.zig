@@ -197,14 +197,13 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-r") or mem.eql(u8, arg, "--repl")) {
             // TODO: maybe move this out of argument parsing
             // so we don't discard arguments to the right of this?
-            repl.main(allocator, stdout, stdin, stderr, options.no_color) catch |err| {
+            return repl.main(allocator, stdout, stdin, stderr, options.no_color) catch |err| {
                 try stderr.print(
                     "Unhandled runtime error in REPL: {s}\n",
                     .{@errorName(err)},
                 );
                 return 1;
             };
-            return 0;
         } else if (mem.eql(u8, arg, "-d") or mem.eql(u8, arg, "--debug")) {
             options.debug = true;
         } else if (mem.eql(u8, arg, "-n") or mem.eql(u8, arg, "--no-color")) {
