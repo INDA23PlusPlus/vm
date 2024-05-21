@@ -283,11 +283,21 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    var pathbuf: [64]u8 = undefined;
     const vemod_path = b.option(
         []const u8,
         "vemod-path",
         "supply prebuilt `vemod` path for end-to-end testing",
-    ) orelse "vemod";
+    ) orelse blk: {
+        // if no prebuilt binary is provided, build vemod and use that
+        end_to_end.step.dependOn(&install_vemod.step);
+        var pathstream = std.io.fixedBufferStream(&pathbuf);
+        _ = pathstream.write(b.install_prefix) catch unreachable;
+        _ = pathstream.write("/bin/vemod") catch unreachable;
+        std.debug.print("{s}\n", .{pathstream.getWritten()});
+        break :blk pathstream.getWritten();
+    };
+
     const end_to_end_opts = b.addOptions();
     end_to_end_opts.addOption([]const u8, "vemod-path", vemod_path);
     end_to_end.root_module.addOptions("vemod", end_to_end_opts);
