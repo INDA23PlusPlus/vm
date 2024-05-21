@@ -709,12 +709,13 @@ fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !
                     },
                     .imm => {
                         const v = switch (cmp) {
-                            .cmp_lt => a.val.imm < b.val.imm,
-                            .cmp_gt => a.val.imm > b.val.imm,
-                            .cmp_le => a.val.imm <= b.val.imm,
-                            .cmp_ge => a.val.imm >= b.val.imm,
-                            .cmp_eq => a.val.imm == b.val.imm,
-                            .cmp_ne => a.val.imm != b.val.imm,
+                            // Operands have been reordered if this branch is reached, so reverse the comparison
+                            .cmp_lt => b.val.imm < a.val.imm,
+                            .cmp_gt => b.val.imm > a.val.imm,
+                            .cmp_le => b.val.imm <= a.val.imm,
+                            .cmp_ge => b.val.imm >= a.val.imm,
+                            .cmp_eq => b.val.imm == a.val.imm,
+                            .cmp_ne => b.val.imm != a.val.imm,
                             else => unreachable,
                         };
 
