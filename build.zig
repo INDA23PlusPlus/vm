@@ -273,4 +273,26 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "run compiler driver");
     run_step.dependOn(&run_cmd.step);
+
+    //
+    // End-to-end tests
+    //
+    const end_to_end = b.addTest(.{
+        .root_source_file = .{ .path = "src/end-to-end/module.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const vemod_path = b.option(
+        []const u8,
+        "vemod-path",
+        "supply prebuilt `vemod` path for end-to-end testing",
+    ) orelse "vemod";
+    const end_to_end_opts = b.addOptions();
+    end_to_end_opts.addOption([]const u8, "vemod-path", vemod_path);
+    end_to_end.root_module.addOptions("vemod", end_to_end_opts);
+
+    const end_to_end_run = b.addRunArtifact(end_to_end);
+    const end_to_end_step = b.step("end-to-end-test", "Run end-to-end tests");
+    end_to_end_step.dependOn(&end_to_end_run.step);
 }
