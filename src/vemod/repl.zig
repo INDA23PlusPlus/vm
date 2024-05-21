@@ -25,6 +25,7 @@ const VMContext = vm.VMContext;
 const interpreter = vm.interpreter;
 
 const print_rterror = @import("main.zig").print_rterror;
+const isatty = @import("main.zig").isatty;
 
 const ln = @cImport({
     @cInclude("linenoise.h");
@@ -56,7 +57,15 @@ pub fn main(
     no_color: bool,
 ) !void {
     _ = stderr;
-    _ = stdin;
+
+    if (!isatty(stdin.context)) {
+        // read expression from stdin and evaluate once
+        const expr = try stdin.readAllAlloc(allocator, std.math.maxInt(usize));
+        defer allocator.free(expr);
+
+        try eval(expr, allocator, stdout, no_color);
+        return;
+    }
 
     var input_buffer = ArrayList(u8).init(allocator);
     defer input_buffer.deinit();

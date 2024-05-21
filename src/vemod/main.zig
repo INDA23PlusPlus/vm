@@ -38,7 +38,7 @@ const Extension = enum { vmd, mcl, vbf, blue };
 
 const builtin = @import("builtin");
 
-fn isatty(file: std.fs.File) bool {
+pub fn isatty(file: std.fs.File) bool {
     if (builtin.os.tag == .windows) {
         // TODO
         return true;
