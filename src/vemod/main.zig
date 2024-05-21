@@ -40,8 +40,10 @@ const builtin = @import("builtin");
 
 pub fn isatty(file: std.fs.File) bool {
     if (builtin.os.tag == .windows) {
-        // TODO
-        return true;
+        const c = @cImport({
+            @cInclude("io.h");
+        });
+        return c._isatty(file.handle) == 1;
     } else {
         const c = @cImport({
             @cInclude("unistd.h");
