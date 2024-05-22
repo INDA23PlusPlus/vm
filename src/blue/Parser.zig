@@ -457,7 +457,7 @@ fn struct_(p: *Parser) anyerror!usize {
         });
         return error.ParseError;
     };
-    return try p.ast.push(.{ .struct_ = .{ .fields = fields_ } });
+    return try p.ast.push(.{ .struct_ = .{ .leading_brc = left.where, .fields = fields_ } });
 }
 
 fn list(p: *Parser) anyerror!usize {
@@ -478,7 +478,7 @@ fn list(p: *Parser) anyerror!usize {
         });
         return error.ParseError;
     };
-    return try p.ast.push(.{ .list = .{ .items = items_ } });
+    return try p.ast.push(.{ .list = .{ .leading_brk = left.where, .items = items_ } });
 }
 
 fn fields(p: *Parser) anyerror!?usize {

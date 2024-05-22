@@ -227,7 +227,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.genNode(v.lhs);
             // lists need to be duplicated
             switch (v.op.tag) {
-                .@"::", .@"++" => try self.writeInstr(.dup, .none, self.placeholderToken()),
+                .@"::", .@"++" => try self.writeInstr(.dup, .none, v.op.where),
                 else => {},
             }
             try self.genNode(v.rhs);
@@ -252,7 +252,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
         .unop => |v| {
             switch (v.op.tag) {
                 .neg => {
-                    try self.writeInstr(.push, .{ .int = 0 }, self.placeholderToken());
+                    try self.writeInstr(.push, .{ .int = 0 }, v.op.where);
                     try self.genNode(v.opnd);
                     try self.writeInstr(.sub, .none, v.op.where);
                 },
@@ -300,7 +300,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             switch (symbol.kind) {
                 .func => {
                     if (v.args) |args| try self.genNode(args);
-                    try self.writeInstr(.push, .{ .int = @intCast(symbol.nparams) }, self.placeholderToken());
+                    try self.writeInstr(.push, .{ .int = @intCast(symbol.nparams) }, v.name);
                     try self.writeInstr(.call, .{ .function = v.symid }, v.name);
                 },
                 .local => |offset| {
@@ -349,7 +349,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.genNode(v.keep);
         },
         .list => |v| {
-            try self.writeInstr(.list_alloc, .none, self.placeholderToken());
+            try self.writeInstr(.list_alloc, .none, v.leading_brk);
             if (v.items) |items| try self.genNode(items);
         },
         .item => |v| {
@@ -368,7 +368,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
             try self.writeInstr(.list_length, .none, v.where);
         },
         .struct_ => |v| {
-            try self.writeInstr(.struct_alloc, .none, self.placeholderToken());
+            try self.writeInstr(.struct_alloc, .none, v.leading_brc);
             if (v.fields) |fields| try self.genNode(fields);
         },
         .field_decl => |v| {
