@@ -561,7 +561,7 @@ pub fn run(ctxt: *VMContext) !i64 {
     defer ctxt.reset();
     if (ctxt.jit_mode == .full or (ctxt.jit_mode == .auto and ctxt.jit_mask.isSet(ctxt.pc))) jit: {
         if (ctxt.debug_output) {
-            debug_log("trying to JIT whole program\n", .{});
+            debug_log("Trying to compile whole program\n", .{});
         }
         if (ctxt.jit_fn == null) {
             jit_compile_full(ctxt) catch |e| {
@@ -596,7 +596,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         };
     } else {
         if (ctxt.debug_output) {
-            debug_log("not trying to JIT whole program\n", .{});
+            debug_log("Not trying to compile whole program\n", .{});
         }
     }
 
