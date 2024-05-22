@@ -93,6 +93,7 @@ const Options = struct {
     cl_expr: ?[]const u8 = null,
     debug: bool = false,
     no_color: bool = false,
+    repl: bool = false,
 };
 
 fn usage(name: []const u8, writer: anytype) !void {
@@ -195,15 +196,7 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
             options.cl_expr = args.next();
         } else if (mem.eql(u8, arg, "-r") or mem.eql(u8, arg, "--repl")) {
-            // TODO: maybe move this out of argument parsing
-            // so we don't discard arguments to the right of this?
-            return repl.main(allocator, stdout, stdin, stderr, options.no_color) catch |err| {
-                try stderr.print(
-                    "Unhandled runtime error in REPL: {s}\n",
-                    .{@errorName(err)},
-                );
-                return 1;
-            };
+            options.repl = true;
         } else if (mem.eql(u8, arg, "-d") or mem.eql(u8, arg, "--debug")) {
             options.debug = true;
         } else if (mem.eql(u8, arg, "-n") or mem.eql(u8, arg, "--no-color")) {
@@ -215,6 +208,16 @@ pub fn main() !u8 {
         } else {
             options.input_filename = arg;
         }
+    }
+
+    if (options.repl) {
+        return repl.main(allocator, stdout, stdin, stderr, options.no_color, options.debug, options.jit) catch |err| {
+            try stderr.print(
+                "Unhandled runtime error in REPL: {s}\n",
+                .{@errorName(err)},
+            );
+            return 1;
+        };
     }
 
     const source = if (options.cl_expr) |cl_expr| cl_src: {

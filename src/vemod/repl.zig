@@ -55,13 +55,15 @@ pub fn main(
     stdin: anytype,
     stderr: anytype,
     no_color: bool,
+    debug_output: bool,
+    jit_mode: VMContext.JITMode,
 ) !u8 {
     if (!isatty(stdin.context)) {
         // read expression from stdin and evaluate once
         const expr = try stdin.readAllAlloc(allocator, std.math.maxInt(usize));
         defer allocator.free(expr);
 
-        return try eval(expr, allocator, stdout, stderr, no_color);
+        return try eval(expr, allocator, stdout, stderr, no_color, debug_output, jit_mode);
     }
 
     var input_buffer = ArrayList(u8).init(allocator);
@@ -104,7 +106,7 @@ pub fn main(
 
         // evaluate the expression
         // replace stderr with stdout and ignore error codes
-        _ = try eval(input_buffer.items, allocator, stdout, stdout, no_color);
+        _ = try eval(input_buffer.items, allocator, stdout, stdout, no_color, debug_output, jit_mode);
     }
 }
 
@@ -114,6 +116,8 @@ fn eval(
     stdout: anytype,
     stderr: anytype,
     no_color: bool,
+    debug_output: bool,
+    jit_mode: VMContext.JITMode,
 ) !u8 {
     var diagnostics = DiagnosticList.init(allocator, expr);
     diagnostics.no_color = no_color;
@@ -147,10 +151,16 @@ fn eval(
     var program = try assembler.getProgram(allocator, src_opts);
     defer program.deinit();
 
-    var context = try VMContext.init(program, allocator, &stdout, &stderr, false);
+    var context = try VMContext.init(program, allocator, &stdout, &stderr, debug_output);
     defer context.deinit();
+    context.jit_mode = jit_mode;
+    context.diagnostics = &diagnostics;
 
     const ret = interpreter.run(&context) catch |err| {
+        if (diagnostics.hasDiagnosticsMinSeverity(.Hint)) {
+            try diagnostics.printAllDiagnostic(stderr);
+            if (diagnostics.hasDiagnosticsMinSeverity(.Error)) return 1;
+        }
         if (context.rterror) |rterror| {
             try print_rterror(program, rterror, stderr, no_color);
             return 1;
