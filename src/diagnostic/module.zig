@@ -146,7 +146,13 @@ pub const DiagnosticList = struct {
         writer: anytype,
     ) !void {
         if (diagnostic.location) |location| {
-            const ref = try SourceRef.init(self.source, location);
+            const ref = SourceRef.init(self.source, location) catch {
+                try writer.print("{s}: {s}.\n", .{
+                    @tagName(diagnostic.severity),
+                    self.getDescriptionString(diagnostic.description),
+                });
+                return;
+            };
             try writer.print("{s} (line {d}): {s}:\n", .{
                 @tagName(diagnostic.severity),
                 ref.line_num,

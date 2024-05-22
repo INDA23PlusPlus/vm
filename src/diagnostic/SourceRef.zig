@@ -3,6 +3,7 @@
 //! a source file.
 //!
 const Self = @This();
+const std = @import("std");
 
 pub const terminal_colors = struct {
     pub const reset = "\x1b[0m";
@@ -26,8 +27,9 @@ pub fn init(source: []const u8, substr: []const u8) !Self {
     var line_num: usize = 1;
     var location: usize = 0;
     var line_begin: usize = 0;
-    const substr_loc: usize = @intFromPtr(substr.ptr) - @intFromPtr(source.ptr);
-    if (substr_loc < 0 or substr_loc > source.len) return error.OutOfBounds;
+    const substr_loc = std.math.sub(usize, @intFromPtr(substr.ptr), @intFromPtr(source.ptr)) catch return error.SourceRefOutOfBounds;
+
+    if (substr_loc > source.len) return error.SourceRefOutOfBounds;
 
     while (location < substr_loc) {
         if (source[location] == '\n') {
