@@ -36,74 +36,43 @@ inline fn likely(a: bool) bool {
     return !unlikely(!a);
 }
 
+fn makeBinOpError(comptime T: type, op: Opcode, ctxt: *VMContext) RtError {
+    @setCold(true);
+    return .{
+        .pc = ctxt.pc - 1,
+        .err = .{
+            .invalid_binop = .{
+                .lt = Value.TagFromType(T).?,
+                .op = op,
+                .rt = Value.TagFromType(T).?,
+            },
+        },
+    };
+}
+
 inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContext) !Value {
     return switch (op) {
         .add => if (T == Value.GetRepr(.int)) Value.from(a +% b) else Value.from(a + b),
         .sub => if (T == Value.GetRepr(.int)) Value.from(a -% b) else Value.from(a - b),
         .mul => if (T == Value.GetRepr(.int)) Value.from(a *% b) else Value.from(a * b),
         .bit_or => if (T == Value.GetRepr(.int)) Value.from(a | b) else blk: {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{
-                    .invalid_binop = .{
-                        .lt = .float,
-                        .op = op,
-                        .rt = .float,
-                    },
-                },
-            };
+            ctxt.rterror = makeBinOpError(T, op, ctxt);
             break :blk error.RuntimeError;
         },
         .bit_xor => if (T == Value.GetRepr(.int)) Value.from(a ^ b) else blk: {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{
-                    .invalid_binop = .{
-                        .lt = .float,
-                        .op = op,
-                        .rt = .float,
-                    },
-                },
-            };
+            ctxt.rterror = makeBinOpError(T, op, ctxt);
             break :blk error.RuntimeError;
         },
         .bit_and => if (T == Value.GetRepr(.int)) Value.from(a & b) else blk: {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{
-                    .invalid_binop = .{
-                        .lt = .float,
-                        .op = op,
-                        .rt = .float,
-                    },
-                },
-            };
+            ctxt.rterror = makeBinOpError(T, op, ctxt);
             break :blk error.RuntimeError;
         },
         .log_and => if (T == Value.GetRepr(.int)) Value.from(a != 0 and b != 0) else blk: {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{
-                    .invalid_binop = .{
-                        .lt = .float,
-                        .op = op,
-                        .rt = .float,
-                    },
-                },
-            };
+            ctxt.rterror = makeBinOpError(T, op, ctxt);
             break :blk error.RuntimeError;
         },
         .log_or => if (T == Value.GetRepr(.int)) Value.from(a != 0 or b != 0) else blk: {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{
-                    .invalid_binop = .{
-                        .lt = .float,
-                        .op = op,
-                        .rt = .float,
-                    },
-                },
-            };
+            ctxt.rterror = makeBinOpError(T, op, ctxt);
             break :blk error.RuntimeError;
         },
         .div => blk: {

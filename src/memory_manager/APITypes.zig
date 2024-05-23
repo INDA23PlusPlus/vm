@@ -170,6 +170,20 @@ pub const Value = union(Type) {
     list: ListRef,
     object: ObjectRef,
 
+    pub fn TagFromType(comptime T: type) ?Value.Tag {
+        return switch (T) {
+            StringLit => .string_lit,
+            StringRef => .string_ref,
+            ListRef => .list,
+            ObjectRef => .object,
+            else => switch (@typeInfo(T)) {
+                .Bool, .Int, .ComptimeInt => .int,
+                .Float, .ComptimeFloat => .float,
+                else => null,
+            },
+        };
+    }
+
     pub fn GetRepr(comptime E: Value.Tag) type {
         return switch (E) {
             .unit => Unit,
@@ -213,18 +227,13 @@ pub const Value = union(Type) {
     }
 
     pub fn from(x: anytype) Self {
-        switch (@typeInfo(@TypeOf(x))) {
-            .Optional => {
-                if (x == null) {
-                    return from_(void{});
-                } else {
-                    return from_(x.?);
-                }
-            },
-            else => {
-                return from_(x);
-            },
-        }
+        return switch (@typeInfo(@TypeOf(x))) {
+            .Optional => if (x == null)
+                from_(void{})
+            else
+                from_(x.?),
+            else => from_(x),
+        };
     }
 
     /// returns whether the active member of `self` is of type `T`
