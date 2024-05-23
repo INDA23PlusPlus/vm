@@ -1,0 +1,7 @@
+let hailstone n = 
+    if n = 1
+        then print n . -> ""
+    else
+        let n' = if n % 2 = 1 then 3 * n + 1 else n / 2;
+        in println n . -> hailstone n';
+in hailstone 27

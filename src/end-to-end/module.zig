@@ -10,8 +10,17 @@ const ArrayList = std.ArrayList;
 const vemod_path = @import("vemod").@"vemod-path";
 const debug = std.debug;
 
-test "1 + 2" {
-    try case("1 + 2", "3", 0);
+test "simple arithmetic" {
+    try case("1+2", "3", 0);
+    try case("16*0.0625", "1", 0);
+}
+
+test "hailstone" {
+    try case(@embedFile("hailstone.blue"), @embedFile("hailstone_out.txt"), 0);
+}
+
+test "mandelbrot" {
+    try case(@embedFile("mandelbrot.blue"), @embedFile("mandelbrot_out.txt"), 0);
 }
 
 // ...
