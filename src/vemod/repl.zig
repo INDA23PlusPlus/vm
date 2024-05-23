@@ -151,6 +151,9 @@ fn eval(
     var program = try assembler.getProgram(allocator, src_opts);
     defer program.deinit();
 
+    // use copied source for runtime / jit errors
+    diagnostics.source = program.deinit_data.?.source;
+
     var context = try VMContext.init(program, allocator, &stdout, &stderr, debug_output);
     defer context.deinit();
     context.jit_mode = jit_mode;
