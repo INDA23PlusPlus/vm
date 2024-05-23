@@ -152,7 +152,7 @@ fn eval(
     defer program.deinit();
 
     // use copied source for runtime / jit errors
-    diagnostics.source = program.deinit_data.?.source;
+    diagnostics.source = program.deinit_data.?.source.?;
 
     var context = try VMContext.init(program, allocator, &stdout, &stderr, debug_output);
     defer context.deinit();
