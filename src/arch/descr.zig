@@ -61,6 +61,20 @@ pub const text = blk: {
             ,
         },
         .{
+            .inc,
+            \\## Increment
+            \\
+            \\Increment an integer at the top of the stack.
+            \\
+        },
+        .{
+            .dec,
+            \\## Decrement
+            \\
+            \\Decrement an integer at the top of the stack.
+            \\
+        },
+        .{
             .neg,
             \\## Arithmetic Negation
             \\
@@ -221,6 +235,14 @@ pub const text = blk: {
             ,
         },
         .{
+            .pushs,
+            \\## Push string constant
+            \\
+            \\Push the string constant supplied as operand to the stack.
+            \\
+            ,
+        },
+        .{
             .pop,
             \\## Pop
             \\
@@ -357,8 +379,23 @@ pub const text = blk: {
             .list_append,
             \\## Append list element
             \\
-            \\Pops a list reference L and a value V from the stack, an appendsV to the
+            \\Pops a list reference L and a value V from the stack, an appends V to the
             \\end of L.
+            \\
+        },
+        .{
+            .list_pop,
+            \\## Pop last element of list
+            \\
+            \\Pops a list reference L, removes its last element and pushes it to the stack.
+            \\
+        },
+        .{
+            .list_remove,
+            \\## Remove list element
+            \\
+            \\Pops an index I and a list reference L from the stack, and removes the element in L
+            \\with index I.
             \\
         },
         .{

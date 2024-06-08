@@ -29,9 +29,11 @@ Pushes the remainder to the stack on success.
 The division is performed with it's terms in the same order as they are pushed
 to the stack.
 
-## `inc` - NO DESCRIPTION
+## `inc` - Increment
+Increment an integer at the top of the stack.
 
-## `dec` - NO DESCRIPTION
+## `dec` - Decrement
+Decrement an integer at the top of the stack.
 
 ## `log_or` - Logical Disjunction
 Pops the top two elements from the stack.
@@ -100,7 +102,8 @@ Push the integer literal supplied as its operand to the stack.
 ## `pushf` - Push float
 Push the float literal supplied as its operand to the stack.
 
-## `pushs` - NO DESCRIPTION
+## `pushs` - Push string constant
+Push the string constant supplied as operand to the stack.
 
 ## `pop` - Pop
 Pop the top element of the stack and discard it.
@@ -162,12 +165,15 @@ the element at index I in L.
 Pops a list reference from the stack and pushes it's number of elements.
 
 ## `list_append` - Append list element
-Pops a list reference L and a value V from the stack, an appendsV to the
+Pops a list reference L and a value V from the stack, an appends V to the
 end of L.
 
-## `list_pop` - NO DESCRIPTION
+## `list_pop` - Pop last element of list
+Pops a list reference L, removes its last element and pushes it to the stack.
 
-## `list_remove` - NO DESCRIPTION
+## `list_remove` - Remove list element
+Pops an index I and a list reference L from the stack, and removes the element in L
+with index I.
 
 ## `list_concat` - Concatenate lists
 Pops two lists references from the stack and appends the latter one to
