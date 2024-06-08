@@ -72,13 +72,18 @@ pub const std_options = std.Options{
 };
 
 fn getExtension(filename: []const u8, basename: *?[]const u8) ?Extension {
-    // TODO: fix case when filename has no '.'
-    if (filename.len == 0) return null;
-    var iter = mem.tokenizeScalar(u8, filename, '.');
-    var ext: []const u8 = undefined;
-    while (iter.next()) |tok| ext = tok;
-    basename.* = filename[0 .. filename.len - ext.len - 1];
-    return meta.stringToEnum(Extension, ext);
+    var idx: usize = undefined;
+
+    for (0..filename.len - 1) |i| {
+        const j = filename.len - i - 1;
+        if (filename[j] == '.') {
+            idx = j + 1;
+            break;
+        }
+    } else return null;
+
+    basename.* = filename[0 .. idx - 1];
+    return std.meta.stringToEnum(Extension, filename[idx..]);
 }
 
 const Options = struct {
