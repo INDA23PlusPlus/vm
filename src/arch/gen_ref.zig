@@ -80,14 +80,14 @@ fn writeMarkdown(writer: anytype) !void {
     var descr_ptr = @constCast(&descr.text);
     var it = descr_ptr.iterator();
     while (it.next()) |kv| {
-        try writer.print(
-            \\## `{s}`
-            \\
-        , .{@tagName(kv.key)});
-
         // remove title from description
         var tk = std.mem.tokenizeScalar(u8, kv.value.*, '\n');
-        _ = tk.next();
+        const instr_title = tk.next().?["## ".len..];
+        try writer.print(
+            \\## `{s}` - {s}
+            \\
+        , .{ @tagName(kv.key), instr_title });
+
         while (tk.next()) |line| {
             try writer.writeAll(line);
             try writer.writeByte('\n');

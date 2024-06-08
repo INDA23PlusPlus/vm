@@ -6,7 +6,7 @@ const std = @import("std");
 const Opcode = @import("opcode.zig").Opcode;
 
 pub const text = blk: {
-    var arr = std.EnumArray(Opcode, []const u8).initUndefined();
+    var arr = std.EnumArray(Opcode, []const u8).initFill("## NO DESCRIPTION");
     const Entry = struct { Opcode, []const u8 };
     const entries = [_]Entry{
         .{
