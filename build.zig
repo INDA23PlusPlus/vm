@@ -183,6 +183,21 @@ pub fn build(b: *std.Build) void {
     build_vemod.dependOn(&install_vemod.step);
 
     //
+    // Instruction reference
+    //
+    const refgen_exe = b.addExecutable(.{
+        .name = "__vemod_refgen",
+        .root_source_file = .{ .path = "src/arch/gen_ref.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    var run_refgen = b.addRunArtifact(refgen_exe);
+    run_refgen.addArgs(&.{ "-o", "docs/instructions.md" });
+    const refgen = b.step("refgen", "Generate instruction reference");
+    refgen.dependOn(&run_refgen.step);
+
+    //
     // Executable dependencies
     //
     vmdls.root_module.addImport("compiler", compiler_mod);
