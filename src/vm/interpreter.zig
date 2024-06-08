@@ -14,6 +14,29 @@ const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
 const jit_mod = @import("jit");
 const diagnostic = @import("diagnostic");
+const builtin = @import("builtin");
+
+var abort_program: bool = false;
+var linux_interrupt_handler_installed: bool = false;
+
+fn linuxInterruptHandler(sig: c_int) callconv(.C) void {
+    _ = sig;
+    abort_program = true;
+}
+
+fn installLinuxInterruptHandler() usize {
+    const linux = std.os.linux;
+
+    if (linux_interrupt_handler_installed) return 0;
+
+    const sigaction = linux.Sigaction{
+        .handler = .{ .handler = linuxInterruptHandler },
+        .mask = .{0} ** 32,
+        .flags = 0,
+    };
+
+    return linux.sigaction(linux.SIG.INT, &sigaction, null);
+}
 
 fn assert(b: bool) !void {
     if (!b and std.debug.runtime_safety) {
@@ -527,6 +550,11 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
 
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
+    abort_program = false;
+    if (builtin.os.tag == .linux and installLinuxInterruptHandler() != 0) {
+        return error.FailedToInstallSignalHandler;
+    }
+
     defer ctxt.reset();
     if (ctxt.jit_mode == .full or (ctxt.jit_mode == .auto and ctxt.jit_mask.isSet(ctxt.pc))) jit: {
         if (ctxt.debug_output) {
@@ -573,6 +601,10 @@ pub fn run(ctxt: *VMContext) !i64 {
     var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
     defer mem.deinit();
     while (true) {
+        if (abort_program) {
+            return 0;
+        }
+
         if (ctxt.pc >= ctxt.prog.code.len) {
             return error.InvalidProgramCounter;
         }
