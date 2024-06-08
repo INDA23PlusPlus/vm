@@ -533,7 +533,7 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
 
 static const char *blue_keywords[] = { "let", "in", "match", "with", "if", "then", "else", "const", NULL };
 static const char *blue_builtins[] = { "print", "println", "len", NULL };
-static const char *repl_commands[] = { "clear", "exit", NULL };
+static const char *repl_commands[] = { "clear", "exit", "import", NULL };
 
 static const char *esc_red = "\x1b[31m";
 static const char *esc_green = "\x1b[32m";

@@ -8,6 +8,7 @@ const io = std.io;
 const ArrayList = std.ArrayList;
 const ascii = std.ascii;
 const mem = std.mem;
+const fs = std.fs;
 
 const blue = @import("blue");
 const Compilation = blue.Compilation;
@@ -75,7 +76,7 @@ pub fn main(
         var first = true;
 
         while (true) {
-            const prompt = if (first) ">>> " else "    ";
+            const prompt = if (first) ">>> " else "... ";
             first = false;
 
             const cstr = ln.linenoise(prompt);
@@ -98,6 +99,18 @@ pub fn main(
                 continue :repl;
             } else if (mem.eql(u8, maybe_cmd, "exit")) {
                 return 0;
+            } else if (mem.startsWith(u8, maybe_cmd, "import ")) {
+                const filename = mem.trimLeft(u8, maybe_cmd["import".len..], " \n\t");
+                const file = fs.cwd().openFile(filename, .{}) catch |err| {
+                    try stdout.print("error: unable to import file {s}: {s}\n", .{ filename, @errorName(err) });
+                    continue :repl;
+                };
+                defer file.close();
+
+                const content = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+                input_buffer.deinit();
+                input_buffer = ArrayList(u8).fromOwnedSlice(allocator, content);
+                break;
             }
         }
 
