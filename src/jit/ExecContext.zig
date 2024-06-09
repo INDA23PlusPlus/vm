@@ -6,6 +6,7 @@ const Self = @This();
 err: ?anyerror = null,
 unwind_sp: u64 = undefined,
 err_pc: usize = undefined,
+gp: usize = undefined,
 rterror: ?arch.err.RtError = null,
 old_sigfpe_handler: std.os.linux.Sigaction = undefined,
 
@@ -52,6 +53,7 @@ fn unwind() callconv(.Naked) noreturn {
         \\pop %rbp
         \\pop %rcx
         \\lea (%rsp, %rcx, 8), %rsp
+        \\pop %r14
         \\pop %r15
         \\ret
         :

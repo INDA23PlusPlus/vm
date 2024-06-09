@@ -655,7 +655,7 @@ pub fn run(ctxt: *VMContext) !i64 {
         if (ctxt.debug_output) {
             debug_log("Running whole program compiled\n", .{});
         }
-        return ctxt.jit_fn.?.execute() catch |e| {
+        return ctxt.jit_fn.?.execute(ctxt.globals.ptr) catch |e| {
             ctxt.rterror = ctxt.jit_fn.?.rterror;
             return e;
         };
@@ -927,7 +927,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     if (ctxt.debug_output) {
                         debug_log("Running compiled function at {}.\n", .{loc});
                     }
-                    const r = ctxt.jit_fn.?.execute_sub(loc, ctxt.jit_args.items) catch |e| {
+                    const r = ctxt.jit_fn.?.execute_sub(loc, ctxt.globals.ptr, ctxt.jit_args.items) catch |e| {
                         ctxt.rterror = ctxt.jit_fn.?.rterror;
                         return e;
                     };

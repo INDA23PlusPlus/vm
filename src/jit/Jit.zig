@@ -4,6 +4,7 @@ const as_lib = @import("as.zig");
 const ExecContext = @import("ExecContext.zig");
 const Function = @import("Function.zig");
 const Diagnostics = @import("diagnostic").DiagnosticList;
+const APIValue = @import("memory_manager").APITypes.Value;
 
 const Self = @This();
 
@@ -26,6 +27,7 @@ const VmdVal = struct {
         unit,
         sprel: i32,
         bprel: i32,
+        gprel: i32,
         imm: i64,
         asm_reg: as_lib.R64,
         asm_cc: as_lib.CC,
@@ -51,6 +53,7 @@ dbgjit: ?[]const u8,
 errors: enum { abort, ignore },
 prog: *const arch.Program,
 diags: ?*Diagnostics,
+gprel_offset: i32,
 
 // Virtal stack of values not yet committed to the real stack
 vstk: std.ArrayList(VmdVal),
@@ -62,6 +65,8 @@ sp: i32,
 vstk_bp: ?i32,
 
 pub fn init(alloc: std.mem.Allocator) Self {
+    const v = APIValue { .int = 0 };
+
     return .{
         .alloc = alloc,
         .as = as_lib.As.init(alloc),
@@ -74,6 +79,7 @@ pub fn init(alloc: std.mem.Allocator) Self {
         .vstk = std.ArrayList(VmdVal).init(alloc),
         .sp = 0,
         .vstk_bp = 0,
+        .gprel_offset = @intCast(@intFromPtr(&v.int) - @intFromPtr(&v)),
     };
 }
 
@@ -231,6 +237,9 @@ fn vstk_sync(self: *Self, offset: i64) !void {
                 .bprel => |bprel| {
                     try as.push_rm64(.{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                 },
+                .gprel => |gprel| {
+                    try as.push_rm64(.{ .mem = .{ .base = .R14, .disp = gprel * @sizeOf(APIValue) + self.gprel_offset } });
+                },
                 .imm => |imm| {
                     if (imm_size(imm) > 4) {
                         try as.mov_r64_imm64(.RSI, imm);
@@ -316,6 +325,9 @@ fn vstk_pop_asm(self: *Self) !AsmVal {
             },
             .bprel => |bprel| {
                 return .{ .tag = v.tag, .val = .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } } };
+            },
+            .gprel => |gprel| {
+                return .{ .tag = v.tag, .val = .{ .mem = .{ .base = .R14, .disp = gprel * @sizeOf(APIValue) + self.gprel_offset } } };
             },
             .imm => |imm| {
                 return .{ .tag = v.tag, .val = .{ .imm = imm } };
@@ -811,6 +823,9 @@ fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !
                         .bprel => |bprel| {
                             try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .RBP, .disp = -8 * (bprel + 1) } });
                         },
+                        .gprel => |gprel| {
+                            try as.mov_r64_rm64(.RAX, .{ .mem = .{ .base = .R14, .disp = gprel * @sizeOf(APIValue) + self.gprel_offset } });
+                        },
                         .imm => |imm| {
                             try as.mov_r64_imm64(.RAX, imm);
                         },
@@ -860,6 +875,11 @@ fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !
                         },
                         .bprel => |bprel| {
                             try as.mov_r64_rm64(.RCX, .{ .mem = .{ .base = .RBP, .disp = @intCast(-8 * (bprel + 1)) } });
+                            try as.test_rm64_r64(.{ .reg = .RCX }, .RCX);
+                            try self.jcc_loc(.NE, insn.operand.location);
+                        },
+                        .gprel => |gprel| {
+                            try as.mov_r64_rm64(.RCX, .{ .mem = .{ .base = .R14, .disp = gprel * @sizeOf(APIValue) + self.gprel_offset } });
                             try as.test_rm64_r64(.{ .reg = .RCX }, .RCX);
                             try self.jcc_loc(.NE, insn.operand.location);
                         },
@@ -967,6 +987,45 @@ fn compile_slice(self: *Self, code: []const arch.Instruction, start_pc: usize) !
                     }
                 }
             },
+            .glob_load => {
+                const offset = insn.operand.int;
+
+                self.pc_map[pc] = as.offset();
+                try self.dbg_break(@tagName(insn.op));
+
+                try self.vstk_push(.{ .pc = pc, .val = .{ .gprel = @intCast(offset) } });
+            },
+            .glob_store => {
+                const offset = insn.operand.int;
+
+                const rm = as_lib.RM64{ .mem = .{ .base = .R14, .disp = @intCast(offset * @sizeOf(APIValue) + self.gprel_offset) } };
+                const v = try self.vstk_pop_asm();
+
+                self.pc_map[pc] = as.offset();
+                try self.dbg_break(@tagName(insn.op));
+
+                switch (v.val) {
+                    .top => {
+                        try self.pop_r64(.RCX);
+                        try as.mov_rm64_r64(rm, .RCX);
+                    },
+                    .mem => {
+                        try as.mov_r64_rm64(.RCX, .{ .mem = self.asm_val_mem(v) });
+                        try as.mov_rm64_r64(rm, .RCX);
+                    },
+                    .reg => |reg| {
+                        try as.mov_rm64_r64(rm, reg);
+                    },
+                    .imm => |imm| {
+                        if (imm_size(imm) > 4) {
+                            try as.mov_r64_imm64(.RCX, imm);
+                            try as.mov_rm64_r64(rm, .RCX);
+                        } else {
+                            try as.mov_rm64_imm32(rm, @intCast(imm));
+                        }
+                    },
+                }
+            },
             else => {
                 try self.add_diag(pc, "operation not compilable: {s}", .{@tagName(insn.op)});
             },
@@ -987,8 +1046,11 @@ pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !F
     try self.dbg_break("program");
     // Save caller registers
     try as.push_r64(.R15);
+    try as.push_r64(.R14);
     // Save ExecutionContext pointer
     try as.mov_r64_rm64(.R15, .{ .reg = .RDI });
+    // Save global pointer
+    try as.mov_r64_rm64(.R14, .{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "gp") } });
     // Set arguments
     try as.push_imm8(0);
     try as.push_r64(.RBP);
@@ -1003,6 +1065,7 @@ pub fn compile_program(self: *Self, prog: arch.Program, diags: ?*Diagnostics) !F
     try as.pop_r64(.RCX);
     try as.lea_r64(.RSP, .{ .base = .RSP, .index = .{ .reg = .RCX, .scale = 8 } });
     // Restore caller registers
+    try as.pop_r64(.R14);
     try as.pop_r64(.R15);
     try as.ret_near();
 
@@ -1030,8 +1093,11 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
     try self.dbg_break("partial");
     // Save caller registers
     try as.push_r64(.R15);
+    try as.push_r64(.R14);
     // Save ExecutionContext pointer
     try as.mov_r64_rm64(.R15, .{ .reg = .RDI });
+    // Save global pointer
+    try as.mov_r64_rm64(.R14, .{ .mem = .{ .base = .R15, .disp = @offsetOf(ExecContext, "gp") } });
     // Save function pointer argument
     try as.mov_r64_rm64(.RAX, .{ .reg = .RCX });
     // Copy function arguments to stack
@@ -1055,6 +1121,7 @@ pub fn compile_partial(self: *Self, prog: arch.Program, slices: []const []const 
     try as.pop_r64(.RCX);
     try as.lea_r64(.RSP, .{ .base = .RSP, .index = .{ .reg = .RCX, .scale = 8 } });
     // Restore caller registers
+    try as.pop_r64(.R14);
     try as.pop_r64(.R15);
     try as.ret_near();
 
