@@ -1264,7 +1264,8 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try push(ctxt, v);
             },
             .deep_copy => {
-                const v = try get(ctxt, false, -1);
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
                 try push(ctxt, try deep_copy(v, ctxt, &mem));
             },
             .glob_load => {

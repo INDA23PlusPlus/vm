@@ -425,8 +425,8 @@ pub const text = blk: {
             .deep_copy,
             \\## Deeply copy lists and objects
             \\
-            \\Copies the top element of the stack, creating a new list/object. Also recursively recreates any contained lists/objects.
-            \\For shallow copying use `dup`
+            \\Pops the top element of the stack, and creates a new identical list/object. Also recursively recreates any contained lists/objects.
+            \\For shallow copying use `dup`.
             \\
         }
     };
