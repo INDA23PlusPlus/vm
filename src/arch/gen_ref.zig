@@ -84,9 +84,9 @@ fn writeMarkdown(writer: anytype) !void {
         var tk = std.mem.tokenizeScalar(u8, kv.value.*, '\n');
         const instr_title = tk.next().?["## ".len..];
         try writer.print(
-            \\## `{s}` - {s}
+            \\## 0x{X:0>2}: `{s}` - {s}
             \\
-        , .{ @tagName(kv.key), instr_title });
+        , .{ @intFromEnum(kv.key), @tagName(kv.key), instr_title });
 
         while (tk.next()) |line| {
             try writer.writeAll(line);
