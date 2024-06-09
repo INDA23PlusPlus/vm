@@ -60,6 +60,9 @@ pub const Opcode = enum(u8) {
     list_remove,
     list_concat,
 
+    glob_store,
+    glob_load,
+
     pub fn arity(self: Opcode) ?usize {
         if (self.isNullary()) return 0;
         if (self.isUnary()) return 1;
@@ -77,6 +80,7 @@ pub const Opcode = enum(u8) {
             .list_alloc,
             .jmp,
             .load,
+            .glob_load,
             .pop,
             => true,
             else => false,
@@ -94,6 +98,7 @@ pub const Opcode = enum(u8) {
             .list_pop,
             .ret,
             .jmpnz,
+            .glob_store,
             => true,
             else => false,
         };
@@ -192,6 +197,8 @@ pub const Opcode = enum(u8) {
             .struct_store,
             .stack_alloc,
             .syscall,
+            .glob_load,
+            .glob_store,
             => true,
             else => false,
         };

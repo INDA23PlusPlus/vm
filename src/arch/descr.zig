@@ -406,6 +406,20 @@ pub const text = blk: {
             \\the former.
             \\
         },
+        .{
+            .glob_load,
+            \\## Load global variable
+            \\
+            \\Push the global variable with identifier supplied as operand to the stack.
+            \\
+        },
+        .{
+            .glob_store,
+            \\## Store global variable
+            \\
+            \\Pop a value from the stack and store it in the global variable with identifier supplied as operand.
+            \\
+        },
     };
 
     for (entries) |entry| arr.set(entry.@"0", entry.@"1");

@@ -18,6 +18,7 @@ code: []const Instruction,
 entry: usize,
 strings: []const []const u8,
 field_names: []const []const u8,
+num_globs: usize,
 fn_tbl: ?std.ArrayList(Symbol) = null,
 tokens: ?[]const []const u8 = null,
 // This field is used if a program is constructed from
@@ -30,8 +31,20 @@ deinit_data: ?struct {
     source: ?[]const u8,
 } = null,
 
-pub fn init(code: []const Instruction, entry: usize, strings: []const []const u8, field_names: []const []const u8) Self {
-    return .{ .code = code, .entry = entry, .strings = strings, .field_names = field_names };
+pub fn init(
+    code: []const Instruction,
+    entry: usize,
+    strings: []const []const u8,
+    field_names: []const []const u8,
+    num_globs: usize,
+) Self {
+    return .{
+        .code = code,
+        .entry = entry,
+        .strings = strings,
+        .field_names = field_names,
+        .num_globs = num_globs,
+    };
 }
 
 pub fn deinit(self: *Self) void {

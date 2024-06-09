@@ -1190,6 +1190,19 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
+            .glob_load => {
+                const id = insn.operand.field_id;
+                const v = ctxt.globals[id];
+                try push(ctxt, v);
+            },
+            .glob_store => {
+                const id = insn.operand.field_id;
+
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
+
+                ctxt.globals[id] = v;
+            },
         }
     }
 
@@ -1266,7 +1279,7 @@ test "structs" {
         Instruction.structStore(0),
         Instruction.structLoad(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 42);
+    }, 0, &.{}, &.{}, 0), "", 42);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1276,7 +1289,7 @@ test "structs" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "{a: 42}", 0);
+    }, 0, &.{}, &.{"a"}, 0), "{a: 42}", 0);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1289,7 +1302,7 @@ test "structs" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
+    }, 0, &.{}, &.{ "a", "b" }, 0), "{a: 42, b: 43}", 0);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1299,7 +1312,7 @@ test "structs" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
+    }, 0, &.{}, &.{"a"}, 0), "{a: {}}", 0);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1316,7 +1329,7 @@ test "structs" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "", 1);
+    }, 0, &.{}, &.{"a"}, 0), "", 1);
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
         Instruction.load(0),
@@ -1326,7 +1339,7 @@ test "structs" {
         Instruction.load(0),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "", 1);
+    }, 0, &.{}, &.{"a"}, 0), "", 1);
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
         Instruction.structAlloc(),
@@ -1342,7 +1355,7 @@ test "structs" {
         Instruction.dup(),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a", "b" }), "", 1);
+    }, 0, &.{}, &.{ "a", "b" }, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1359,7 +1372,7 @@ test "structs" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a", "b" }), "", 0);
+    }, 0, &.{}, &.{ "a", "b" }, 0), "", 0);
 }
 
 test "lists" {
@@ -1373,7 +1386,7 @@ test "lists" {
         Instruction.push(0),
         Instruction.listLoad(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 42);
+    }, 0, &.{}, &.{}, 0), "", 42);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1384,7 +1397,7 @@ test "lists" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "[42]", 0);
+    }, 0, &.{}, &.{}, 0), "[42]", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1402,7 +1415,7 @@ test "lists" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "[42, 43]", 0);
+    }, 0, &.{}, &.{}, 0), "[42, 43]", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1413,7 +1426,7 @@ test "lists" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "[[]]", 0);
+    }, 0, &.{}, &.{}, 0), "[[]]", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1433,7 +1446,7 @@ test "lists" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1445,7 +1458,7 @@ test "lists" {
         Instruction.load(0),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1464,7 +1477,7 @@ test "lists" {
         Instruction.dup(),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1482,7 +1495,7 @@ test "lists" {
 
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 0);
+    }, 0, &.{}, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1499,7 +1512,7 @@ test "lists" {
 
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1515,7 +1528,7 @@ test "lists" {
 
         Instruction.listLength(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 3);
+    }, 0, &.{}, &.{}, 0), "", 3);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1530,7 +1543,7 @@ test "lists" {
         Instruction.push(42),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1561,7 +1574,7 @@ test "lists" {
         Instruction.equal(),
 
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(
         Program.init(&.{
@@ -1571,7 +1584,7 @@ test "lists" {
             Instruction.dup(),
             Instruction.jmpnz(1),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         0,
     );
@@ -1609,7 +1622,7 @@ test "lists" {
             Instruction.load(1),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1651,7 +1664,7 @@ test "binary arithmetic operations" {
                             Instruction.push(rhs),
                             Instruction{ .op = op },
                             Instruction.ret(),
-                        }, 0, &.{}, &.{}),
+                        }, 0, &.{}, &.{}, 0),
                         "",
                         res,
                     );
@@ -1675,7 +1688,7 @@ test "binary arithmetic operations" {
                             Instruction.pushf(resf),
                             Instruction.equal(),
                             Instruction.ret(),
-                        }, 0, &.{}, &.{}),
+                        }, 0, &.{}, &.{}, 0),
                         "",
                         1,
                     );
@@ -1733,7 +1746,7 @@ test "binary arithmetic operations" {
                 Instruction.equal(),
                 Instruction.ret(),
                 // ensure stack is actually just a
-            }, 0, &.{}, &.{}), "", 1);
+            }, 0, &.{}, &.{}, 0), "", 1);
         }
     }
 }
@@ -1745,7 +1758,7 @@ test "unary arithmetic operations" {
             Instruction.dup(),
             Instruction.pop(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         0,
     );
@@ -1757,7 +1770,7 @@ test "unary arithmetic operations" {
             Instruction.dup(),
             Instruction.jmpnz(1),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         0,
     );
@@ -1767,7 +1780,7 @@ test "unary arithmetic operations" {
             Instruction.push(0),
             Instruction.increment(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1777,7 +1790,7 @@ test "unary arithmetic operations" {
             Instruction.push(0),
             Instruction.decrement(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         -1,
     );
@@ -1789,7 +1802,7 @@ test "unary arithmetic operations" {
             Instruction.push(-1),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1801,7 +1814,7 @@ test "unary arithmetic operations" {
             Instruction.pushf(-1.0),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1813,7 +1826,7 @@ test "unary arithmetic operations" {
             Instruction.push(-2),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1843,7 +1856,7 @@ test "fibonacci" {
         Instruction.pop(),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{});
+    }, 0, &.{}, &.{}, 0);
     try testRunWithJit(prog,
         \\0
         \\1
@@ -1996,7 +2009,7 @@ test "hello world" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{"Hello World!"}, &.{}), "Hello World!", 0);
+    }, 0, &.{"Hello World!"}, &.{}, 0), "Hello World!", 0);
 }
 
 test "string compare" {
@@ -2005,54 +2018,54 @@ test "string compare" {
         Instruction.pushs(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{ "bar", "baz" }, &.{}), "", 0);
+    }, 0, &.{ "bar", "baz" }, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.lessEqual(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.greaterEqual(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.less(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 0);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.greater(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 0);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.less(),
         Instruction.ret(),
-    }, 0, &.{ "a", "b" }, &.{}), "", 1);
+    }, 0, &.{ "a", "b" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.greater(),
         Instruction.ret(),
-    }, 0, &.{ "a", "ab" }, &.{}), "", 0);
+    }, 0, &.{ "a", "ab" }, &.{}, 0), "", 0);
 }

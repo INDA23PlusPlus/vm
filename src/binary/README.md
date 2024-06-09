@@ -20,6 +20,7 @@
 | Source table size | u64 | The size of the source table in number of entries |
 | Source data size | u64 | The size of the source data section in bytes |
 | Code size | u64 | The size of the code section in number of instructions |
+| Global count | u64 | Number of global variables |
 | Entry point | u64 | The address of the first instruction of the main function |
 | String data | []u8 ||
 | String table | See [Table format](#Table-format) ||

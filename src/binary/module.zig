@@ -25,6 +25,7 @@ const Header = struct {
     source_table_size: u64,
     source_data_size: u64,
     code_size: u64,
+    num_globs: u64,
     entry_point: u64,
 };
 
@@ -67,6 +68,7 @@ pub fn load(reader: anytype, allocator: Allocator) !Program {
         .entry = header.entry_point,
         .strings = string_table.entries,
         .field_names = field_table.entries,
+        .num_globs = header.num_globs,
         .tokens = if (source_table) |tbl| tbl.entries else null,
         .deinit_data = .{
             .allocator = allocator,
@@ -88,6 +90,7 @@ pub fn emit(writer: anytype, program: Program) !void {
         .source_table_size = if (program.tokens) |toks| toks.len else 0,
         .source_data_size = if (deinit_data.source) |src| src.len else 0,
         .code_size = program.code.len,
+        .num_globs = program.num_globs,
         .entry_point = program.entry,
     };
 
@@ -129,6 +132,7 @@ fn loadHeader(reader: anytype) !Header {
         .source_table_size = try reader.readInt(u64, .little),
         .source_data_size = try reader.readInt(u64, .little),
         .code_size = try reader.readInt(u64, .little),
+        .num_globs = try reader.readInt(u64, .little),
         .entry_point = try reader.readInt(u64, .little),
     };
 }
@@ -142,6 +146,7 @@ fn emitHeader(writer: anytype, header: Header) !void {
     try writer.writeInt(u64, header.source_table_size, .little);
     try writer.writeInt(u64, header.source_data_size, .little);
     try writer.writeInt(u64, header.code_size, .little);
+    try writer.writeInt(u64, header.num_globs, .little);
     try writer.writeInt(u64, header.entry_point, .little);
 }
 
@@ -199,6 +204,8 @@ fn loadInstruction(reader: anytype) !Instruction {
 
         .struct_load,
         .struct_store,
+        .glob_load,
+        .glob_store,
         => .{ .field_id = try leb.readULEB128(u64, reader) },
 
         .push,
@@ -234,6 +241,8 @@ fn emitInstruction(writer: anytype, instruction: Instruction) !void {
 
         .struct_load,
         .struct_store,
+        .glob_load,
+        .glob_store,
         => try leb.writeULEB128(writer, operand.field_id),
 
         .push,

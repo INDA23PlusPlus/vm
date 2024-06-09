@@ -25,6 +25,7 @@ lbl_patcher: Patcher,
 str_patcher: Patcher,
 string_pool: StringPool,
 field_name_pool: StringPool,
+glob_name_pool: StringPool,
 diagnostics: *DiagnosticList,
 str_build: std.ArrayList(u8),
 str_parser: StringParser,
@@ -45,6 +46,7 @@ pub fn init(
         .str_patcher = Patcher.init(allocator, diagnostics),
         .string_pool = StringPool.init(allocator),
         .field_name_pool = StringPool.init(allocator),
+        .glob_name_pool = StringPool.init(allocator),
         .diagnostics = diagnostics,
         .entry = null,
         .str_build = std.ArrayList(u8).init(allocator),
@@ -62,6 +64,7 @@ pub fn deinit(self: *Asm) void {
     self.str_patcher.deinit();
     self.string_pool.deinit();
     self.field_name_pool.deinit();
+    self.glob_name_pool.deinit();
     self.str_build.deinit();
     self.str_parser.deinit();
     self.instr_toks.deinit();
@@ -181,6 +184,8 @@ pub fn getProgram(
         field_names[i] = field_name_buffer[e.begin..e.end];
     }
 
+    const num_globs = self.glob_name_pool.entries.items.len;
+
     var tokens: ?[]const []const u8 = null;
     var source: ?[]const u8 = null;
 
@@ -206,6 +211,7 @@ pub fn getProgram(
         .entry = entry,
         .strings = strings,
         .field_names = field_names,
+        .num_globs = num_globs,
         .tokens = tokens,
         // TODO: make this optional
         .fn_tbl = try self.fn_tbl.clone(),
@@ -333,6 +339,11 @@ fn asmInstr(self: *Asm) !void {
             .struct_load, .struct_store => {
                 const name = try self.expect(.identifier, "expected field identifier");
                 const id = try self.field_name_pool.getOrIntern(name.where);
+                self.code.items[offset].operand = .{ .field_id = id };
+            },
+            .glob_load, .glob_store => {
+                const name = try self.expect(.identifier, "expected global identifier");
+                const id = try self.glob_name_pool.getOrIntern(name.where);
                 self.code.items[offset].operand = .{ .field_id = id };
             },
             else => {

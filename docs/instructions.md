@@ -179,3 +179,9 @@ with index I.
 Pops two lists references from the stack and appends the latter one to
 the former.
 
+## `glob_store` - Store global variable
+Pop a value from the stack and store it in the global variable with identifier supplied as operand.
+
+## `glob_load` - Load global variable
+Push the global variable with identifier supplied as operand to the stack.
+
