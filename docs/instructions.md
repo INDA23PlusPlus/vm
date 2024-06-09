@@ -23,22 +23,22 @@
 |12|`cmp_ge`|Greater than or equal|Pops the top two elements from the stack and compares them. Pushes 1 if the second element to be popped is greater than or equal to the first, pushes 0 otherwise. |
 |13|`cmp_eq`|Equal|Pops the top two elements from the stack and compares them for equality. Pushes 1 if they are equal, 0 otherwise. |
 |14|`cmp_ne`|Equal|Pops the top two elements from the stack and compares them for equality. Pushes 1 if they are not equal, 0 otherwise. |
-|15|`jmp`|Unconditional jump|Jumps unconditionally to the label supplied as its operand. |
-|16|`jmpnz`|Conditional jump|Pops the top element the stack, jumps to the label supplied as operand if and only if the popped element is non-zero. |
-|17|`push`|Push integer|Push the integer literal supplied as its operand to the stack. |
-|18|`pushf`|Push float|Push the float literal supplied as its operand to the stack. |
-|19|`pushs`|Push string constant|Push the string constant supplied as operand to the stack. |
+|15|`jmp _OP_`|Unconditional jump|Jumps unconditionally to the label supplied as its operand. |
+|16|`jmpnz _OP_`|Conditional jump|Pops the top element the stack, jumps to the label supplied as operand if and only if the popped element is non-zero. |
+|17|`push _OP_`|Push integer|Push the integer literal supplied as its operand to the stack. |
+|18|`pushf _OP_`|Push float|Push the float literal supplied as its operand to the stack. |
+|19|`pushs _OP_`|Push string constant|Push the string constant supplied as operand to the stack. |
 |1A|`pop`|Pop|Pop the top element of the stack and discard it. |
 |1B|`dup`|Duplicate|Duplicates the top element of the stack. Does not copy reference types. |
-|1C|`load`|Load local variable/parameter|Loads the local variable/parameter at the offset supplied as its operand, and pushes it to the stack. The offset is relative to the base pointer. |
-|1D|`store`|Store local variable/parameter|Stores a value to the local variable/parameter at the offset supplied as its operand. The offset is relative to the base pointer. The value is popped from the stack before storing. |
-|1E|`syscall`|Perform syscall|Performs a syscall with number supplied as its operand. Currently supported syscalls are: * %0: pop and print |
-|1F|`call`|Call function|Calls the function with identifier supplied as its operand. |
+|1C|`load _OP_`|Load local variable/parameter|Loads the local variable/parameter at the offset supplied as its operand, and pushes it to the stack. The offset is relative to the base pointer. |
+|1D|`store _OP_`|Store local variable/parameter|Stores a value to the local variable/parameter at the offset supplied as its operand. The offset is relative to the base pointer. The value is popped from the stack before storing. |
+|1E|`syscall _OP_`|Perform syscall|Performs a syscall with number supplied as its operand. Currently supported syscalls are: * %0: pop and print |
+|1F|`call _OP_`|Call function|Calls the function with identifier supplied as its operand. |
 |20|`ret`|Return from function|Pops the return value from stack and returns from the current function. Any passed arguments are popped from the stack and the return value is pushed. |
-|21|`stack_alloc`|Stack allocation|Allocates N slots on the stack, where N is the integer literal supplied as operand, and initializes them all as Unit. |
+|21|`stack_alloc _OP_`|Stack allocation|Allocates N slots on the stack, where N is the integer literal supplied as operand, and initializes them all as Unit. |
 |22|`struct_alloc`|Struct creation|Creates an empty struct and pushes a reference to it to the stack. |
-|23|`struct_load`|Load struct field|Pops a struct reference from the stack. Tries to access the field with identifier supplied as operand and push it to the stack. If the field has not yet been initialized, pushes a Unit object. |
-|24|`struct_store`|Store struct field|Pops a struct reference and a value from the stack. Stores the value at field with identifier supplied as operand in popped struct. |
+|23|`struct_load _OP_`|Load struct field|Pops a struct reference from the stack. Tries to access the field with identifier supplied as operand and push it to the stack. If the field has not yet been initialized, pushes a Unit object. |
+|24|`struct_store _OP_`|Store struct field|Pops a struct reference and a value from the stack. Stores the value at field with identifier supplied as operand in popped struct. |
 |25|`list_alloc`|List creation|Creates an empty list and pushes a reference to it to the stack. |
 |26|`list_load`|Load list element|Pops a list reference L and an index I from the stack, and pushes the element at index I in L. |
 |27|`list_store`|Store list element|Pops a list reference L, an index I and a value V, and assigns V to the element at index I in L. |
@@ -47,5 +47,5 @@
 |2A|`list_pop`|Pop last element of list|Pops a list reference L, removes its last element and pushes it to the stack. |
 |2B|`list_remove`|Remove list element|Pops an index I and a list reference L from the stack, and removes the element in L with index I. |
 |2C|`list_concat`|Concatenate lists|Pops two lists references from the stack and appends the latter one to the former. |
-|2D|`glob_store`|Store global variable|Pop a value from the stack and store it in the global variable with identifier supplied as operand. |
-|2E|`glob_load`|Load global variable|Push the global variable with identifier supplied as operand to the stack. |
+|2D|`glob_store _OP_`|Store global variable|Pop a value from the stack and store it in the global variable with identifier supplied as operand. |
+|2E|`glob_load _OP_`|Load global variable|Push the global variable with identifier supplied as operand to the stack. |

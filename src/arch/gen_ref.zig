@@ -85,9 +85,10 @@ fn writeMarkdown(writer: anytype) !void {
         // remove title from description
         var tk = std.mem.tokenizeScalar(u8, kv.value.*, '\n');
         const instr_title = tk.next().?["## ".len..];
+        const op = if (kv.key.hasOperand()) " _OP_" else "";
         try writer.print(
-            \\|{X:0>2}|`{s}`|{s}|
-        , .{ @intFromEnum(kv.key), @tagName(kv.key), instr_title });
+            \\|{X:0>2}|`{s}{s}`|{s}|
+        , .{ @intFromEnum(kv.key), @tagName(kv.key), op, instr_title });
 
         while (tk.next()) |line| {
             try writer.writeAll(line);
