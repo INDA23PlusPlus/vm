@@ -227,9 +227,12 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
     switch (node.*) {
         .binop => |v| {
             try self.genNode(v.lhs);
-            // lists need to be duplicated
+            // lists need to be deep copied and duplicated if they are mutated
             switch (v.op.tag) {
-                .@"::", .@"++" => try self.writeInstr(.dup, .none, v.op.where),
+                .@"::", .@"++" => {
+                    try self.writeInstr(.deep_copy, .none, v.op.where);
+                    try self.writeInstr(.dup, .none, v.op.where);
+                },
                 else => {},
             }
             try self.genNode(v.rhs);
