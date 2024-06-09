@@ -17,6 +17,7 @@ const Operand = union(enum) {
     float_str: []const u8,
     int_str: []const u8,
     label: usize,
+    global: usize,
     function: usize,
     string: usize,
     field_name: []const u8,
@@ -167,6 +168,7 @@ fn writeInstr(
         .int_str => |v| try writer.print("%{s}", .{v}),
         .int => |v| try writer.print("%{d}", .{v}),
         .label => |v| try writer.print(".L{d}", .{v}),
+        .global => |v| try writer.print("$~glob{d}", .{v}),
         .function => |v| try self.writeFuncName(v, writer),
         .string => |v| try writer.print("$~str{d}", .{v}),
         .field_name => |v| try writer.print("${s}", .{v}),
@@ -283,7 +285,10 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                     try self.endFunction();
                 },
                 .local => |w| {
-                    if (!symbol.is_const) {
+                    if (symbol.is_const) {
+                        try self.genNode(v.expr);
+                        try self.writeInstr(.glob_store, .{ .global = v.symid }, v.name);
+                    } else {
                         try self.genNode(v.expr);
                         try self.writeInstr(.store, .{ .int = @intCast(w) }, v.assign_where);
                     }
@@ -305,8 +310,7 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                 },
                 .local => |offset| {
                     if (symbol.is_const) {
-                        const decl_node = self.ast.getNode(symbol.decl_node_id);
-                        try self.genNode(decl_node.let_entry.expr);
+                        try self.writeInstr(.glob_load, .{ .global = v.symid }, v.name);
                     } else {
                         try self.writeInstr(.load, .{ .int = @intCast(offset) }, v.name);
                     }
