@@ -597,8 +597,13 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
     }
 
+    // initialize globals to unit
+    for (ctxt.globals) |*item| {
+        item.* = Value.from(void{});
+    }
+
     try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
-    var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
+    var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack, ctxt.globals);
     defer mem.deinit();
     while (true) {
         if (abort_program) {
