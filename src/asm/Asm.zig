@@ -296,8 +296,7 @@ fn asmFunc(self: *Asm) !void {
         try self.code.append(value);
         try self.code.append(implicit_return);
         // we need to add dummy tokens to align code with token list
-        // they will never fail (?) so they can be undefined.
-        _ = try self.instr_toks.addManyAsSlice(2);
+        try self.instr_toks.appendNTimes(self.scan.source[0..0], 2);
     }
 
     try self.fn_tbl.append(.{ .name = null, .addr = self.curr_fn_addr, .size = self.code.items.len - self.curr_fn_addr });
