@@ -74,6 +74,8 @@ fn writeMarkdown(writer: anytype) !void {
     try writer.print(
         \\# {s}
         \\
+        \\|Opcode|Mnemonic|Description|Long description|
+        \\|------|--------|-----------|----------------|
         \\
     , .{title});
 
@@ -84,14 +86,13 @@ fn writeMarkdown(writer: anytype) !void {
         var tk = std.mem.tokenizeScalar(u8, kv.value.*, '\n');
         const instr_title = tk.next().?["## ".len..];
         try writer.print(
-            \\## 0x{X:0>2}: `{s}` - {s}
-            \\
+            \\|{X:0>2}|`{s}`|{s}|
         , .{ @intFromEnum(kv.key), @tagName(kv.key), instr_title });
 
         while (tk.next()) |line| {
             try writer.writeAll(line);
-            try writer.writeByte('\n');
+            try writer.writeByte(' ');
         }
-        try writer.writeByte('\n');
+        try writer.writeAll("|\n");
     }
 }
