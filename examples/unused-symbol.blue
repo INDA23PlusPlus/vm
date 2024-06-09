@@ -1,0 +1,7 @@
+#!/usr/bin/env vemod
+
+let
+	u = 10;
+	v = 11;
+	w x = 12;
+in v + w 10

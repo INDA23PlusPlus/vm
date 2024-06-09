@@ -22,6 +22,7 @@ pub const Symbol = struct {
     kind: SymbolKind,
     is_const: bool,
     decl_node_id: usize,
+    is_referenced: bool = false,
 };
 
 const ScopeIterator = struct {
@@ -160,6 +161,7 @@ fn reference(self: *SymbolTable, name: []const u8, nparams: usize) !usize {
     while (scope_iter.next()) |scope| {
         if (scope.get(name)) |symid| {
             const symbol = &self.symbols.items[symid];
+            symbol.is_referenced = true;
             if (!symbol.is_const and scope_iter.only_consts) {
                 try self.diagnostics.addDiagnostic(.{
                     .description = .{
@@ -395,5 +397,19 @@ pub fn dump(self: *SymbolTable, writer: anytype) !void {
             symbol.nparams,
             @tagName(symbol.kind),
         });
+    }
+}
+
+pub fn checkUnused(self: *SymbolTable) !void {
+    for (self.symbols.items) |symbol| {
+        if (!symbol.is_referenced) {
+            try self.diagnostics.addDiagnostic(.{
+                .description = .{
+                    .dynamic = try self.diagnostics.newDynamicDescription("unused symbol '{s}'", .{symbol.decl_loc}),
+                },
+                .location = symbol.decl_loc,
+                .severity = .Warning,
+            });
+        }
     }
 }

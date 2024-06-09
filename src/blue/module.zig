@@ -56,6 +56,7 @@ pub fn compile(
     comp._symtab = try SymbolTable.init(allocator, &comp._ast, diagnostics);
     errdefer comp._symtab.deinit();
     try comp._symtab.resolve();
+    try comp._symtab.checkUnused();
     if (diagnostics.hasDiagnosticsMinSeverity(.Error)) return error.CompilationError;
     if (only_check) {
         comp._codegen = null;
