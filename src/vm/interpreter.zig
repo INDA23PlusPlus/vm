@@ -548,6 +548,74 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
     std.debug.print(fmt, args);
 }
 
+fn deep_copy_slow(x: Value, ctxt: *VMContext, mem: *Mem.MemoryManager, cache: *std.AutoHashMap(usize, Value)) !Value {
+    return switch (x) {
+        .list => |l| blk: {
+            const slot = try cache.getOrPut(@intFromPtr(l.ref));
+            if (slot.found_existing) {
+                return slot.value_ptr.*;
+            }
+            var copy = mem.alloc_list();
+            for (0..l.length()) |i| {
+                try copy.push(try deep_copy_slow(l.get(i), ctxt, mem, cache));
+            }
+            const res = Value.from(copy);
+            slot.value_ptr.* = res;
+            break :blk res;
+        },
+        .object => |o| blk: {
+            const slot = try cache.getOrPut(@intFromPtr(o.ref));
+            if (slot.found_existing) {
+                return slot.value_ptr.*;
+            }
+            var copy = mem.alloc_struct();
+            var iter = o.entries();
+            while (iter.next()) |e| {
+                try copy.set(e.key_ptr.*, try deep_copy_slow(e.value_ptr.*, ctxt, mem, cache));
+            }
+            const res = Value.from(copy);
+            slot.value_ptr.* = res;
+            break :blk res;
+        },
+        .string_ref => @panic("TODO"),
+        else => x,
+    };
+}
+
+fn deep_copy_fast(x: Value, mem: *Mem.MemoryManager, depth: usize) !Value {
+    if (depth == 128) return error.MaxDepth;
+    return switch (x) {
+        .list => |l| blk: {
+            var res = mem.alloc_list();
+            for (0..l.length()) |i| {
+                try res.push(try deep_copy_fast(l.get(i), mem, depth + 1));
+            }
+            break :blk Value.from(res);
+        },
+        .object => |o| blk: {
+            var res = mem.alloc_struct();
+            var iter = o.entries();
+            while (iter.next()) |e| {
+                try res.set(e.key_ptr.*, try deep_copy_fast(e.value_ptr.*, mem, depth + 1));
+            }
+            break :blk Value.from(res);
+        },
+        .string_ref => @panic("TODO"),
+        else => x,
+    };
+}
+
+fn deep_copy(x: Value, ctxt: *VMContext, mem: *Mem.MemoryManager) !Value {
+    return deep_copy_fast(x, mem, 0) catch |e| {
+        if (e == error.MaxDepth) {
+            var cache = std.AutoHashMap(usize, Value).init(ctxt.alloc);
+            defer cache.deinit();
+            return try deep_copy_slow(x, ctxt, mem, &cache);
+        }
+        return e;
+    };
+}
+
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
     abort_program = false;
@@ -1195,6 +1263,10 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
+            .deep_copy => {
+                const v = try get(ctxt, false, -1);
+                try push(ctxt, try deep_copy(v, ctxt, &mem));
+            },
             .glob_load => {
                 const id = insn.operand.field_id;
                 const v = ctxt.globals[id];
@@ -1630,6 +1702,71 @@ test "lists" {
         }, 0, &.{}, &.{}, 0),
         "",
         1,
+    );
+}
+
+test "deep copy" {
+    try testRun(
+        Program.init(&.{
+            Instruction.listAlloc(),
+            Instruction.listAlloc(),
+
+            Instruction.load(0),
+            Instruction.push(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(1),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(2),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.deepCopy(),
+            Instruction.store(1),
+
+            Instruction.load(1),
+            Instruction.push(0),
+            Instruction.listRemove(),
+
+            Instruction.load(0),
+            Instruction.load(1),
+
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}, 0),
+        "",
+        0,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.listAlloc(),
+            Instruction.listAlloc(),
+
+            Instruction.load(0),
+            Instruction.load(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.deepCopy(),
+            Instruction.store(1),
+
+            Instruction.load(1),
+            Instruction.push(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.listLength(),
+            Instruction.load(1),
+            Instruction.listLength(),
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}, 0),
+        "",
+        0,
     );
 }
 

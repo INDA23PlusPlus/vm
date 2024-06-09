@@ -49,3 +49,4 @@
 |2C|**list_concat**|Concatenate lists|Pops two lists references from the stack and appends the latter one to the former. |
 |2D|**glob_store** *OP*|Store global variable|Pop a value from the stack and store it in the global variable with identifier supplied as operand. |
 |2E|**glob_load** *OP*|Load global variable|Push the global variable with identifier supplied as operand to the stack. |
+|2F|**deep_copy**|Deeply copy lists and objects|Copies the top element of the stack, creating a new list/object. Also recursively recreates any contained lists/objects. For shallow copying use `dup` |

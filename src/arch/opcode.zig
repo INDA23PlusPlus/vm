@@ -63,6 +63,8 @@ pub const Opcode = enum(u8) {
     glob_store,
     glob_load,
 
+    deep_copy,
+
     pub fn arity(self: Opcode) ?usize {
         if (self.isNullary()) return 0;
         if (self.isUnary()) return 1;
@@ -99,6 +101,7 @@ pub const Opcode = enum(u8) {
             .ret,
             .jmpnz,
             .glob_store,
+            .deep_copy,
             => true,
             else => false,
         };
