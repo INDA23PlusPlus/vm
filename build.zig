@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const expected_zig_version_string = "0.12.0";
+const expected_zig_version_string = "0.13.0";
 
 comptime {
     if (!std.mem.eql(u8, expected_zig_version_string, builtin.zig_version_string)) {
@@ -18,11 +18,11 @@ pub fn build(b: *std.Build) void {
     //
     const arch_mod = b.addModule(
         "arch",
-        .{ .root_source_file = .{ .path = "src/arch/module.zig" } },
+        .{ .root_source_file = b.path("src/arch/module.zig") },
     );
 
     const arch_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/arch/module.zig" },
+        .root_source_file = b.path("src/arch/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -33,11 +33,11 @@ pub fn build(b: *std.Build) void {
     //
     const assembler_mod = b.addModule(
         "assembler",
-        .{ .root_source_file = .{ .path = "src/asm/module.zig" } },
+        .{ .root_source_file = b.path("src/asm/module.zig") },
     );
 
     const assembler_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/asm/module.zig" },
+        .root_source_file = b.path("src/asm/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -48,11 +48,11 @@ pub fn build(b: *std.Build) void {
     //
     const memory_manager_mod = b.addModule(
         "memory_manager",
-        .{ .root_source_file = .{ .path = "src/memory_manager/module.zig" } },
+        .{ .root_source_file = b.path("src/memory_manager/module.zig") },
     );
 
     const memory_manager_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/memory_manager/module.zig" },
+        .root_source_file = b.path("src/memory_manager/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -63,11 +63,11 @@ pub fn build(b: *std.Build) void {
     //
     const vm_mod = b.addModule(
         "vm",
-        .{ .root_source_file = .{ .path = "src/vm/module.zig" } },
+        .{ .root_source_file = b.path("src/vm/module.zig") },
     );
 
     const vm_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/vm/module.zig" },
+        .root_source_file = b.path("src/vm/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -78,11 +78,11 @@ pub fn build(b: *std.Build) void {
     //
     const compiler_mod = b.addModule(
         "compiler",
-        .{ .root_source_file = .{ .path = "src/compiler/module.zig" } },
+        .{ .root_source_file = b.path("src/compiler/module.zig") },
     );
 
     const compiler_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/compiler/module.zig" },
+        .root_source_file = b.path("src/compiler/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -93,18 +93,18 @@ pub fn build(b: *std.Build) void {
     //
     const vmdls_mod = b.addModule(
         "vmdls",
-        .{ .root_source_file = .{ .path = "src/vmdls/module.zig" } },
+        .{ .root_source_file = b.path("src/vmdls/module.zig") },
     );
 
     const vmdls = b.addExecutable(.{
         .name = "vmdls",
-        .root_source_file = .{ .path = "src/vmdls/main.zig" },
+        .root_source_file = b.path("src/vmdls/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     const vmdls_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/vmdls/module.zig" },
+        .root_source_file = b.path("src/vmdls/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -119,10 +119,10 @@ pub fn build(b: *std.Build) void {
     //
     const binary_mod = b.addModule(
         "binary",
-        .{ .root_source_file = .{ .path = "src/binary/module.zig" } },
+        .{ .root_source_file = b.path("src/binary/module.zig") },
     );
     const binary_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/binary/module.zig" },
+        .root_source_file = b.path("src/binary/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -133,10 +133,10 @@ pub fn build(b: *std.Build) void {
     //
     const blue_mod = b.addModule(
         "blue",
-        .{ .root_source_file = .{ .path = "src/blue/module.zig" } },
+        .{ .root_source_file = b.path("src/blue/module.zig") },
     );
     const blue_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/blue/module.zig" },
+        .root_source_file = b.path("src/blue/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -147,10 +147,10 @@ pub fn build(b: *std.Build) void {
     //
     const jit_mod = b.addModule(
         "jit",
-        .{ .root_source_file = .{ .path = "src/jit/module.zig" } },
+        .{ .root_source_file = b.path("src/jit/module.zig") },
     );
     const jit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/jit/module.zig" },
+        .root_source_file = b.path("src/jit/module.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -161,7 +161,7 @@ pub fn build(b: *std.Build) void {
     //
     const diagnostic_mod = b.addModule(
         "diagnostic",
-        .{ .root_source_file = .{ .path = "src/diagnostic/module.zig" } },
+        .{ .root_source_file = b.path("src/diagnostic/module.zig") },
     );
 
     //
@@ -169,14 +169,14 @@ pub fn build(b: *std.Build) void {
     //
     const vemod = b.addExecutable(.{
         .name = "vemod",
-        .root_source_file = .{ .path = "src/vemod/main.zig" },
+        .root_source_file = b.path("src/vemod/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     vemod.linkLibC();
-    vemod.addIncludePath(.{ .path = "src/vemod/" });
-    vemod.addCSourceFile(.{ .file = .{ .path = "src/vemod/linenoise.c" } });
+    vemod.addIncludePath(b.path("src/vemod/"));
+    vemod.addCSourceFile(.{ .file = b.path("src/vemod/linenoise.c") });
 
     const build_vemod = b.step("vemod", "Build the main VeMod executable");
     const install_vemod = b.addInstallArtifact(vemod, .{});
@@ -187,7 +187,7 @@ pub fn build(b: *std.Build) void {
     //
     const refgen_exe = b.addExecutable(.{
         .name = "__vemod_refgen",
-        .root_source_file = .{ .path = "src/arch/gen_ref.zig" },
+        .root_source_file = b.path("src/arch/gen_ref.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -293,7 +293,7 @@ pub fn build(b: *std.Build) void {
     // End-to-end tests
     //
     const end_to_end = b.addTest(.{
-        .root_source_file = .{ .path = "src/end-to-end/module.zig" },
+        .root_source_file = b.path("src/end-to-end/module.zig"),
         .target = target,
         .optimize = optimize,
     });
