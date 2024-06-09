@@ -428,7 +428,7 @@ pub const text = blk: {
             \\Pops the top element of the stack, and creates a new identical list/object. Also recursively recreates any contained lists/objects.
             \\For shallow copying use `dup`.
             \\
-        }
+        },
     };
 
     for (entries) |entry| arr.set(entry.@"0", entry.@"1");
