@@ -36,6 +36,10 @@ pub fn dup() Self {
     return .{ .op = .dup };
 }
 
+pub fn deepCopy() Self {
+    return .{ .op = .deep_copy };
+}
+
 pub fn load(pos: i64) Self {
     return .{ .op = .load, .operand = .{ .int = pos } };
 }

@@ -20,6 +20,7 @@
 | Source table size | u64 | The size of the source table in number of entries |
 | Source data size | u64 | The size of the source data section in bytes |
 | Code size | u64 | The size of the code section in number of instructions |
+| Global count | u64 | Number of global variables |
 | Entry point | u64 | The address of the first instruction of the main function |
 | String data | []u8 ||
 | String table | See [Table format](#Table-format) ||
@@ -37,7 +38,8 @@ corresponding data section.
 
 ## Code format
 The code section consists of a list of instructions. Each instruction
-is a single byte for the opcode, followed by an optional ILEB128/ULEB128 operand.
+is a single byte for the opcode, followed by an optional ILEB128/ULEB128/float operand.
+Floats are encoded as 64-bit IEEE-754-2008 floats, bitcast to little endian unsigned 64-bit integers.
 The type of the operand is determined from the opcode. Unsigned values are used for
 instructions which deal with addresses or string/field indices, while signed values are used
 for instructions which deal with arithmetic, integer values and local variables.

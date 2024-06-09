@@ -1,0 +1,18 @@
+
+-function $main
+-begin
+	struct_alloc
+	dup
+	push %0
+	struct_store $x
+	glob_store $zero
+
+	push %1
+	glob_store $one
+
+	glob_load $zero
+	syscall %0
+
+	glob_load $one
+	syscall %0
+-end

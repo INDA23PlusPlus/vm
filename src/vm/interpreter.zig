@@ -548,6 +548,74 @@ noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
     std.debug.print(fmt, args);
 }
 
+fn deep_copy_slow(x: Value, ctxt: *VMContext, mem: *Mem.MemoryManager, cache: *std.AutoHashMap(usize, Value)) !Value {
+    return switch (x) {
+        .list => |l| blk: {
+            const slot = try cache.getOrPut(@intFromPtr(l.ref));
+            if (slot.found_existing) {
+                return slot.value_ptr.*;
+            }
+            var copy = mem.alloc_list();
+            for (0..l.length()) |i| {
+                try copy.push(try deep_copy_slow(l.get(i), ctxt, mem, cache));
+            }
+            const res = Value.from(copy);
+            slot.value_ptr.* = res;
+            break :blk res;
+        },
+        .object => |o| blk: {
+            const slot = try cache.getOrPut(@intFromPtr(o.ref));
+            if (slot.found_existing) {
+                return slot.value_ptr.*;
+            }
+            var copy = mem.alloc_struct();
+            var iter = o.entries();
+            while (iter.next()) |e| {
+                try copy.set(e.key_ptr.*, try deep_copy_slow(e.value_ptr.*, ctxt, mem, cache));
+            }
+            const res = Value.from(copy);
+            slot.value_ptr.* = res;
+            break :blk res;
+        },
+        .string_ref => @panic("TODO"),
+        else => x,
+    };
+}
+
+fn deep_copy_fast(x: Value, mem: *Mem.MemoryManager, depth: usize) !Value {
+    if (depth == 128) return error.MaxDepth;
+    return switch (x) {
+        .list => |l| blk: {
+            var res = mem.alloc_list();
+            for (0..l.length()) |i| {
+                try res.push(try deep_copy_fast(l.get(i), mem, depth + 1));
+            }
+            break :blk Value.from(res);
+        },
+        .object => |o| blk: {
+            var res = mem.alloc_struct();
+            var iter = o.entries();
+            while (iter.next()) |e| {
+                try res.set(e.key_ptr.*, try deep_copy_fast(e.value_ptr.*, mem, depth + 1));
+            }
+            break :blk Value.from(res);
+        },
+        .string_ref => @panic("TODO"),
+        else => x,
+    };
+}
+
+fn deep_copy(x: Value, ctxt: *VMContext, mem: *Mem.MemoryManager) !Value {
+    return deep_copy_fast(x, mem, 0) catch |e| {
+        if (e == error.MaxDepth) {
+            var cache = std.AutoHashMap(usize, Value).init(ctxt.alloc);
+            defer cache.deinit();
+            return try deep_copy_slow(x, ctxt, mem, &cache);
+        }
+        return e;
+    };
+}
+
 /// returns exit code of the program
 pub fn run(ctxt: *VMContext) !i64 {
     abort_program = false;
@@ -597,8 +665,13 @@ pub fn run(ctxt: *VMContext) !i64 {
         }
     }
 
+    // initialize globals to unit
+    for (ctxt.globals) |*item| {
+        item.* = Value.from(void{});
+    }
+
     try ctxt.stack.ensureTotalCapacity(1); // skip branch in reallocation
-    var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack);
+    var mem = try Mem.MemoryManager.init(ctxt.alloc, &ctxt.stack, ctxt.globals);
     defer mem.deinit();
     while (true) {
         if (abort_program) {
@@ -1190,6 +1263,24 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try push(ctxt, v);
             },
+            .deep_copy => {
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
+                try push(ctxt, try deep_copy(v, ctxt, &mem));
+            },
+            .glob_load => {
+                const id = insn.operand.field_id;
+                const v = ctxt.globals[id];
+                try push(ctxt, v);
+            },
+            .glob_store => {
+                const id = insn.operand.field_id;
+
+                const v = try pop(ctxt);
+                defer drop(ctxt, v);
+
+                ctxt.globals[id] = v;
+            },
         }
     }
 
@@ -1266,7 +1357,7 @@ test "structs" {
         Instruction.structStore(0),
         Instruction.structLoad(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 42);
+    }, 0, &.{}, &.{}, 0), "", 42);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1276,7 +1367,7 @@ test "structs" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "{a: 42}", 0);
+    }, 0, &.{}, &.{"a"}, 0), "{a: 42}", 0);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1289,7 +1380,7 @@ test "structs" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a", "b" }), "{a: 42, b: 43}", 0);
+    }, 0, &.{}, &.{ "a", "b" }, 0), "{a: 42, b: 43}", 0);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1299,7 +1390,7 @@ test "structs" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "{a: {}}", 0);
+    }, 0, &.{}, &.{"a"}, 0), "{a: {}}", 0);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1316,7 +1407,7 @@ test "structs" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "", 1);
+    }, 0, &.{}, &.{"a"}, 0), "", 1);
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
         Instruction.load(0),
@@ -1326,7 +1417,7 @@ test "structs" {
         Instruction.load(0),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{"a"}), "", 1);
+    }, 0, &.{}, &.{"a"}, 0), "", 1);
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
         Instruction.structAlloc(),
@@ -1342,7 +1433,7 @@ test "structs" {
         Instruction.dup(),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a", "b" }), "", 1);
+    }, 0, &.{}, &.{ "a", "b" }, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.structAlloc(),
@@ -1359,7 +1450,7 @@ test "structs" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{ "a", "b" }), "", 0);
+    }, 0, &.{}, &.{ "a", "b" }, 0), "", 0);
 }
 
 test "lists" {
@@ -1373,7 +1464,7 @@ test "lists" {
         Instruction.push(0),
         Instruction.listLoad(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 42);
+    }, 0, &.{}, &.{}, 0), "", 42);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1384,7 +1475,7 @@ test "lists" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "[42]", 0);
+    }, 0, &.{}, &.{}, 0), "[42]", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1402,7 +1493,7 @@ test "lists" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "[42, 43]", 0);
+    }, 0, &.{}, &.{}, 0), "[42, 43]", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1413,7 +1504,7 @@ test "lists" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "[[]]", 0);
+    }, 0, &.{}, &.{}, 0), "[[]]", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1433,7 +1524,7 @@ test "lists" {
         Instruction.load(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1445,7 +1536,7 @@ test "lists" {
         Instruction.load(0),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1464,7 +1555,7 @@ test "lists" {
         Instruction.dup(),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1482,7 +1573,7 @@ test "lists" {
 
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 0);
+    }, 0, &.{}, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1499,7 +1590,7 @@ test "lists" {
 
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1515,7 +1606,7 @@ test "lists" {
 
         Instruction.listLength(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 3);
+    }, 0, &.{}, &.{}, 0), "", 3);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1530,7 +1621,7 @@ test "lists" {
         Instruction.push(42),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.listAlloc(),
@@ -1561,7 +1652,7 @@ test "lists" {
         Instruction.equal(),
 
         Instruction.ret(),
-    }, 0, &.{}, &.{}), "", 1);
+    }, 0, &.{}, &.{}, 0), "", 1);
 
     try testRun(
         Program.init(&.{
@@ -1571,7 +1662,7 @@ test "lists" {
             Instruction.dup(),
             Instruction.jmpnz(1),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         0,
     );
@@ -1609,9 +1700,74 @@ test "lists" {
             Instruction.load(1),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
+    );
+}
+
+test "deep copy" {
+    try testRun(
+        Program.init(&.{
+            Instruction.listAlloc(),
+            Instruction.listAlloc(),
+
+            Instruction.load(0),
+            Instruction.push(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(1),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.push(2),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.deepCopy(),
+            Instruction.store(1),
+
+            Instruction.load(1),
+            Instruction.push(0),
+            Instruction.listRemove(),
+
+            Instruction.load(0),
+            Instruction.load(1),
+
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}, 0),
+        "",
+        0,
+    );
+
+    try testRun(
+        Program.init(&.{
+            Instruction.listAlloc(),
+            Instruction.listAlloc(),
+
+            Instruction.load(0),
+            Instruction.load(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.deepCopy(),
+            Instruction.store(1),
+
+            Instruction.load(1),
+            Instruction.push(0),
+            Instruction.listAppend(),
+
+            Instruction.load(0),
+            Instruction.listLength(),
+            Instruction.load(1),
+            Instruction.listLength(),
+            Instruction.equal(),
+            Instruction.ret(),
+        }, 0, &.{}, &.{}, 0),
+        "",
+        0,
     );
 }
 
@@ -1651,7 +1807,7 @@ test "binary arithmetic operations" {
                             Instruction.push(rhs),
                             Instruction{ .op = op },
                             Instruction.ret(),
-                        }, 0, &.{}, &.{}),
+                        }, 0, &.{}, &.{}, 0),
                         "",
                         res,
                     );
@@ -1675,7 +1831,7 @@ test "binary arithmetic operations" {
                             Instruction.pushf(resf),
                             Instruction.equal(),
                             Instruction.ret(),
-                        }, 0, &.{}, &.{}),
+                        }, 0, &.{}, &.{}, 0),
                         "",
                         1,
                     );
@@ -1733,7 +1889,7 @@ test "binary arithmetic operations" {
                 Instruction.equal(),
                 Instruction.ret(),
                 // ensure stack is actually just a
-            }, 0, &.{}, &.{}), "", 1);
+            }, 0, &.{}, &.{}, 0), "", 1);
         }
     }
 }
@@ -1745,7 +1901,7 @@ test "unary arithmetic operations" {
             Instruction.dup(),
             Instruction.pop(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         0,
     );
@@ -1757,7 +1913,7 @@ test "unary arithmetic operations" {
             Instruction.dup(),
             Instruction.jmpnz(1),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         0,
     );
@@ -1767,7 +1923,7 @@ test "unary arithmetic operations" {
             Instruction.push(0),
             Instruction.increment(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1777,7 +1933,7 @@ test "unary arithmetic operations" {
             Instruction.push(0),
             Instruction.decrement(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         -1,
     );
@@ -1789,7 +1945,7 @@ test "unary arithmetic operations" {
             Instruction.push(-1),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1801,7 +1957,7 @@ test "unary arithmetic operations" {
             Instruction.pushf(-1.0),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1813,7 +1969,7 @@ test "unary arithmetic operations" {
             Instruction.push(-2),
             Instruction.equal(),
             Instruction.ret(),
-        }, 0, &.{}, &.{}),
+        }, 0, &.{}, &.{}, 0),
         "",
         1,
     );
@@ -1843,7 +1999,7 @@ test "fibonacci" {
         Instruction.pop(),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{}, &.{});
+    }, 0, &.{}, &.{}, 0);
     try testRunWithJit(prog,
         \\0
         \\1
@@ -1996,7 +2152,7 @@ test "hello world" {
         Instruction.syscall(0),
         Instruction.push(0),
         Instruction.ret(),
-    }, 0, &.{"Hello World!"}, &.{}), "Hello World!", 0);
+    }, 0, &.{"Hello World!"}, &.{}, 0), "Hello World!", 0);
 }
 
 test "string compare" {
@@ -2005,54 +2161,54 @@ test "string compare" {
         Instruction.pushs(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.equal(),
         Instruction.ret(),
-    }, 0, &.{ "bar", "baz" }, &.{}), "", 0);
+    }, 0, &.{ "bar", "baz" }, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.lessEqual(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.greaterEqual(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 1);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.less(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 0);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.greater(),
         Instruction.ret(),
-    }, 0, &.{ "foo", "foo" }, &.{}), "", 0);
+    }, 0, &.{ "foo", "foo" }, &.{}, 0), "", 0);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.less(),
         Instruction.ret(),
-    }, 0, &.{ "a", "b" }, &.{}), "", 1);
+    }, 0, &.{ "a", "b" }, &.{}, 0), "", 1);
 
     try testRun(Program.init(&.{
         Instruction.pushs(0),
         Instruction.pushs(1),
         Instruction.greater(),
         Instruction.ret(),
-    }, 0, &.{ "a", "ab" }, &.{}), "", 0);
+    }, 0, &.{ "a", "ab" }, &.{}, 0), "", 0);
 }

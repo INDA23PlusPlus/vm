@@ -19,13 +19,15 @@ allocator: std.mem.Allocator,
 allObjects: UnmanagedObjectList(Object),
 allLists: UnmanagedObjectList(List),
 stack: *Stack,
+globals: []APITypes.Value,
 
-pub fn init(allocator: std.mem.Allocator, stack: *Stack) !Self {
+pub fn init(allocator: std.mem.Allocator, stack: *Stack, globals: []APITypes.Value) !Self {
     return Self{
         .allocator = allocator,
         .allObjects = try UnmanagedObjectList(Object).initCapacity(allocator, 0),
         .allLists = try UnmanagedObjectList(List).initCapacity(allocator, 0),
         .stack = stack,
+        .globals = globals,
     };
 }
 
@@ -98,6 +100,7 @@ fn maybe_gc(self: *Self) void {
 pub fn gc_pass(self: *Self) void {
     // Mark all objects that are reachable from the stack
     self.mark_items_in_stack();
+    self.mark_global_items();
 
     self.sweep(Object, &self.allObjects);
     self.sweep(List, &self.allLists);
@@ -105,6 +108,12 @@ pub fn gc_pass(self: *Self) void {
 
 fn mark_items_in_stack(self: *Self) void {
     for (self.stack.items) |item| {
+        mark_item(item);
+    }
+}
+
+fn mark_global_items(self: *Self) void {
+    for (self.globals) |item| {
         mark_item(item);
     }
 }

@@ -20,6 +20,7 @@ pc: usize,
 bp: usize = 0,
 alloc: Allocator,
 stack: Stack,
+globals: []Value,
 refc: i64 = 0,
 write_buffer: *anyopaque,
 write_buffer_destroy_fn: *const fn (self: *Self) void,
@@ -73,6 +74,8 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
                 .pop,
                 .load,
                 .store,
+                .glob_store,
+                .glob_load,
                 // go to next instruction
                 => dfs(prog, i + 1, vis, jit),
 
@@ -148,6 +151,7 @@ pub fn init(prog: Program, alloc: Allocator, output_writer: anytype, error_write
         .prog = prog,
         .pc = prog.entry,
         .stack = Stack.init(alloc),
+        .globals = try alloc.alloc(Value, prog.num_globs),
         .alloc = alloc,
         .write_buffer = write_buf,
         .write_buffer_destroy_fn = write_buffer_destroy_fn,
@@ -202,4 +206,5 @@ pub fn deinit(self: *Self) void {
         jit_fn.deinit();
     }
     self.jit_args.deinit();
+    self.alloc.free(self.globals);
 }

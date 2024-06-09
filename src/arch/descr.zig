@@ -406,6 +406,29 @@ pub const text = blk: {
             \\the former.
             \\
         },
+        .{
+            .glob_load,
+            \\## Load global variable
+            \\
+            \\Push the global variable with identifier supplied as operand to the stack.
+            \\
+        },
+        .{
+            .glob_store,
+            \\## Store global variable
+            \\
+            \\Pop a value from the stack and store it in the global variable with identifier supplied as operand.
+            \\
+        },
+
+        .{
+            .deep_copy,
+            \\## Deeply copy lists and objects
+            \\
+            \\Pops the top element of the stack, and creates a new identical list/object. Also recursively recreates any contained lists/objects.
+            \\For shallow copying use `dup`.
+            \\
+        }
     };
 
     for (entries) |entry| arr.set(entry.@"0", entry.@"1");
