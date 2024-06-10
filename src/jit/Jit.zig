@@ -65,7 +65,7 @@ sp: i32,
 vstk_bp: ?i32,
 
 pub fn init(alloc: std.mem.Allocator) Self {
-    const v = APIValue { .int = 0 };
+    const v = APIValue{ .int = 0 };
 
     return .{
         .alloc = alloc,
