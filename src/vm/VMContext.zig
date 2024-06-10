@@ -74,8 +74,10 @@ fn make_jit_mask(program: Program, alloc: Allocator) std.DynamicBitSetUnmanaged 
                 .pop,
                 .load,
                 .store,
-                .glob_store,
                 .glob_load,
+                // TODO: Check if global values used by the function are
+                // supported by the jit before calling compiled program.
+                .glob_store,
                 // go to next instruction
                 => dfs(prog, i + 1, vis, jit),
 

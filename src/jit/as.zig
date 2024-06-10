@@ -551,7 +551,7 @@ pub const As = struct {
     }
 
     inline fn emit_instr(self: *Self, instr: Instr) !void {
-        @setEvalBranchQuota(8000);
+        @setEvalBranchQuota(10000);
 
         if (instr.rex) |rex| {
             var rex_byte: u8 = 0x40;

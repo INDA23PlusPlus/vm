@@ -68,11 +68,11 @@ fn map_pc(self: *const Self, err_pc: usize) ?usize {
     }
 }
 
-pub fn execute(self: *Self) !i64 {
-    return self.execute_as(fn () i64, .{});
+pub fn execute(self: *Self, globals: ?*anyopaque) !i64 {
+    return self.execute_as(globals, fn () i64, .{});
 }
 
-pub fn execute_as(self: *Self, fn_type: type, args: anytype) @Type(std.builtin.Type{
+pub fn execute_as(self: *Self, globals: ?*anyopaque, fn_type: type, args: anytype) @Type(std.builtin.Type{
     .ErrorUnion = .{
         .error_set = anyerror,
         .payload = @typeInfo(fn_type).Fn.return_type.?,
@@ -87,6 +87,8 @@ pub fn execute_as(self: *Self, fn_type: type, args: anytype) @Type(std.builtin.T
 
     var exec_ctxt = ExecContext.init();
     defer exec_ctxt.deinit();
+
+    exec_ctxt.gp = @intFromPtr(globals);
 
     if (self.write_fn) |write_fn| {
         exec_ctxt.write_ctxt = self.write_ctxt;
@@ -104,10 +106,10 @@ pub fn execute_as(self: *Self, fn_type: type, args: anytype) @Type(std.builtin.T
     return exec_ctxt.err orelse ret;
 }
 
-pub fn execute_sub(self: *Self, pc: usize, args: []const i64) !i64 {
+pub fn execute_sub(self: *Self, pc: usize, globals: ?*anyopaque, args: []const i64) !i64 {
     if (self.pc_map == null or self.pc_map.?[pc] == 0) {
         return error.NotCompiled;
     } else {
-        return self.execute_as(fn ([*]const i64, usize, usize) i64, .{ args.ptr, args.len, @intFromPtr(self.code.ptr) + self.pc_map.?[pc] });
+        return self.execute_as(globals, fn ([*]const i64, usize, usize) i64, .{ args.ptr, args.len, @intFromPtr(self.code.ptr) + self.pc_map.?[pc] });
     }
 }
