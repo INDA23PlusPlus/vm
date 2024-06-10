@@ -314,7 +314,6 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
                 .local => |offset| {
                     if (symbol.is_const) {
                         try self.writeInstr(.glob_load, .{ .global = v.symid }, v.name);
-                        try self.writeInstr(.deep_copy, .none, v.name);
                     } else {
                         try self.writeInstr(.load, .{ .int = @intCast(offset) }, v.name);
                     }
