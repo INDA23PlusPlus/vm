@@ -341,12 +341,12 @@ pub fn genNode(self: *CodeGen, node_id: usize) !void {
         },
         .unit => |v| try self.writeInstr(.stack_alloc, .{ .int = 1 }, v.where),
         .print => |v| {
-            try self.genNode(v);
+            try self.genNode(v.expr);
             try self.writeInstr(.syscall, .{ .int = 1 }, self.placeholderToken());
             try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
         },
         .println => |v| {
-            try self.genNode(v);
+            try self.genNode(v.expr);
             try self.writeInstr(.syscall, .{ .int = 0 }, self.placeholderToken());
             try self.writeInstr(.stack_alloc, .{ .int = 1 }, self.placeholderToken());
         },

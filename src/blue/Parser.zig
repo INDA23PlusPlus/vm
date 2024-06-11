@@ -579,17 +579,17 @@ fn item(p: *Parser) anyerror!usize {
 }
 
 fn print(p: *Parser) anyerror!usize {
-    _ = try p.lx.take(); // print
-    return try p.ast.push(.{ .print = try p.expr() });
+    const tok = try p.lx.take(); // print
+    return try p.ast.push(.{ .print = .{ .tok = tok.?.where, .expr = try p.expr() } });
 }
 
 fn println(p: *Parser) anyerror!usize {
-    _ = try p.lx.take(); // print
-    return try p.ast.push(.{ .println = try p.expr() });
+    const tok = try p.lx.take(); // println
+    return try p.ast.push(.{ .println = .{ .tok = tok.?.where, .expr = try p.expr() } });
 }
 
 fn len(p: *Parser) anyerror!usize {
-    const tok = (try p.lx.take()).?; // print
+    const tok = (try p.lx.take()).?; // len
     return try p.ast.push(.{
         .len = .{
             .list = try p.expr(),
@@ -699,7 +699,7 @@ fn letExpr(p: *Parser) !usize {
 
 fn letEntry(p: *Parser) !usize {
     const maybe_const = try p.expectSomethingPeek("expected 'const' or identfier");
-    const is_const = if (maybe_const.tag == .@"const") blk: {
+    var is_const = if (maybe_const.tag == .@"const") blk: {
         _ = try p.lx.take();
         break :blk true;
     } else false;
@@ -711,6 +711,7 @@ fn letEntry(p: *Parser) !usize {
             .location = maybe_const.where,
             .severity = .Warning,
         });
+        is_const = false;
     }
     const assign = try p.expect(.@"=", "expected '='");
     const expr_ = try p.expr();
@@ -728,7 +729,7 @@ fn letEntry(p: *Parser) !usize {
             .params = params_,
             .expr = expr_,
             .assign_where = assign.where,
-            .is_const = is_const or params_ != null,
+            .is_const = is_const,
         },
     });
 }
