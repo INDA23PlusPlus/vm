@@ -152,6 +152,8 @@ fn accumDiagnostics(self: *ConstChecker) !void {
                     });
 
                     var l: usize = self.links[i].?;
+                    var first = true;
+
                     while (true) {
                         const next_l = self.links[l].?;
 
@@ -159,7 +161,7 @@ fn accumDiagnostics(self: *ConstChecker) !void {
 
                         if (l == next_l) {
                             try self.diagnostics.addRelated(.{
-                                .description = .{ .static = "because of this IO operation" },
+                                .description = .{ .static = if (first) "because of this IO operation" else "which uses this IO operation" },
                                 .location = switch (l_nd.*) {
                                     .print => |w| w.tok,
                                     .println => |w| w.tok,
@@ -171,13 +173,14 @@ fn accumDiagnostics(self: *ConstChecker) !void {
                         } else {
                             // TODO: figure out a way to point to the location of the actual reference
                             try self.diagnostics.addRelated(.{
-                                .description = .{ .static = "because of reference to this symbol" },
+                                .description = .{ .static = if (first) "because of reference to this symbol" else "which references this symbol" },
                                 .location = l_nd.let_entry.name,
                                 .severity = .Hint,
                             });
                         }
 
                         l = next_l;
+                        first = false;
                     }
                 }
             },
