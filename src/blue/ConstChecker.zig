@@ -94,7 +94,7 @@ fn once(self: *ConstChecker) void {
                 _ = self.propLink(i, v.lhs) or self.propLink(i, v.rhs);
             },
 
-            // The reset of the node types just propagate links
+            // The rest of the node types just propagate links
             .binop => |v| _ = self.propLink(i, v.lhs) or self.propLink(i, v.rhs),
             .unop => |v| _ = self.propLink(i, v.opnd),
             .if_expr => |v| _ = self.propLink(i, v.cond) or self.propLink(i, v.then) or self.propLink(i, v.else_),
