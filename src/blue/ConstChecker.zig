@@ -80,12 +80,7 @@ fn once(self: *ConstChecker) void {
                     continue;
                 }
 
-                if (v.args) |args| {
-                    if (self.links[args]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
+                _ = self.propLink(i, v.args);
             },
             .infix => |v| {
                 // Same here but with lhs/rhs instead of args
@@ -95,182 +90,44 @@ fn once(self: *ConstChecker) void {
                     self.setLink(i, symbol.decl_node_id);
                     continue;
                 }
-                if (self.links[v.lhs]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.rhs]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
+
+                _ = self.propLink(i, v.lhs) or self.propLink(i, v.rhs);
             },
 
             // The reset of the node types just propagate links
-            .binop => |v| {
-                if (self.links[v.lhs]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.rhs]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .unop => |v| {
-                if (self.links[v.opnd]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .if_expr => |v| {
-                if (self.links[v.cond]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.then]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.else_]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .let_expr => |v| {
-                if (self.links[v.stmts]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.in]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .let_entry => |v| {
-                if (self.links[v.expr]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .arg => |v| {
-                if (self.links[v.expr]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (v.next) |next| {
-                    if (self.links[next]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
-            .compound => |v| {
-                if (self.links[v.discard]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.keep]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .list => |v| {
-                if (v.items) |items| {
-                    if (self.links[items]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
-            .item => |v| {
-                if (self.links[v.expr]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (v.next) |next| {
-                    if (self.links[next]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
-            .indexing => |v| {
-                if (self.links[v.list]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.index]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .len => |v| {
-                if (self.links[v.list]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .struct_ => |v| {
-                if (v.fields) |fields| {
-                    if (self.links[fields]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
-            .field_access => |v| {
-                if (self.links[v.struct_]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-            },
-            .field_decl => |v| {
-                if (self.links[v.expr]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (v.next) |next| {
-                    if (self.links[next]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
-            .match => |v| {
-                if (self.links[v.expr]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.default]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (v.prongs) |prongs| {
-                    if (self.links[prongs]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
-            .prong => |v| {
-                if (self.links[v.lhs]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (self.links[v.rhs]) |l| {
-                    self.setLink(i, l);
-                    continue;
-                }
-                if (v.next) |next| {
-                    if (self.links[next]) |l| {
-                        self.setLink(i, l);
-                        continue;
-                    }
-                }
-            },
+            .binop => |v| _ = self.propLink(i, v.lhs) or self.propLink(i, v.rhs),
+            .unop => |v| _ = self.propLink(i, v.opnd),
+            .if_expr => |v| _ = self.propLink(i, v.cond) or self.propLink(i, v.then) or self.propLink(i, v.else_),
+            .let_expr => |v| _ = self.propLink(i, v.stmts) or self.propLink(i, v.in),
+            .let_entry => |v| _ = self.propLink(i, v.expr),
+            .arg => |v| _ = self.propLink(i, v.expr) or self.propLink(i, v.next),
+            .compound => |v| _ = self.propLink(i, v.discard) or self.propLink(i, v.keep),
+            .list => |v| _ = self.propLink(i, v.items),
+            .item => |v| _ = self.propLink(i, v.expr) or self.propLink(i, v.next),
+            .indexing => |v| _ = self.propLink(i, v.list) or self.propLink(i, v.index),
+            .len => |v| _ = self.propLink(i, v.list),
+            .struct_ => |v| _ = self.propLink(i, v.fields),
+            .field_access => |v| _ = self.propLink(i, v.struct_),
+            .field_decl => |v| _ = self.propLink(i, v.expr) or self.propLink(i, v.next),
+            .match => |v| _ = self.propLink(i, v.expr) or self.propLink(i, v.default) or self.propLink(i, v.prongs),
+            .prong => |v| _ = self.propLink(i, v.lhs) or self.propLink(i, v.rhs) or self.propLink(i, v.next),
             else => {},
         }
     }
+}
+
+fn setLink(self: *ConstChecker, at: usize, to: usize) void {
+    self.links[at] = to;
+    self.change = true;
+}
+
+fn propLink(self: *ConstChecker, dst: usize, src: anytype) bool {
+    const src_ = if (@TypeOf(src) == usize) src else src orelse return false;
+    if (self.links[src_]) |l| {
+        self.links[dst] = l;
+        self.change = true;
+        return true;
+    } else return false;
 }
 
 fn accumDiagnostics(self: *ConstChecker) !void {
@@ -327,9 +184,4 @@ fn accumDiagnostics(self: *ConstChecker) !void {
             else => {},
         }
     }
-}
-
-fn setLink(self: *ConstChecker, at: usize, to: usize) void {
-    self.links[at] = to;
-    self.change = true;
 }

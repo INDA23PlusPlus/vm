@@ -84,7 +84,8 @@ let
       loop 0 y . -> print "\e[0m\n";
 
   # Render the image
-  const RENDER =
+  RENDER discard =
+    discard ->
     let
       loop y =
         if y = RESOLUTION
@@ -95,4 +96,4 @@ let
       loop 0 . ->
       print "\e[?25h";
 
-in RENDER . -> ""
+in RENDER () . -> ""
