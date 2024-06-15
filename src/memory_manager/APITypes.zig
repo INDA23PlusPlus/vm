@@ -120,7 +120,6 @@ const StringRef = struct {
 
 pub const Unit = void;
 
-
 comptime {
     std.debug.assert(@sizeOf(Value) == 16);
 }
