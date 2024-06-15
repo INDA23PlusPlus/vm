@@ -48,6 +48,10 @@ pub fn syscall(num: i64) Self {
     return .{ .op = .syscall, .operand = .{ .int = num } };
 }
 
+pub fn stackAlloc(num: i64) Self {
+    return .{ .op = .stack_alloc, .operand = .{ .int = num } };
+}
+
 pub fn call(destination: usize) Self {
     return .{ .op = .call, .operand = .{ .location = destination } };
 }
