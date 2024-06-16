@@ -120,40 +120,6 @@ const StringRef = struct {
 
 pub const Unit = void;
 
-// assert that @intFromEnum(e1) ^ @intFromEnum(e2) is equivalent to checking if comparisons are allowed between these types
-comptime {
-    for ([_]Type{
-        .int,
-        .float,
-        .unit,
-        .string_ref,
-        .string_lit,
-        .list,
-        .object,
-    }) |e1| {
-        for ([_]Type{
-            .int,
-            .float,
-            .unit,
-            .string_ref,
-            .string_lit,
-            .list,
-            .object,
-        }) |e2| {
-            // should only happen on valid comparisons
-            // TODO: comparing unit with any other type is also allowed
-            if (@intFromEnum(e1) ^ @intFromEnum(e2) < 2) {
-                // should only be valid if one is int and one is float, or both are some kind of string
-                if (e1 != e2) {
-                    const int_float = (e1 == .int and e2 == .float) or (e1 == .float and e2 == .int);
-                    const string_string = (e1 == .string_ref and e2 == .string_lit) or (e1 == .string_lit and e2 == .string_ref);
-                    std.debug.assert(int_float or string_string);
-                }
-            }
-        }
-    }
-}
-
 comptime {
     std.debug.assert(@sizeOf(Value) == 16);
 }

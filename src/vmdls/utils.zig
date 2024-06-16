@@ -3,22 +3,19 @@ const std = @import("std");
 const Self = @This();
 
 /// Creates a comptime map from enum tag names to enum values.
-pub fn TagNameMap(comptime T: type) type {
+pub fn TagNameMap(comptime T: type) std.StaticStringMap(T) {
     if (@typeInfo(T) != .Enum) {
         @compileError("T must be an enum");
     }
 
-    return std.ComptimeStringMap(
-        T,
-        create: {
-            const KV = struct { []const u8, T };
-            var array: [std.meta.tags(T).len]KV = undefined;
-            inline for (0.., std.meta.tags(T)) |i, tag| {
-                array[i] = .{ @tagName(tag), tag };
-            }
-            break :create array;
-        },
-    );
+    return std.StaticStringMap(T).initComptime(create: {
+        const KV = struct { []const u8, T };
+        var array: [std.meta.tags(T).len]KV = undefined;
+        inline for (0.., std.meta.tags(T)) |i, tag| {
+            array[i] = .{ @tagName(tag), tag };
+        }
+        break :create array;
+    });
 }
 
 test TagNameMap {

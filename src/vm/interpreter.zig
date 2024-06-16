@@ -10,6 +10,7 @@ const Instruction = arch.Instruction;
 const Program = arch.Program;
 const RtError = arch.err.RtError;
 const Mem = @import("memory_manager");
+const Type = arch.Type;
 const Value = Mem.APITypes.Value;
 const VMContext = @import("VMContext.zig");
 const jit_mod = @import("jit");
@@ -256,14 +257,26 @@ fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
     };
 }
 
-inline fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
+fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
+    if (!Type.validComparison(a, b)) {
+        ctxt.rterror = .{
+            .pc = ctxt.pc - 1,
+            .err = .{ .invalid_binop = .{
+                .lt = a,
+                .op = op,
+                .rt = b,
+            } },
+        };
+        return error.RuntimeError;
+    }
+
     if (a.tag() == b.tag()) {
         return doBinaryOpSameType(a, op, b, ctxt);
     }
 
     if ((a == .unit) != (b == .unit)) return switch (op) {
-        .cmp_eq => Value.from(compareEq(a, b)),
-        .cmp_ne => Value.from(!compareEq(a, b)),
+        .cmp_eq => Value.from(false),
+        .cmp_ne => Value.from(true),
         else => {
             ctxt.rterror = .{
                 .pc = ctxt.pc - 1,
@@ -276,19 +289,6 @@ inline fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
             return error.RuntimeError;
         },
     };
-
-    // if a and b are different type and theyre not `int` and `float` or `string_lit` and `string_ref` it's invalid and should end up triggering this
-    if (@intFromEnum(a) ^ @intFromEnum(b) >= 2) {
-        ctxt.rterror = .{
-            .pc = ctxt.pc - 1,
-            .err = .{ .invalid_binop = .{
-                .lt = a,
-                .op = op,
-                .rt = b,
-            } },
-        };
-        return error.RuntimeError;
-    }
 
     // only valid types from here on out, could still be invalid if you try to add lists for example
     const float = Value.GetRepr(.float);
@@ -677,51 +677,18 @@ pub fn run(ctxt: *VMContext) !i64 {
         if (abort_program) {
             return 0;
         }
-
         if (ctxt.pc >= ctxt.prog.code.len) {
             return error.InvalidProgramCounter;
         }
+
         const insn = ctxt.prog.code[ctxt.pc];
         if (ctxt.debug_output) {
             debug_log("@{}: {s}, op: {any}, sp: {}, bp: {}, stack: {any}\n", .{ ctxt.pc, @tagName(insn.op), if (insn.op.hasOperand()) @as(u64, @bitCast(insn.operand)) else null, ctxt.stack.items.len, ctxt.bp, ctxt.stack.items });
         }
 
         ctxt.pc += 1;
-        // fastpath for integer math
-        if (@intFromEnum(insn.op) < @intFromEnum(arch.Opcode.jmp)) {
-            const stack_items = ctxt.stack.items;
-            const stack_len = stack_items.len;
-            if (insn.op.isUnary()) {
-                const val = &stack_items[stack_len - 1];
-                switch (insn.op) {
-                    .inc => val.*.int += 1,
-                    .dec => val.*.int -= 1,
-                    .neg => {
-                        if (val.* == .int) {
-                            val.*.int *= -1;
-                        } else {
-                            val.*.float *= -1.0;
-                        }
-                    },
-                    .log_not => val.*.int = @intFromBool(val.*.int == 0),
-                    .bit_not => val.*.int = ~val.*.int,
-                    else => unreachable,
-                }
-                continue;
-            } else if ((stack_items.len >= 2) and (@intFromEnum(stack_items[stack_len - 2]) | @intFromEnum(stack_items[stack_len - 1]) == @intFromEnum(Value.int))) {
-                const lhs = stack_items[stack_len - 2];
-                const rhs = stack_items[stack_len - 1];
-                try assert(lhs.is(.int));
-                try assert(rhs.is(.int));
-                const a = lhs.int;
-                const b = rhs.int;
-                stack_items[stack_len - 2] = try doArithmetic(Value.GetRepr(.int), a, insn.op, b, ctxt);
-                drop(ctxt, try pop(ctxt));
-                continue;
-            }
-        }
         switch (insn.op) {
-            .add,
+            inline .add,
             .sub,
             .mul,
             .div,
@@ -740,31 +707,18 @@ pub fn run(ctxt: *VMContext) !i64 {
             => |op| {
                 const b = try pop(ctxt);
                 defer drop(ctxt, b);
-                const a = try pop(ctxt);
-                defer drop(ctxt, a);
+                const a = &ctxt.stack.items[ctxt.stack.items.len - 1];
 
-                const r = try doBinaryOp(a, op, b, ctxt);
-
-                if (ctxt.debug_output) {
-                    if (op.isArithmetic()) {
-                        debug_log("arithmetic: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
-                    }
-                    if (op.isComparison()) {
-                        debug_log("comparison: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
-                    }
-                    if (op.isLogical()) {
-                        debug_log("logical: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
-                    }
-                    if (op.isBitwise()) {
-                        debug_log("bitwise: {} {s} {} = {}\n", .{ a, opcodeToString(op), b, r });
-                    }
+                if (likely(a.tag() == .int and b.tag() == .int) and !std.debug.runtime_safety) {
+                    // fastpath for integer math
+                    a.* = try @call(.always_inline, doBinaryOpSameType, .{ a.*, op, b, ctxt });
+                } else {
+                    a.* = try doBinaryOp(a.*, op, b, ctxt);
                 }
-
-                try push(ctxt, r);
             },
             .inc => {
                 try assert(ctxt.stack.items.len > 0);
-                const v = ctxt.stack.getLast();
+                const v = &ctxt.stack.items[ctxt.stack.items.len - 1];
                 if (v.tag() != .int) {
                     ctxt.rterror = .{
                         .pc = ctxt.pc - 1,
@@ -772,11 +726,11 @@ pub fn run(ctxt: *VMContext) !i64 {
                     };
                     return error.RuntimeError;
                 }
-                ctxt.stack.items[ctxt.stack.items.len - 1].int += 1;
+                v.*.int += 1;
             },
             .dec => {
                 try assert(ctxt.stack.items.len > 0);
-                const v = ctxt.stack.getLast();
+                const v = &ctxt.stack.items[ctxt.stack.items.len - 1];
                 if (v.tag() != .int) {
                     ctxt.rterror = .{
                         .pc = ctxt.pc - 1,
@@ -784,7 +738,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     };
                     return error.RuntimeError;
                 }
-                ctxt.stack.items[ctxt.stack.items.len - 1].int -= 1;
+                v.*.int -= 1;
             },
             .neg => {
                 try assert(ctxt.stack.items.len > 0);
@@ -984,45 +938,40 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
                 try ctxt.stack.resize(ctxt.bp);
 
-                if (ctxt.bp == 0) {
+                if (unlikely(ctxt.bp == 0)) {
                     try push(ctxt, r);
 
                     break;
-                } else {
-                    const ra = try pop(ctxt);
-                    defer drop(ctxt, ra);
-
-                    const bp = try pop(ctxt);
-                    defer drop(ctxt, bp);
-
-                    const N = try pop(ctxt);
-                    defer drop(ctxt, N);
-
-                    try assert(ra.tag() == .int);
-                    try assert(bp.tag() == .int);
-                    try assert(N.tag() == .int);
-
-                    if (ctxt.debug_output) {
-                        debug_log("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
-                    }
-
-                    // ctxt.stack.shrinkRetainingCapacity(ctxt.stack.items.len - @as(usize, @intCast(N.int)));
-                    for (0..@intCast(N.int)) |_| {
-                        drop(ctxt, try pop(ctxt));
-                    }
-
-                    try push(ctxt, r);
-
-                    ctxt.bp = @intCast(bp.int);
-                    ctxt.pc = @intCast(ra.int);
                 }
+                const ra = try pop(ctxt);
+                defer drop(ctxt, ra);
+
+                const bp = try pop(ctxt);
+                defer drop(ctxt, bp);
+
+                const N = try pop(ctxt);
+                defer drop(ctxt, N);
+
+                try assert(ra.tag() == .int);
+                try assert(bp.tag() == .int);
+                try assert(N.tag() == .int);
+
+                if (ctxt.debug_output) {
+                    debug_log("popping {} items, sp: {}, bp: {}\n", .{ N, ctxt.stack.items.len, ctxt.bp });
+                }
+
+                // ctxt.stack.shrinkRetainingCapacity(ctxt.stack.items.len - @as(usize, @intCast(N.int)));
+                for (0..@intCast(N.int)) |_| {
+                    drop(ctxt, try pop(ctxt));
+                }
+
+                try push(ctxt, r);
+
+                ctxt.bp = @intCast(bp.int);
+                ctxt.pc = @intCast(ra.int);
             },
             .jmp => {
                 const loc = insn.operand.location;
-
-                if (ctxt.debug_output) {
-                    debug_log("jumping to: {}\n", .{loc});
-                }
 
                 ctxt.pc = loc;
             },
@@ -1033,14 +982,7 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 try assert(v.tag() == .int);
 
-                ctxt.pc = if (v.int != 0) loc else ctxt.pc;
-                if (ctxt.debug_output) {
-                    if (v.int != 0) {
-                        debug_log("took branch to: {}\n", .{loc});
-                    } else {
-                        debug_log("didn't take branch to: {}\n", .{loc});
-                    }
-                }
+                if (v.int != 0) ctxt.pc = loc;
             },
             .stack_alloc => {
                 const v = Value.from(void{});
@@ -1283,7 +1225,6 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
         }
     }
-
     var r: Value.GetRepr(.int) = undefined;
     {
         const rv = try pop(ctxt);
@@ -1346,6 +1287,21 @@ fn testRunWithJit(prog: Program, expected_output: []const u8, expected_exit_code
     defer std.testing.allocator.free(b);
 
     try std.testing.expectEqualSlices(u8, a, b);
+}
+
+test "optionals" {
+    try testRun(Program.init(&.{
+        Instruction.push(1),
+        Instruction.stackAlloc(1),
+        Instruction.equal(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}, 0), "", 0);
+    try testRun(Program.init(&.{
+        Instruction.structAlloc(),
+        Instruction.stackAlloc(1),
+        Instruction.notEqual(),
+        Instruction.ret(),
+    }, 0, &.{}, &.{}, 0), "", 1);
 }
 
 test "structs" {

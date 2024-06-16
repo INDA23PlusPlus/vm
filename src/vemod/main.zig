@@ -60,8 +60,8 @@ pub fn logFn(
 ) void {
     const scope_prefix = "(" ++ @tagName(scope) ++ "): ";
     const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
-    std.debug.getStderrMutex().lock();
-    defer std.debug.getStderrMutex().unlock();
+    std.debug.lockStdErr();
+    defer std.debug.unlockStdErr();
     const stderr = std.io.getStdErr().writer();
     nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
 }
