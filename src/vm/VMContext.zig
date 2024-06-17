@@ -199,6 +199,14 @@ pub fn errWriter(self: *const Self) std.io.Writer(*const Self, anyerror, writeSt
     return .{ .context = self };
 }
 
+pub fn runtimeError(self: *Self, err_spec: arch.err.ErrorSpecifier) anyerror {
+    self.rterror = .{
+        .pc = self.pc - 1,
+        .err = err_spec,
+    };
+    return error.RuntimeError;
+}
+
 pub fn deinit(self: *Self) void {
     self.flush() catch @panic("flush failed");
     self.write_buffer_destroy_fn(self);

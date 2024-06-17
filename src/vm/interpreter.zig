@@ -60,50 +60,40 @@ inline fn likely(a: bool) bool {
     return !unlikely(!a);
 }
 
-fn makeBinOpError(comptime T: type, op: Opcode, ctxt: *VMContext) RtError {
-    @setCold(true);
-    return .{
-        .pc = ctxt.pc - 1,
-        .err = .{
-            .invalid_binop = .{
-                .lt = Value.TagFromType(T).?,
-                .op = op,
-                .rt = Value.TagFromType(T).?,
-            },
-        },
-    };
-}
-
 inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContext) !Value {
     return switch (op) {
         .add => if (T == Value.GetRepr(.int)) Value.from(a +% b) else Value.from(a + b),
         .sub => if (T == Value.GetRepr(.int)) Value.from(a -% b) else Value.from(a - b),
         .mul => if (T == Value.GetRepr(.int)) Value.from(a *% b) else Value.from(a * b),
-        .bit_or => if (T == Value.GetRepr(.int)) Value.from(a | b) else blk: {
-            ctxt.rterror = makeBinOpError(T, op, ctxt);
-            break :blk error.RuntimeError;
-        },
-        .bit_xor => if (T == Value.GetRepr(.int)) Value.from(a ^ b) else blk: {
-            ctxt.rterror = makeBinOpError(T, op, ctxt);
-            break :blk error.RuntimeError;
-        },
-        .bit_and => if (T == Value.GetRepr(.int)) Value.from(a & b) else blk: {
-            ctxt.rterror = makeBinOpError(T, op, ctxt);
-            break :blk error.RuntimeError;
-        },
-        .log_and => if (T == Value.GetRepr(.int)) Value.from(a != 0 and b != 0) else blk: {
-            ctxt.rterror = makeBinOpError(T, op, ctxt);
-            break :blk error.RuntimeError;
-        },
-        .log_or => if (T == Value.GetRepr(.int)) Value.from(a != 0 or b != 0) else blk: {
-            ctxt.rterror = makeBinOpError(T, op, ctxt);
-            break :blk error.RuntimeError;
-        },
+        .bit_or => if (T == Value.GetRepr(.int)) Value.from(a | b) else ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = Value.TagFromType(T).?,
+            .op = op,
+            .rt = Value.TagFromType(T).?,
+        } }),
+        .bit_xor => if (T == Value.GetRepr(.int)) Value.from(a ^ b) else ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = Value.TagFromType(T).?,
+            .op = op,
+            .rt = Value.TagFromType(T).?,
+        } }),
+        .bit_and => if (T == Value.GetRepr(.int)) Value.from(a & b) else ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = Value.TagFromType(T).?,
+            .op = op,
+            .rt = Value.TagFromType(T).?,
+        } }),
+        .log_and => if (T == Value.GetRepr(.int)) Value.from(a != 0 and b != 0) else ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = Value.TagFromType(T).?,
+            .op = op,
+            .rt = Value.TagFromType(T).?,
+        } }),
+        .log_or => if (T == Value.GetRepr(.int)) Value.from(a != 0 or b != 0) else ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = Value.TagFromType(T).?,
+            .op = op,
+            .rt = Value.TagFromType(T).?,
+        } }),
         .div => blk: {
             if (T == Value.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
-                    ctxt.rterror = .{ .pc = ctxt.pc - 1, .err = .division_by_zero };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.division_by_zero);
                 }
             }
             break :blk if (T == Value.GetRepr(.int)) Value.from(@divTrunc(a, b)) else Value.from(a / b);
@@ -111,8 +101,7 @@ inline fn doArithmetic(comptime T: type, a: T, op: Opcode, b: T, ctxt: *VMContex
         .mod => blk: {
             if (T == Value.GetRepr(.int)) {
                 if (b == 0 or (a == std.math.minInt(T) and b == -1)) {
-                    ctxt.rterror = .{ .pc = ctxt.pc - 1, .err = .division_by_zero };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.division_by_zero);
                 }
             }
             break :blk Value.from(a - b * @divTrunc(a, b));
@@ -178,7 +167,7 @@ fn objectEq(a: Value, b: Value) bool {
 
 fn getstr(a: Value) []const u8 {
     assert(a == .string_ref or a == .string_lit) catch {
-        debug_log("internal error: called getstr on non string\n", .{});
+        debug_log("internal error: called getstr on non string type '{s}'\n", .{@tagName(a)});
     };
     return if (a == .string_lit) a.string_lit.* else a.string_ref.get();
 }
@@ -209,15 +198,18 @@ fn stringOperation(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
 }
 
 fn compareEq(a: Value, b: Value) bool {
-    if (a.tag() != b.tag()) {
-        if (a.tag() == .unit or b.tag() == .unit) return false;
+    assert(Type.isValidComparison(a, b)) catch {
+        debug_log("internal error: called compareEq on invalid types '{s}' and '{s}'\n", .{ @tagName(a), @tagName(b) });
+    };
+
+    if (Type.areDifferentNumeric(a, b)) {
         const af = floatValue(a) catch unreachable;
         const bf = floatValue(b) catch unreachable;
         return af == bf;
     }
 
     return switch (a.tag()) {
-        .unit => true,
+        .unit => b != .unit,
         .int => a.as(.int).? == b.as(.int).?,
         .float => a.as(.float).? == b.as(.float).?,
         .string_ref, .string_lit => std.mem.order(u8, getstr(a), getstr(b)) == .eq,
@@ -226,7 +218,7 @@ fn compareEq(a: Value, b: Value) bool {
     };
 }
 
-fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
+fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) anyerror!Value {
     return switch (a.tag()) {
         .unit => Value.tryFrom(doArithmetic(Value.GetRepr(.int), 0, op, 0, ctxt)),
         .int => Value.tryFrom(doArithmetic(Value.GetRepr(.int), a.int, op, b.int, ctxt)),
@@ -235,59 +227,38 @@ fn doBinaryOpSameType(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
         .list => switch (op) {
             .cmp_eq => Value.from(listEq(a, b)),
             .cmp_ne => Value.from(!listEq(a, b)),
-            else => err: {
-                ctxt.rterror = .{
-                    .pc = ctxt.pc - 1,
-                    .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
-                };
-                break :err error.RuntimeError;
-            },
+            else => ctxt.runtimeError(.{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } }),
         },
         .object => switch (op) {
             .cmp_eq => Value.from(objectEq(a, b)),
             .cmp_ne => Value.from(!objectEq(a, b)),
-            else => err: {
-                ctxt.rterror = .{
-                    .pc = ctxt.pc - 1,
-                    .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
-                };
-                break :err error.RuntimeError;
-            },
+            else => ctxt.runtimeError(.{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } }),
         },
     };
 }
 
-fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
-    if (!Type.validComparison(a, b)) {
-        ctxt.rterror = .{
-            .pc = ctxt.pc - 1,
-            .err = .{ .invalid_binop = .{
-                .lt = a,
-                .op = op,
-                .rt = b,
-            } },
-        };
-        return error.RuntimeError;
-    }
-
+fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) anyerror!Value {
     if (a.tag() == b.tag()) {
         return doBinaryOpSameType(a, op, b, ctxt);
+        // return @call(.always_tail, doBinaryOpSameType, .{ a, op, b, ctxt });
     }
 
-    if ((a == .unit) != (b == .unit)) return switch (op) {
+    if (!Type.isValidComparison(a, b)) {
+        return ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = a,
+            .op = op,
+            .rt = b,
+        } });
+    }
+
+    if (@intFromEnum(a) | @intFromEnum(b) == @intFromEnum(Type.unit)) return switch (op) {
         .cmp_eq => Value.from(false),
         .cmp_ne => Value.from(true),
-        else => {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{ .invalid_binop = .{
-                    .lt = a,
-                    .op = op,
-                    .rt = b,
-                } },
-            };
-            return error.RuntimeError;
-        },
+        else => ctxt.runtimeError(.{ .invalid_binop = .{
+            .lt = a,
+            .op = op,
+            .rt = b,
+        } }),
     };
 
     // only valid types from here on out, could still be invalid if you try to add lists for example
@@ -304,7 +275,7 @@ fn doBinaryOp(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
         return Value.tryFrom(doArithmetic(float, af, op, bf, ctxt));
     }
 
-    if ((@intFromEnum(a) | @intFromEnum(b)) ^ 0b10000 < 2) {
+    if (Type.areBothStrings(a, b)) {
         return stringOperation(a, op, b, ctxt);
     }
 
@@ -797,11 +768,6 @@ pub fn run(ctxt: *VMContext) !i64 {
             },
             .dup => {
                 const v = try get(ctxt, false, -1);
-
-                if (ctxt.debug_output) {
-                    debug_log("duplicated: {}\n", .{v});
-                }
-
                 try push(ctxt, v);
             },
             .load => {
@@ -1727,95 +1693,101 @@ test "deep copy" {
     );
 }
 
-test "binary arithmetic operations" {
-    const util = struct {
-        fn testBinaryOp(op: Opcode) !void {
-            for (0..100) |a| {
-                for (1..100) |b| {
-                    const lhs: i64 = @intCast(a);
-                    const rhs: i64 = @intCast(b);
+fn testBinaryOp(op: Opcode) !void {
+    for (0..100) |a| {
+        for (1..100) |b| {
+            const lhs: i64 = @intCast(a);
+            const rhs: i64 = @intCast(b);
 
-                    const res: i64 = if (op.isArithmetic() or op.isBitwise() or op.isLogical()) switch (op) {
-                        .add => lhs + rhs,
-                        .sub => lhs - rhs,
-                        .mul => lhs * rhs,
-                        .div => @intCast(a / b),
-                        .mod => @intCast(a % b),
-                        .bit_and => lhs & rhs,
-                        .bit_or => lhs | rhs,
-                        .bit_xor => lhs ^ rhs,
-                        .log_or => @intFromBool(lhs != 0 or rhs != 0),
-                        .log_and => @intFromBool(lhs != 0 and rhs != 0),
-                        else => unreachable,
-                    } else @intFromBool(switch (op) {
-                        .cmp_lt => lhs < rhs,
-                        .cmp_gt => lhs > rhs,
-                        .cmp_le => lhs <= rhs,
-                        .cmp_ge => lhs >= rhs,
-                        .cmp_eq => lhs == rhs,
-                        .cmp_ne => lhs != rhs,
-                        else => unreachable,
-                    });
+            const res: i64 = if (op.isArithmetic() or op.isBitwise() or op.isLogical()) switch (op) {
+                .add => lhs + rhs,
+                .sub => lhs - rhs,
+                .mul => lhs * rhs,
+                .div => @intCast(a / b),
+                .mod => @intCast(a % b),
+                .bit_and => lhs & rhs,
+                .bit_or => lhs | rhs,
+                .bit_xor => lhs ^ rhs,
+                .log_or => @intFromBool(lhs != 0 or rhs != 0),
+                .log_and => @intFromBool(lhs != 0 and rhs != 0),
+                else => unreachable,
+            } else @intFromBool(switch (op) {
+                .cmp_lt => lhs < rhs,
+                .cmp_gt => lhs > rhs,
+                .cmp_le => lhs <= rhs,
+                .cmp_ge => lhs >= rhs,
+                .cmp_eq => lhs == rhs,
+                .cmp_ne => lhs != rhs,
+                else => unreachable,
+            });
 
-                    try testRun(
-                        Program.init(&.{
-                            Instruction.push(lhs),
-                            Instruction.push(rhs),
-                            Instruction{ .op = op },
-                            Instruction.ret(),
-                        }, 0, &.{}, &.{}, 0),
-                        "",
-                        res,
-                    );
+            try testRun(
+                Program.init(&.{
+                    Instruction.push(lhs),
+                    Instruction.push(rhs),
+                    Instruction{ .op = op },
+                    Instruction.ret(),
+                }, 0, &.{}, &.{}, 0),
+                "",
+                res,
+            );
 
-                    const lhsf: f64 = @floatFromInt(lhs);
-                    const rhsf: f64 = @floatFromInt(rhs);
+            const lhsf: f64 = @floatFromInt(lhs);
+            const rhsf: f64 = @floatFromInt(rhs);
 
-                    const resf: f64 = switch (op) {
-                        .add => lhsf + rhsf,
-                        .sub => lhsf - rhsf,
-                        .mul => lhsf * rhsf,
-                        .div => lhsf / rhsf,
-                        else => continue,
-                    };
+            const resf: f64 = switch (op) {
+                .add => lhsf + rhsf,
+                .sub => lhsf - rhsf,
+                .mul => lhsf * rhsf,
+                .div => lhsf / rhsf,
+                else => continue,
+            };
 
-                    try testRun(
-                        Program.init(&.{
-                            Instruction.pushf(lhsf),
-                            Instruction.pushf(rhsf),
-                            Instruction{ .op = op },
-                            Instruction.pushf(resf),
-                            Instruction.equal(),
-                            Instruction.ret(),
-                        }, 0, &.{}, &.{}, 0),
-                        "",
-                        1,
-                    );
-                }
-            }
+            try testRun(
+                Program.init(&.{
+                    Instruction.pushf(lhsf),
+                    Instruction.pushf(rhsf),
+                    Instruction{ .op = op },
+                    Instruction.pushf(resf),
+                    Instruction.equal(),
+                    Instruction.ret(),
+                }, 0, &.{}, &.{}, 0),
+                "",
+                1,
+            );
         }
-    };
+    }
+}
 
-    try util.testBinaryOp(.add);
-    try util.testBinaryOp(.sub);
-    try util.testBinaryOp(.mul);
-    try util.testBinaryOp(.div);
-    try util.testBinaryOp(.mod);
+test "binary arithmetic operations" {
+    try testBinaryOp(.add);
+    try testBinaryOp(.sub);
+    try testBinaryOp(.mul);
+    try testBinaryOp(.div);
+    try testBinaryOp(.mod);
+}
 
-    try util.testBinaryOp(.bit_and);
-    try util.testBinaryOp(.bit_or);
-    try util.testBinaryOp(.bit_xor);
+test "binary bitwise operations" {
+    try testBinaryOp(.bit_and);
+    try testBinaryOp(.bit_or);
+    try testBinaryOp(.bit_xor);
+}
 
-    try util.testBinaryOp(.log_and);
-    try util.testBinaryOp(.log_or);
+test "binary logical operations" {
+    try testBinaryOp(.log_and);
+    try testBinaryOp(.log_or);
+}
 
-    try util.testBinaryOp(.cmp_lt);
-    try util.testBinaryOp(.cmp_gt);
-    try util.testBinaryOp(.cmp_le);
-    try util.testBinaryOp(.cmp_ge);
-    try util.testBinaryOp(.cmp_eq);
-    try util.testBinaryOp(.cmp_ne);
+test "comparisons" {
+    try testBinaryOp(.cmp_lt);
+    try testBinaryOp(.cmp_gt);
+    try testBinaryOp(.cmp_le);
+    try testBinaryOp(.cmp_ge);
+    try testBinaryOp(.cmp_eq);
+    try testBinaryOp(.cmp_ne);
+}
 
+test "division and modulo" {
     // ensure a/b*b + a%b == a
     for (0..201) |i| {
         for (0..201) |j| {
