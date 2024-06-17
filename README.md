@@ -10,7 +10,7 @@ VeMod is a virtual stack machine written in Zig, with an associated assembly lan
 languages: the functional **Blue** language, and the imperative **Melancolang**.
 
 ## Prerequisites:
-* Zig compiler (0.12.0)
+* Zig compiler (0.13.0)
 
 ## Installation
 ```shellsession
