@@ -1,0 +1,7 @@
+#!/usr/bin/env vemod
+
+let
+	a x = println x;
+	const b = a "hej";
+in
+	b
