@@ -1,6 +1,6 @@
 # Zig directories
 .zig-cache/
-.zig-out/
+zig-out/
 
 # Log files
 *.log
