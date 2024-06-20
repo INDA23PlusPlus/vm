@@ -199,7 +199,11 @@ pub fn main() !u8 {
         } else if (mem.eql(u8, arg, "-t") or mem.eql(u8, arg, "--transpile")) {
             options.output_asm = true;
         } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
-            options.cl_expr = args.next();
+            options.cl_expr = args.next() orelse {
+                try usage(name, stderr);
+                try stderr.print("error: missing command line Blue expression\n", .{});
+                return 1;
+            };
         } else if (mem.eql(u8, arg, "-r") or mem.eql(u8, arg, "--repl")) {
             options.repl = true;
         } else if (mem.eql(u8, arg, "-d") or mem.eql(u8, arg, "--debug")) {
