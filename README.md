@@ -39,9 +39,9 @@ Run a compiled program:
 vemod program.vbf
 ```
 
-Run a Blue expression supplied as a command-line argument:
+Evaluate a Blue expression supplied as a command-line argument:
 ```shellsession
-vemod -p "print \"Hello\" . -> 0"
+vemod -e "print \"Hello\" . -> 0"
 ```
 
 Run the Blue REPL:

@@ -120,7 +120,7 @@ fn usage(name: []const u8, writer: anytype) !void {
         \\                             auto   Use JIT where possible. Default.
         \\                             off    Turn off JIT.
         \\    -h, --help              Show this help message and exit.
-        \\    -p, --parse "EXPR"      Parse Blue expression from command line, surrounded by double quotes.
+        \\    -e, --eval "EXPR"       Evaluate a Blue expression from command line, surrounded by double quotes.
         \\                             Overrides any provided file input.
         \\    -r, --repl              Run the Blue REPL.
         \\    -d, --debug             Print debug information.
@@ -198,7 +198,7 @@ pub fn main() !u8 {
             }
         } else if (mem.eql(u8, arg, "-t") or mem.eql(u8, arg, "--transpile")) {
             options.output_asm = true;
-        } else if (mem.eql(u8, arg, "-p") or mem.eql(u8, arg, "--parse")) {
+        } else if (mem.eql(u8, arg, "-e") or mem.eql(u8, arg, "--eval")) {
             options.cl_expr = args.next() orelse {
                 try usage(name, stderr);
                 try stderr.print("error: missing command line Blue expression\n", .{});
