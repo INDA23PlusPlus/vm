@@ -570,6 +570,23 @@ static const char *colorWord(const char *word, size_t len) {
     return word[0] == '\'' ? esc_green : esc_yellow;
 }
 
+extern int linenoise_no_color;
+
+void abAppendWithColor(struct abuf *ab, const char *str, int len, const char *color)
+{
+    if (!linenoise_no_color)
+    {
+        abAppend(ab, color, strlen(color));
+    }
+
+    abAppend(ab, str, len);
+
+    if (!linenoise_no_color)
+    {
+        abAppend(ab, esc_default, strlen(esc_default));
+    }
+}
+
 /* Adds Blue syntax hightlighting to the current line. */
 static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
     int start = -1, strstart = -1, pos;
@@ -579,15 +596,11 @@ static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
         if (buf[pos] == '\"') {
             if (start >= 0) {
                 const char *color = colorWord(buf + start, pos - start);
-                abAppend(ab, color, strlen(color));
-                abAppend(ab, buf + start, pos - start);
-                abAppend(ab, esc_default, strlen(esc_default));
+                abAppendWithColor(ab, buf + start, pos - start, color);
                 start = -1;
             }
             if (strstart >= 0) {
-                abAppend(ab, esc_magenta, strlen(esc_magenta));
-                abAppend(ab, buf + strstart, pos - strstart + 1);
-                abAppend(ab, esc_default, strlen(esc_default));
+                abAppendWithColor(ab, buf + strstart, pos - strstart, esc_magenta);
                 strstart = -1;
             } else {
                 strstart = pos;
@@ -604,9 +617,7 @@ static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
             if (start >= 0)
             {
                 const char *color = colorWord(buf + start, pos - start);
-                abAppend(ab, color, strlen(color));
-                abAppend(ab, buf + start, pos - start);
-                abAppend(ab, esc_default, strlen(esc_default));
+                abAppendWithColor(ab, buf + start, pos - start, color);
                 start = -1;
             }
             if (strstart == -1)
@@ -619,17 +630,13 @@ static void appendBufWithHl(struct abuf *ab, char *buf, size_t len) {
     if (start >= 0)
     {
         const char *color = colorWord(&buf[start], pos - start);
-        abAppend(ab, color, strlen(color));
-        abAppend(ab, &buf[start], pos - start);
-        abAppend(ab, esc_default, strlen(esc_default));
+        abAppendWithColor(ab, &buf[start], pos - start, color);
         start = -1;
     }
 
     if (strstart >= 0)
     {
-        abAppend(ab, esc_magenta, strlen(esc_magenta));
-        abAppend(ab, buf + strstart, pos - strstart + 1);
-        abAppend(ab, esc_default, strlen(esc_default));
+        abAppendWithColor(ab, buf + strstart, pos - strstart + 1, esc_magenta);
         strstart = -1;
     }
 }

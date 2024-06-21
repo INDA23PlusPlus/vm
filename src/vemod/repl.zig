@@ -32,6 +32,8 @@ const ln = @cImport({
     @cInclude("linenoise.h");
 });
 
+export var linenoise_no_color: c_int = undefined;
+
 fn isOnlyWhitespace(str: []const u8) bool {
     for (str) |c| {
         if (!ascii.isWhitespace(c)) {
@@ -66,6 +68,8 @@ pub fn main(
 
         return try eval(expr, allocator, stdout, stderr, no_color, debug_output, jit_mode);
     }
+
+    linenoise_no_color = @intFromBool(no_color);
 
     var input_buffer = ArrayList(u8).init(allocator);
     defer input_buffer.deinit();
