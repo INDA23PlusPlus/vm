@@ -125,6 +125,10 @@ fn usage(name: []const u8, writer: anytype) !void {
         \\    -r, --repl              Run the Blue REPL.
         \\    -d, --debug             Print debug information.
         \\    -n, --no-color          Disable terminal colors.
+        \\    -T, --type <FILETYPE>   Explicitly set input filetype. Can be one of
+        \\                             vmd    Vemod assembly source
+        \\                             vbf    Vemod binary format
+        \\                             blue   Blue source
         \\
     , .{name});
 }
@@ -210,6 +214,18 @@ pub fn main() !u8 {
             options.debug = true;
         } else if (mem.eql(u8, arg, "-n") or mem.eql(u8, arg, "--no-color")) {
             options.no_color = true;
+        } else if (mem.eql(u8, arg, "-T") or mem.eql(u8, arg, "--type")) {
+            const extstr = args.next() orelse {
+                try usage(name, stderr);
+                try stderr.print("error: missing input filetype argument\n", .{});
+                return 1;
+            };
+
+            options.extension = meta.stringToEnum(Extension, extstr) orelse {
+                try usage(name, stderr);
+                try stderr.print("error: invalid filetype {s}\n", .{extstr});
+                return 1;
+            };
         } else if (arg[0] == '-') {
             try usage(name, stderr);
             try stderr.print("error: unknown option '{s}'\n", .{arg});
