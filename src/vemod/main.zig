@@ -71,7 +71,7 @@ pub const std_options = std.Options{
     .logFn = logFn,
 };
 
-fn getExtension(filename: []const u8, basename: *?[]const u8) ?Extension {
+fn getExtension(filename: []const u8) ?struct { Extension, []const u8 } {
     var idx: usize = undefined;
 
     for (0..filename.len - 1) |i| {
@@ -82,8 +82,10 @@ fn getExtension(filename: []const u8, basename: *?[]const u8) ?Extension {
         }
     } else return null;
 
-    basename.* = filename[0 .. idx - 1];
-    return std.meta.stringToEnum(Extension, filename[idx..]);
+    const basename = filename[0 .. idx - 1];
+    const extension = std.meta.stringToEnum(Extension, filename[idx..]);
+
+    return if (extension) |ext| .{ ext, basename } else null;
 }
 
 const Options = struct {
@@ -256,7 +258,7 @@ pub fn main() !u8 {
         };
 
         if (options.extension == null) {
-            options.extension = getExtension(input_filename, &options.input_basename) orelse {
+            options.extension, options.input_basename = getExtension(input_filename) orelse {
                 try usage(name, stderr);
                 try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
                 return 1;
