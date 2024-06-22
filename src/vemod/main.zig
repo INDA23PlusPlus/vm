@@ -248,18 +248,20 @@ pub fn main() !u8 {
     const source = if (options.cl_expr) |cl_expr| cl_src: {
         options.extension = .blue;
         break :cl_src try allocator.dupe(u8, cl_expr);
-    } else file_src: {
+    } else if (isatty(stdin.context)) file_src: {
         const input_filename = options.input_filename orelse {
             try usage(name, stderr);
             try stderr.print("error: missing input file name\n", .{});
             return 1;
         };
 
-        options.extension = getExtension(input_filename, &options.input_basename) orelse {
-            try usage(name, stderr);
-            try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
-            return 1;
-        };
+        if (options.extension == null) {
+            options.extension = getExtension(input_filename, &options.input_basename) orelse {
+                try usage(name, stderr);
+                try stderr.print("error: unrecognized file extension: {s}\n", .{input_filename});
+                return 1;
+            };
+        }
 
         var infile = fs.cwd().openFile(options.input_filename.?, .{}) catch |err| {
             try stderr.print(
@@ -275,6 +277,20 @@ pub fn main() !u8 {
             try stderr.print(
                 "error: unable to read file {s}: {s}\n",
                 .{ input_filename, @errorName(err) },
+            );
+            return 1;
+        };
+    } else pipe_src: {
+        if (options.extension == null) {
+            try usage(name, stderr);
+            try stderr.print("error: `--type` option required for piped input\n", .{});
+            return 1;
+        }
+
+        break :pipe_src stdin.readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+            try stderr.print(
+                "error: unable to read input: {s}\n",
+                .{@errorName(err)},
             );
             return 1;
         };
