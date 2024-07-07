@@ -177,7 +177,7 @@ fn stringOperation(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
     const rhs = getstr(b);
 
     const order = std.mem.order(u8, lhs, rhs);
-    return Value.from(@intFromBool(switch (op) {
+    return Value.tryFrom(switch (op) {
         .cmp_eq => order == .eq,
         .cmp_ne => order != .eq,
 
@@ -187,14 +187,8 @@ fn stringOperation(a: Value, op: Opcode, b: Value, ctxt: *VMContext) !Value {
         .cmp_le => order != .gt,
         .cmp_lt => order == .lt,
 
-        else => {
-            ctxt.rterror = .{
-                .pc = ctxt.pc - 1,
-                .err = .{ .invalid_binop = .{ .lt = a.tag(), .op = op, .rt = b.tag() } },
-            };
-            !return error.RuntimeError;
-        },
-    }));
+        else => ctxt.runtimeError(.{ .invalid_binop = .{ .lt = a, .op = op, .rt = b } }),
+    });
 }
 
 fn compareEq(a: Value, b: Value) bool {
@@ -513,7 +507,7 @@ inline fn print(x: Value, ctxt: *VMContext) !void {
 }
 
 // wrapper around std.debug.print, but marked as cold as a hint to the optimizer
-// should only be called for errors in interpreter, that is, for bugs in the interpreter
+// should only be called for errors in interpreter / debugging the interpreter
 noinline fn debug_log(comptime fmt: []const u8, args: anytype) void {
     @setCold(true);
     std.debug.print(fmt, args);
@@ -691,11 +685,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(ctxt.stack.items.len > 0);
                 const v = &ctxt.stack.items[ctxt.stack.items.len - 1];
                 if (v.tag() != .int) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } });
                 }
                 v.*.int += 1;
             },
@@ -703,11 +693,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(ctxt.stack.items.len > 0);
                 const v = &ctxt.stack.items[ctxt.stack.items.len - 1];
                 if (v.tag() != .int) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } });
                 }
                 v.*.int -= 1;
             },
@@ -715,11 +701,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(ctxt.stack.items.len > 0);
                 const v = ctxt.stack.getLast();
                 if (v != .int and v != .float) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } });
                 }
 
                 if (v == .int) {
@@ -732,11 +714,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(ctxt.stack.items.len > 0);
                 const v = ctxt.stack.getLast();
                 if (v.tag() != .int) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } });
                 }
                 ctxt.stack.items[ctxt.stack.items.len - 1].int = @intFromBool(ctxt.stack.items[ctxt.stack.items.len - 1].int == 0);
             },
@@ -744,11 +722,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 try assert(ctxt.stack.items.len > 0);
                 const v = ctxt.stack.getLast();
                 if (v.tag() != .int) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_unop = .{ .t = v.tag(), .op = insn.op } });
                 }
                 ctxt.stack.items[ctxt.stack.items.len - 1].int = ~ctxt.stack.items[ctxt.stack.items.len - 1].int;
             },
@@ -797,13 +771,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                     2 => {
                         try ctxt.flush();
                     },
-                    else => |c| {
-                        ctxt.rterror = .{
-                            .pc = ctxt.pc - 1,
-                            .err = .{ .undefined_syscall = c },
-                        };
-                        return error.RuntimeError;
-                    },
+                    else => |c| return ctxt.runtimeError(.{ .undefined_syscall = c }),
                 }
             },
             .call => {
@@ -962,10 +930,10 @@ pub fn run(ctxt: *VMContext) !i64 {
                 }
             },
             .list_alloc => {
-                const s = mem.alloc_list();
-                defer s.deinit();
+                const l = mem.alloc_list();
+                defer l.deinit();
 
-                const v = take(ctxt, Value.from(s));
+                const v = take(ctxt, Value.from(l));
                 defer drop(ctxt, v);
 
                 try push(ctxt, v);
@@ -978,27 +946,19 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, idx);
 
                 if (idx.tag() != .int) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_index_type = idx },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_index_type = idx });
                 }
 
                 const index = @as(usize, @intCast(idx.asUnChecked(.int)));
 
-                const s = try pop(ctxt);
-                defer drop(ctxt, s);
+                const l = try pop(ctxt);
+                defer drop(ctxt, l);
 
-                if (s.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_indexing = s.tag() },
-                    };
-                    return error.RuntimeError;
+                if (l.tag() != .list) {
+                    return ctxt.runtimeError(.{ .non_list_indexing = l });
                 }
 
-                const list = s.asUnChecked(.list);
+                const list = l.asUnChecked(.list);
 
                 list.set(index, v);
             },
@@ -1007,27 +967,19 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, idx);
 
                 if (idx.tag() != .int) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .invalid_index_type = idx.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_index_type = idx });
                 }
 
                 const index = @as(usize, @intCast(idx.asUnChecked(.int)));
 
-                const s = try pop(ctxt);
+                const l = try pop(ctxt);
 
-                if (s.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_indexing = s.tag() },
-                    };
-                    return error.RuntimeError;
+                if (l.tag() != .list) {
+                    return ctxt.runtimeError(.{ .non_list_indexing = l });
                 }
 
-                defer drop(ctxt, s);
-                const list = s.asUnChecked(.list);
+                defer drop(ctxt, l);
+                const list = l.asUnChecked(.list);
 
                 const v = take(ctxt, Value.from(list.get(index)));
                 defer drop(ctxt, v);
@@ -1037,11 +989,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .list_length => {
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_length = l.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .non_list_length = l });
                 }
 
                 defer drop(ctxt, l);
@@ -1057,11 +1005,7 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_append = l.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .non_list_append = l });
                 }
 
                 defer drop(ctxt, l);
@@ -1072,11 +1016,7 @@ pub fn run(ctxt: *VMContext) !i64 {
             .list_pop => {
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_indexing = l.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .non_list_indexing = l });
                 }
                 defer drop(ctxt, l);
                 const list = l.asUnChecked(.list);
@@ -1091,11 +1031,7 @@ pub fn run(ctxt: *VMContext) !i64 {
 
                 const l = try pop(ctxt);
                 if (l.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_list_indexing = l.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .non_list_indexing = l });
                 }
                 defer drop(ctxt, l);
                 const list = l.asUnChecked(.list);
@@ -1106,17 +1042,11 @@ pub fn run(ctxt: *VMContext) !i64 {
                 const l_1 = try pop(ctxt);
                 const l_2 = try pop(ctxt);
                 if (l_1.tag() != .list or l_2.tag() != .list) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{
-                            .invalid_binop = .{
-                                .lt = l_1.tag(),
-                                .op = insn.op,
-                                .rt = l_2.tag(),
-                            },
-                        },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .invalid_binop = .{
+                        .lt = l_1,
+                        .op = insn.op,
+                        .rt = l_2,
+                    } });
                 }
 
                 defer drop(ctxt, l_1);
@@ -1142,11 +1072,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, s);
 
                 if (s.tag() != .object) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_struct_field_access = s.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .non_struct_field_access = s });
                 }
 
                 const obj = s.asUnChecked(.object);
@@ -1159,11 +1085,7 @@ pub fn run(ctxt: *VMContext) !i64 {
                 defer drop(ctxt, s);
 
                 if (s.tag() != .object) {
-                    ctxt.rterror = .{
-                        .pc = ctxt.pc - 1,
-                        .err = .{ .non_struct_field_access = s.tag() },
-                    };
-                    return error.RuntimeError;
+                    return ctxt.runtimeError(.{ .non_struct_field_access = s });
                 }
 
                 const obj = s.asUnChecked(.object);
