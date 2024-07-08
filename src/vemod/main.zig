@@ -302,6 +302,26 @@ pub fn main() !u8 {
 
     var program: Program = undefined;
 
+    var outfile: fs.File = undefined;
+    if (options.output_filename != null or isatty(stdout.context)) {
+        const filename = options.output_filename orelse blk: {
+            try name_buffer.writer().writeAll(options.input_basename orelse "output");
+            const ext = if (options.output_asm) ".vmd" else if (options.action == .compile) ".vbf" else unreachable;
+            try name_buffer.writer().writeAll(ext);
+            break :blk name_buffer.items;
+        };
+        outfile = fs.cwd().createFile(filename, .{}) catch |err| {
+            try stderr.print(
+                "error: unable to create file {s}: {s}\n",
+                .{ filename, @errorName(err) },
+            );
+            return 1;
+        };
+    } else {
+        outfile = stdout.context;
+    }
+    defer outfile.close();
+
     switch (options.extension.?) {
         .vbf => {
             var binary_reader = io.fixedBufferStream(source);
@@ -349,19 +369,6 @@ pub fn main() !u8 {
             }
 
             if (options.output_asm) {
-                const filename = options.output_filename orelse blk: {
-                    try name_buffer.writer().writeAll(options.input_basename orelse "output");
-                    try name_buffer.writer().writeAll(".vmd");
-                    break :blk name_buffer.items;
-                };
-                var outfile = fs.cwd().createFile(filename, .{}) catch |err| {
-                    try stderr.print(
-                        "error: unable to create file {s}: {s}\n",
-                        .{ filename, @errorName(err) },
-                    );
-                    return 1;
-                };
-                defer outfile.close();
                 try outfile.writer().writeAll(compilation.result);
                 return 0;
             }
@@ -401,20 +408,6 @@ pub fn main() !u8 {
 
     switch (options.action) {
         .compile => {
-            const output_filename = options.output_filename orelse blk: {
-                try name_buffer.writer().writeAll(options.input_basename orelse "output");
-                try name_buffer.writer().writeAll(".vbf");
-                break :blk name_buffer.items;
-            };
-            var outfile = fs.cwd().createFile(output_filename, .{}) catch |err| {
-                try stderr.print(
-                    "error: unable to create file {s}: {s}\n",
-                    .{ output_filename, @errorName(err) },
-                );
-                return 1;
-            };
-            defer outfile.close();
-
             binary.emit(outfile.writer(), program) catch |err| {
                 try stderr.print(
                     "error: unable to emit binary: {s}\n",
