@@ -303,7 +303,7 @@ pub fn main() !u8 {
     var program: Program = undefined;
 
     var outfile: fs.File = undefined;
-    if (options.output_filename != null or isatty(stdout.context)) {
+    if (options.output_filename != null or (isatty(stdout.context) and options.action != .run)) {
         const filename = options.output_filename orelse blk: {
             try name_buffer.writer().writeAll(options.input_basename orelse "output");
             const ext = if (options.output_asm) ".vmd" else if (options.action == .compile) ".vbf" else unreachable;

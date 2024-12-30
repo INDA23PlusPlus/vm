@@ -83,7 +83,7 @@ let
       loop 0 y . -> print "\n";
 
   # Render the image
-  const RENDER =
+  render discard =
     let
       loop y =
         if y = RESOLUTION
@@ -91,4 +91,4 @@ let
         else row y . -> loop y + 1;
     in loop 0;
 
-in RENDER . -> 0
+in render () . -> 0

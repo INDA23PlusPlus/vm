@@ -183,6 +183,34 @@ pub fn build(b: *std.Build) void {
     build_vemod.dependOn(&install_vemod.step);
 
     //
+    // Blue native compiler
+    //
+    const bluec = b.addExecutable(.{
+        .name = "bluec",
+        .root_source_file = b.path("src/bluec/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const build_bluec = b.step("bluec", "Build the Blue native compiler");
+    const install_bluec = b.addInstallArtifact(bluec, .{});
+    build_bluec.dependOn(&install_bluec.step);
+
+    //
+    // VeMod runtime library
+    //
+    const libvemod = b.addSharedLibrary(.{
+        .name = "vemod",
+        .root_source_file = b.path("src/libvemod/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const build_libvemod = b.step("libvemod", "Build the VeMod runtime library");
+    const install_libvemod = b.addInstallArtifact(libvemod, .{});
+    build_libvemod.dependOn(&install_libvemod.step);
+
+    //
     // Instruction reference
     //
     const refgen_exe = b.addExecutable(.{
@@ -212,6 +240,8 @@ pub fn build(b: *std.Build) void {
     vemod.root_module.addImport("blue", blue_mod);
     vemod.root_module.addImport("jit", jit_mod);
     vemod.root_module.addImport("diagnostic", diagnostic_mod);
+    bluec.root_module.addImport("blue", blue_mod);
+    bluec.root_module.addImport("diagnostic", diagnostic_mod);
 
     //
     // Module-module dependencies
@@ -263,6 +293,8 @@ pub fn build(b: *std.Build) void {
     //
     b.installArtifact(vmdls);
     b.installArtifact(vemod);
+    b.installArtifact(bluec);
+    b.installArtifact(libvemod);
 
     //
     // Test step

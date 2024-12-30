@@ -68,6 +68,10 @@ pub fn getNode(ast: *Ast, id: usize) *Node {
     return &ast.nodes.items[id];
 }
 
+pub fn getNodeConst(ast: *const Ast, id: usize) *const Node {
+    return &ast.nodes.items[id];
+}
+
 fn printNode(ast: *Ast, id: usize, writer: anytype) !void {
     const info = @typeInfo(Node);
     const mem = std.mem;
